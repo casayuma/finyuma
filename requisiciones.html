@@ -28,10 +28,12 @@ a{color:var(--blue)} button{font-family:var(--mono);cursor:pointer}
 .fld label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cactus);margin-bottom:6px}
 .fld select,.fld input,.fld textarea{width:100%;font-family:var(--mono);font-size:16px;padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:2px;outline:none}
 .fld select:focus,.fld input:focus,.fld textarea:focus{border-color:var(--cactus)}
+.fld select:disabled,.fld input:disabled{background:var(--wool);color:var(--cactus)}
 .fld input.pin{letter-spacing:.4em;text-align:center;font-size:22px}
 .gate-btn{margin-top:8px;width:100%;background:var(--cactus);color:#fff;border:none;padding:14px;font-size:13px;letter-spacing:.15em;text-transform:uppercase;border-radius:2px;transition:background .2s}
 .gate-btn:hover{background:#5c6149}
 .gate-btn.ghost{background:transparent;color:var(--cactus);border:1px solid var(--line);margin-top:10px}
+.gate-btn:disabled{background:var(--line);color:var(--cactus);cursor:not-allowed}
 .gate-err{color:var(--bad);font-size:12.5px;margin-top:14px;min-height:18px}
 .gate-info{color:var(--cactus);font-size:12px;margin-top:12px;min-height:16px}
 .hidden{display:none!important}
@@ -43,7 +45,7 @@ header.top{background:var(--cactus);color:#fff;padding:14px 22px;display:flex;al
 nav.tabs{background:var(--cactus);border-top:1px solid rgba(255,255,255,.15);padding:0 12px;display:flex;gap:2px;overflow-x:auto}
 nav.tabs button{background:transparent;border:none;color:rgba(255,255,255,.75);padding:12px 18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;border-bottom:3px solid transparent;white-space:nowrap}
 nav.tabs button.active{color:#fff;border-bottom-color:var(--gold)}
-main{max-width:1080px;margin:0 auto;padding:26px 18px 80px}
+main{max-width:1100px;margin:0 auto;padding:26px 18px 80px}
 .view{display:none}.view.active{display:block}
 .section-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cactus);margin:26px 0 10px}
 .ctl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
@@ -54,25 +56,47 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .kpi .k-lbl{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cactus);margin-bottom:6px}
 .kpi .k-val{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
 .kpi .k-sub{font-size:11px;color:var(--cactus);margin-top:2px}
-.cap-form{background:#fff;border:1px solid var(--line);border-radius:3px;padding:24px;max-width:640px}
+.grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:20px;align-items:start}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.cap-form{background:#fff;border:1px solid var(--line);border-radius:3px;padding:24px}
 .cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
 .cap-grid .fld{margin-bottom:0}
 .cap-full{grid-column:1/-1}
 .cap-btn{background:var(--cactus);color:#fff;border:none;padding:13px 24px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-radius:2px}
 .cap-btn:hover{background:#5c6149}
+.cap-btn:disabled{background:var(--line);color:var(--cactus);cursor:not-allowed}
 .cap-btn.sec{background:var(--blue)}
 .cap-btn.sec:hover{background:#255a5e}
+.cap-btn.ghost2{background:transparent;border:1px solid var(--line);color:var(--cactus);padding:8px 14px}
+.item-row{display:grid;grid-template-columns:2fr 1fr 1fr .9fr .9fr auto;gap:8px;align-items:end;margin-bottom:14px}
+.item-row .fld{margin-bottom:0}
+@media(max-width:760px){.item-row{grid-template-columns:1fr 1fr}}
+.cart-box{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px;position:sticky;top:16px}
+.cart-box h3{font-size:15px;color:var(--cactus);margin-bottom:12px}
+.cart-empty{font-size:12.5px;color:var(--cactus);font-style:italic;padding:14px 0}
+.cart-item{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.cart-item .ci-name{font-weight:600}
+.cart-item .ci-meta{color:var(--cactus);font-size:11px}
+.cart-item .ci-amt{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cart-item .ci-x{background:none;border:none;color:var(--bad);font-size:11px;text-transform:uppercase;padding:0;margin-top:4px}
+.cart-total{display:flex;justify-content:space-between;padding-top:14px;font-size:16px;font-weight:600}
+.window-note{font-size:11.5px;padding:10px 12px;border-radius:2px;margin-top:14px}
+.window-ok{background:#e0efe0;color:var(--ok);border:1px solid var(--ok)}
+.window-bad{background:#f2d6dc;color:var(--bad);border:1px solid var(--bad)}
+.window-warn{background:#f2e6cf;color:var(--warn);border:1px solid var(--warn)}
 .aud{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .aud th{background:var(--cactus);color:var(--paper);text-align:left;padding:9px 11px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:500}
 .aud td{padding:8px 11px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;vertical-align:top}
 .aud tr:hover td{background:#efe9d8}
 .aud td.num{text-align:right}
+.pedido-head td{background:var(--wool);font-weight:600;border-top:2px solid var(--cactus);font-size:12px;letter-spacing:.03em}
 .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600}
 .p-pend{background:#f2e6cf;color:var(--warn)}
 .p-aprob{background:#dce7ea;color:var(--blue)}
 .p-comprada{background:#e6d9ec;color:var(--purple)}
 .p-recibida{background:#e0efe0;color:var(--ok)}
 .p-rech{background:#f2d6dc;color:var(--bad)}
+.p-horario{background:#f2d6dc;color:var(--bad)}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap}
 .mini-btn{border:none;padding:6px 11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border-radius:2px;color:#fff}
 .mini-btn.ok{background:var(--ok)}
@@ -86,7 +110,11 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .errbox{background:#f2d6dc;border:1px solid var(--bad);color:var(--bad);padding:14px 16px;border-radius:2px;font-size:13px;margin:20px 0}
 .okmsg{background:#e0efe0;border:1px solid var(--ok);color:var(--ok);padding:10px 14px;border-radius:2px;font-size:13px;margin:12px 0}
 .note{font-size:11.5px;color:var(--cactus);margin-top:18px;font-style:italic}
-@media(max-width:560px){main{padding:20px 12px 70px}.cap-grid{grid-template-columns:1fr}}
+.viz-root{--surface-1:#ffffff;--text-primary:#20302f;--text-secondary:#72785E;--grid:#ece6d4}
+.chart-wrap{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px;margin-bottom:20px;overflow-x:auto}
+.chart-legend-label{font-size:11.5px}
+.dept-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+@media(max-width:560px){main{padding:20px 12px 70px}.cap-grid{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -117,11 +145,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
     <h1>Casa Yuma · Requisiciones</h1>
     <div class="who"><span id="whoLabel"></span><a href="index.html">Portal</a><button onclick="logout()">Salir</button></div>
   </header>
-  <nav class="tabs" id="tabs">
-    <button data-view="nueva" class="active">Nueva requisición</button>
-    <button data-view="pendientes">Pendientes</button>
-    <button data-view="historial">Historial</button>
-  </nav>
+  <nav class="tabs" id="tabs"></nav>
   <main>
     <section class="view active" id="v-nueva"><div id="nuevaBody"></div></section>
     <section class="view" id="v-pendientes"><div id="pendientesBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
@@ -130,37 +154,71 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
         <label>Desde</label><input id="hDesde" type="date">
         <label>Hasta</label><input id="hHasta" type="date">
         <label>Estatus</label>
-        <select id="hEstatus"><option value="">Todos</option><option>Pendiente</option><option>Aprobada</option><option>Comprada</option><option>Recibida</option><option>Rechazada</option></select>
+        <select id="hEstatus"><option value="">Todos</option><option>Pendiente</option><option>Aprobado</option><option>Comprada</option><option>Recibida</option><option>Rechazado</option></select>
+        <span id="hDeptoWrap"><label>Departamento</label><select id="hDepto"><option value="">Todos</option></select></span>
         <button class="cap-btn" style="padding:9px 16px" onclick="cargarHistorial()">Ver</button>
         <button class="cap-btn sec" style="padding:9px 16px" onclick="pdfHistorial()">PDF</button>
       </div>
       <div id="historialKpis"></div>
       <div id="historialBody"><div class="empty">Elige un rango de fechas para ver el historial.</div></div>
     </section>
+    <section class="view" id="v-gasto">
+      <div class="ctl">
+        <label>Mes</label><input id="gMes" type="month">
+        <button class="cap-btn" style="padding:9px 16px" onclick="cargarGasto()">Ver</button>
+      </div>
+      <div id="gastoBody"><div class="empty">Elige un mes para ver el gasto.</div></div>
+    </section>
   </main>
 </div>
 
 <script>
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/a/macros/casayuma.com/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec', // misma Web App que usa index.html y pagos.html
+  WEBAPP_URL:'PEGA_AQUI_LA_URL_DE_TU_WEB_APP', // misma Web App que usa index.html y pagos.html
   PAGOS_URL:'pagos.html',
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
     {id:'CY039',n:'Jesus Israel Castillo Hernández'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
     {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
+    {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
+    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY025',n:'Egbert Cruz García'},
+    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
+    {id:'CY005',n:'Horacio Muñoz Martínez'},
   ],
 };
-const DEPARTAMENTOS=['Recepción','Cocina','F&B','Housekeeping','Mantenimiento','Eventos','Compras','Administración'];
+// Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
+const DEPARTAMENTOS=[
+  {nombre:'Administración', color:'#2a78d6'},
+  {nombre:'Restaurante',    color:'#eb6834'},
+  {nombre:'Cocina',         color:'#1baf7a'},
+  {nombre:'Mantenimiento',  color:'#eda100'},
+  {nombre:'Ama de llaves',  color:'#e87ba4'},
+  {nombre:'Recepción',      color:'#008300'},
+];
 const URGENCIAS=['Baja','Media','Alta','Urgente'];
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
-let SESSION=null,PENDING=null;
+const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
+let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[];
 
 (function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
+(function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
 
 async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});return res.json();}
 async function apiPost(body){const res=await fetch(CONFIG.WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});return res.json();}
+
+// ————— Ventana de días/horario (America/Mexico_City) —————
+const DEPTO_SIN_VENTANA='Cocina';
+function ventanaInfo(){
+  const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/Mexico_City',weekday:'short',hour:'2-digit',hour12:false});
+  const partes=fmt.formatToParts(new Date());
+  const dia=(partes.find(p=>p.type==='weekday')||{}).value||'';
+  let hora=parseInt((partes.find(p=>p.type==='hour')||{}).value||'0',10);
+  if(hora===24)hora=0;
+  const permitidos=['Sat','Sun','Tue','Thu'];
+  return {permitido: permitidos.indexOf(dia)!==-1 && hora<20, dia, hora};
+}
 
 (async function tryAutoLogin(){
   try{
@@ -169,8 +227,9 @@ async function apiPost(body){const res=await fetch(CONFIG.WEBAPP_URL,{method:'PO
     const s=JSON.parse(raw);
     const j=await apiGet({accion:'entrar',id:s.id,pin:s.pin});
     if(j.ok){
-      if((j.nivel||s.nivel)!=='full'){return;}
-      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:j.nivel||s.nivel};
+      const nivel=j.nivel||s.nivel;
+      if(nivel!=='full' && nivel!=='lider'){return;}
+      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:nivel,departamento:j.departamento||s.departamento||''};
       entrarApp();
     }
   }catch(e){}
@@ -183,7 +242,7 @@ async function identificar(){
   try{
     const j=await apiGet({accion:'login',id:id});
     if(!j.ok){info.textContent='';err.textContent=j.error;return;}
-    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,tienePin:j.tienePin};info.textContent='';
+    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento,tienePin:j.tienePin};info.textContent='';
     document.getElementById('step1').classList.add('hidden');document.getElementById('step2').classList.remove('hidden');
     if(j.tienePin){document.getElementById('pinLabel').textContent='Tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.add('hidden');document.getElementById('pinBtn').textContent='Entrar';}
     else{document.getElementById('pinLabel').textContent='Crea tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.remove('hidden');document.getElementById('pinBtn').textContent='Crear PIN y entrar';info.textContent='Primera vez: define un PIN de 4 a 6 dígitos.';}
@@ -200,8 +259,8 @@ async function pinSubmit(){
     else{const pin2=document.getElementById('pinInput2').value.trim();if(pin!==pin2){err.textContent='Los PIN no coinciden.';return;}j=await apiPost({accion:'crearPin',id:PENDING.id,pin:pin});}
     if(!j.ok){err.textContent=j.error;return;}
     const nivel=j.nivel||PENDING.nivel;
-    if(nivel!=='full'){err.textContent='Este módulo requiere nivel de acceso "full".';return;}
-    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel};entrarApp();
+    if(nivel!=='full' && nivel!=='lider'){err.textContent='Tu usuario no tiene acceso a Requisiciones.';return;}
+    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel,departamento:j.departamento||PENDING.departamento||''};entrarApp();
   }catch(e){err.textContent='No se pudo conectar.';}
 }
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')pinSubmit();});
@@ -211,60 +270,195 @@ document.getElementById('userId').addEventListener('keydown',e=>{if(e.key==='Ent
 function entrarApp(){
   document.getElementById('gate').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase();
+  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase()+(SESSION.departamento?' · '+SESSION.departamento:'');
   try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
-  document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>switchView(b.dataset.view,b));
-  renderNueva();
-  cargarPendientes();
+  buildTabs();
+  cargarCatalogo().then(renderNueva);
+  if(SESSION.nivel==='full')cargarPendientes();
+  // Fija/oculta el filtro de depto según el rol
+  const wrap=document.getElementById('hDeptoWrap');
+  if(SESSION.nivel==='lider'){wrap.classList.add('hidden');}
+  const gMes=document.getElementById('gMes'); gMes.value=new Date().toISOString().slice(0,7);
 }
 function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}location.reload();}
-function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');}
 
-// ————— Nueva requisición —————
+const TABDEFS_FULL=[
+  {id:'nueva',label:'Nueva requisición'},
+  {id:'pendientes',label:'Pendientes'},
+  {id:'historial',label:'Historial'},
+  {id:'gasto',label:'Gasto por depto'},
+];
+const TABDEFS_LIDER=[
+  {id:'nueva',label:'Nueva requisición'},
+  {id:'historial',label:'Mis solicitudes'},
+  {id:'gasto',label:'Gasto de mi depto'},
+];
+function buildTabs(){
+  const defs = SESSION.nivel==='full' ? TABDEFS_FULL : TABDEFS_LIDER;
+  const tabs=document.getElementById('tabs');
+  tabs.innerHTML='';
+  defs.forEach((t,i)=>{
+    const b=document.createElement('button');
+    b.textContent=t.label; b.dataset.view=t.id;
+    if(i===0)b.classList.add('active');
+    b.onclick=()=>switchView(t.id,b);
+    tabs.appendChild(b);
+  });
+  switchView(defs[0].id, tabs.querySelector('button'));
+}
+function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');
+  if(id==='historial' && !document.getElementById('historialBody').dataset.loaded) cargarHistorial();
+  if(id==='gasto' && !document.getElementById('gastoBody').dataset.loaded) cargarGasto();
+}
+
+// ————— Catálogo —————
+async function cargarCatalogo(){
+  try{ const j=await apiGet({accion:'catalogo_list',id:SESSION.id,pin:SESSION.pin}); if(j.ok) CATALOGO=j.filas||[]; }catch(e){ CATALOGO=[]; }
+}
+
+// ————— Nueva requisición (carrito) —————
 function renderNueva(){
+  CARRITO=[];
   const hoy=new Date().toISOString().slice(0,10);
+  const deptoOpts = SESSION.nivel==='lider'
+    ? `<option>${SESSION.departamento}</option>`
+    : DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('');
+  const deptoDisabled = SESSION.nivel==='lider' ? 'disabled' : '';
   document.getElementById('nuevaBody').innerHTML=`
     <div class="section-eyebrow">Nueva requisición</div>
-    <div class="cap-form">
-      <div class="cap-grid">
-        <div class="fld"><label>Departamento</label><select id="rDepto">${DEPARTAMENTOS.map(d=>`<option>${d}</option>`).join('')}</select></div>
-        <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
-        <div class="fld cap-full"><label>Artículo / Servicio solicitado</label><input id="rArticulo" placeholder="Ej. Bomba de alberca 1HP"></div>
-        <div class="fld"><label>Cantidad</label><input id="rCantidad" type="number" step="1" min="1" value="1"></div>
-        <div class="fld"><label>Unidad</label><input id="rUnidad" placeholder="pza, litro, servicio…"></div>
-        <div class="fld"><label>Presupuesto estimado (MXN)</label><input id="rPresupuesto" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
-        <div class="fld cap-full"><label>Proveedor sugerido (opcional)</label><input id="rProveedor" placeholder="Si ya sabes a quién comprarle"></div>
-        <div class="fld cap-full"><label>Justificación</label><textarea id="rJustificacion" rows="3" placeholder="¿Por qué se necesita?"></textarea></div>
+    <div class="grid2">
+      <div class="cap-form">
+        <div class="cap-grid">
+          <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito()">${deptoOpts}</select></div>
+          <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
+          <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
+          <div class="fld cap-full"><label>Justificación del pedido</label><textarea id="rJustificacion" rows="2" placeholder="¿Por qué se necesita este pedido?"></textarea></div>
+        </div>
+
+        <div class="section-eyebrow" style="margin-top:6px">Agregar artículo</div>
+        <div class="item-row">
+          <div class="fld"><label>Artículo (catálogo)</label>
+            <select id="iCatalogo" onchange="seleccionCatalogo()">
+              <option value="">— Elegir del catálogo —</option>
+              ${CATALOGO.map(c=>`<option value="${c[0]}" data-unidad="${c[2]}" data-precio="${c[3]}">${c[1]} ${c[3]?('($'+money(c[3])+'/'+c[2]+')'):''}</option>`).join('')}
+              <option value="__otro__">Otro (personalizado)</option>
+            </select>
+          </div>
+          <div class="fld" id="iArticuloWrap" style="display:none"><label>Nombre del artículo</label><input id="iArticulo" placeholder="Ej. Bomba de alberca 1HP"></div>
+          <div class="fld"><label>Cantidad</label><input id="iCantidad" type="number" step="1" min="1" value="1" oninput="actualizarPrevisualizacion()"></div>
+          <div class="fld"><label>Unidad</label><input id="iUnidad" placeholder="pza, litro…"></div>
+          <div class="fld"><label>Precio unitario</label><input id="iPrecio" type="number" step="0.01" placeholder="0.00" oninput="actualizarPrevisualizacion()"></div>
+          <button class="cap-btn ghost2" onclick="agregarAlCarrito()">+ Agregar</button>
+        </div>
+        <div class="note" id="iPrevisualizacion"></div>
+
+        <button class="cap-btn" id="btnEnviarPedido" onclick="enviarPedido()" style="margin-top:18px">Enviar pedido</button>
+        <div id="nuevaMsg"></div>
       </div>
-      <button class="cap-btn" onclick="crearRequisicion()">Enviar requisición</button>
-      <div id="nuevaMsg"></div>
+
+      <div class="cart-box">
+        <h3>Lista del pedido</h3>
+        <div id="carritoLista"></div>
+        <div class="cart-total"><span>Total</span><span id="carritoTotal">$0.00</span></div>
+        <div id="ventanaAviso"></div>
+      </div>
     </div>`;
+  renderCarrito();
 }
-async function crearRequisicion(){
-  const articulo=document.getElementById('rArticulo').value.trim();
-  const justificacion=document.getElementById('rJustificacion').value.trim();
+function seleccionCatalogo(){
+  const sel=document.getElementById('iCatalogo');
+  const opt=sel.options[sel.selectedIndex];
+  const esOtro = sel.value==='__otro__';
+  document.getElementById('iArticuloWrap').style.display = esOtro ? 'block' : 'none';
+  if(!esOtro && sel.value){
+    document.getElementById('iUnidad').value=opt.dataset.unidad||'';
+    document.getElementById('iPrecio').value=opt.dataset.precio||'';
+  } else if(esOtro){
+    document.getElementById('iUnidad').value='';
+    document.getElementById('iPrecio').value='';
+  }
+  actualizarPrevisualizacion();
+}
+function actualizarPrevisualizacion(){
+  const cant=num(document.getElementById('iCantidad').value)||0;
+  const precio=num(document.getElementById('iPrecio').value)||0;
+  document.getElementById('iPrevisualizacion').textContent = (cant&&precio) ? ('Subtotal de este artículo: $'+money(cant*precio)) : '';
+}
+function agregarAlCarrito(){
+  const sel=document.getElementById('iCatalogo');
+  const esOtro = sel.value==='__otro__' || !sel.value;
+  const opt=sel.options[sel.selectedIndex];
+  const articulo = esOtro ? document.getElementById('iArticulo').value.trim() : opt.textContent.replace(/\s*\(\$.*\)$/,'');
+  const catalogoId = esOtro ? '' : sel.value;
+  const cantidad = num(document.getElementById('iCantidad').value)||1;
+  const unidad = document.getElementById('iUnidad').value.trim();
+  const precioUnitario = num(document.getElementById('iPrecio').value)||0;
+  if(!articulo){ alert('Escribe o elige un artículo.'); return; }
+  CARRITO.push({articulo, catalogoId, cantidad, unidad, precioUnitario, subtotal:Math.round(cantidad*precioUnitario*100)/100});
+  document.getElementById('iCatalogo').value='';
+  document.getElementById('iArticuloWrap').style.display='none';
+  document.getElementById('iArticulo').value='';
+  document.getElementById('iCantidad').value='1';
+  document.getElementById('iUnidad').value='';
+  document.getElementById('iPrecio').value='';
+  document.getElementById('iPrevisualizacion').textContent='';
+  renderCarrito();
+}
+function quitarDelCarrito(idx){ CARRITO.splice(idx,1); renderCarrito(); }
+function renderCarrito(){
+  const cont=document.getElementById('carritoLista');
+  if(!cont)return;
+  if(!CARRITO.length){ cont.innerHTML='<div class="cart-empty">Todavía no agregas artículos.</div>'; }
+  else {
+    cont.innerHTML=CARRITO.map((it,idx)=>`
+      <div class="cart-item">
+        <div><div class="ci-name">${it.articulo}</div><div class="ci-meta">${it.cantidad} ${it.unidad||''} ${it.precioUnitario?('· $'+money(it.precioUnitario)+' c/u'):''}</div></div>
+        <div><div class="ci-amt">${it.precioUnitario?('$'+money(it.subtotal)):'a definir'}</div><button class="ci-x" onclick="quitarDelCarrito(${idx})">Quitar</button></div>
+      </div>`).join('');
+  }
+  const total=CARRITO.reduce((s,it)=>s+(it.subtotal||0),0);
+  document.getElementById('carritoTotal').textContent='$'+money(total);
+
+  const deptoSel=document.getElementById('rDepto');
+  const departamento = deptoSel ? deptoSel.value : SESSION.departamento;
+  const v=ventanaInfo();
+  const esCocina = departamento===DEPTO_SIN_VENTANA;
+  const aviso=document.getElementById('ventanaAviso');
+  const btn=document.getElementById('btnEnviarPedido');
+  if(v.permitido){
+    aviso.innerHTML='<div class="window-note window-ok">Dentro del horario de captura.</div>';
+    btn.disabled=false;
+  } else if(esCocina){
+    aviso.innerHTML='<div class="window-note window-warn">Fuera del horario normal — Cocina puede enviarlo, pero quedará marcado para revisión de Gerencia General.</div>';
+    btn.disabled=false;
+  } else {
+    aviso.innerHTML='<div class="window-note window-bad">Cerrado. Las requisiciones solo se envían sábados, domingos, martes y jueves hasta las 8:00 PM.</div>';
+    btn.disabled=true;
+  }
+}
+async function enviarPedido(){
+  if(!CARRITO.length){ alert('Agrega al menos un artículo a la lista.'); return; }
+  const deptoSel=document.getElementById('rDepto');
+  const departamento = SESSION.nivel==='lider' ? SESSION.departamento : deptoSel.value;
   const msg=document.getElementById('nuevaMsg');
-  if(!articulo||!justificacion){msg.innerHTML='<div class="errbox">El artículo/servicio y la justificación son obligatorios.</div>';return;}
   const body={accion:'requisiciones_crear',id:SESSION.id,pin:SESSION.pin,
-    departamento:document.getElementById('rDepto').value,
-    articulo,cantidad:num(document.getElementById('rCantidad').value)||1,
-    unidad:document.getElementById('rUnidad').value.trim(),
-    justificacion,urgencia:document.getElementById('rUrgencia').value,
-    presupuesto:num(document.getElementById('rPresupuesto').value),
-    proveedorSugerido:document.getElementById('rProveedor').value.trim(),
-    fechaRequerida:document.getElementById('rFecha').value};
+    departamento,
+    justificacion:document.getElementById('rJustificacion').value.trim(),
+    urgencia:document.getElementById('rUrgencia').value,
+    fechaRequerida:document.getElementById('rFecha').value,
+    items:CARRITO};
   msg.innerHTML='<div class="okmsg">Enviando…</div>';
   try{
     const j=await apiPost(body);
     if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}
-    msg.innerHTML=`<div class="okmsg">Requisición ${j.id||''} creada. Aparecerá en "Pendientes".</div>`;
+    msg.innerHTML=`<div class="okmsg">Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${SESSION.nivel==='full'?'"Pendientes"':'"Mis solicitudes"'}.</div>`;
     renderNueva();
-    cargarPendientes();
+    if(SESSION.nivel==='full')cargarPendientes();
+    document.getElementById('historialBody').dataset.loaded='';
   }catch(e){msg.innerHTML='<div class="errbox">No se pudo enviar.</div>';}
 }
 
-// ————— Pendientes —————
+// ————— Pendientes (solo full) — agrupadas por pedido, aprobación por artículo —————
 async function cargarPendientes(){
   const el=document.getElementById('pendientesBody');
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
@@ -273,91 +467,123 @@ async function cargarPendientes(){
     if(!j.ok)throw new Error(j.error);
     const filas=j.filas||[];
     if(!filas.length){el.innerHTML='<div class="empty">No hay requisiciones pendientes de aprobación.</div>';return;}
-    el.innerHTML=`<div class="section-eyebrow">Pendientes de aprobación (${filas.length})</div>
+    const grupos=agruparPorPedido(filas);
+    el.innerHTML=`<div class="section-eyebrow">Pendientes de aprobación (${filas.length} artículo(s) en ${grupos.length} pedido(s))</div>
       <div style="overflow-x:auto"><table class="aud"><thead><tr>
-        <th>ID</th><th>Depto</th><th>Artículo/Servicio</th><th>Cant.</th><th>Presupuesto</th><th>Requerido</th><th>Urgencia</th><th>Solicitó</th><th>Acción</th>
-      </tr></thead><tbody>${filas.map(r=>rowPendiente(r)).join('')}</tbody></table></div>`;
+        <th>Artículo</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th>Urgencia</th><th>Acción</th>
+      </tr></thead><tbody>${grupos.map(g=>renderGrupoPendiente(g)).join('')}</tbody></table></div>`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
-function rowPendiente(r){
-  const [id,fechaSol,solId,solNombre,depto,articulo,cantidad,unidad,justificacion,urgencia,presupuesto,provSug,fechaReq]=r;
+function agruparPorPedido(filas){
+  const map={}; const orden=[];
+  filas.forEach(r=>{
+    const pedidoId=r[1];
+    if(!map[pedidoId]){ map[pedidoId]={pedidoId, fecha:r[2], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], items:[]}; orden.push(pedidoId); }
+    map[pedidoId].items.push(r);
+  });
+  return orden.map(id=>map[id]);
+}
+function renderGrupoPendiente(g){
+  const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
+  const cabecera=`<tr class="pedido-head"><td colspan="6">
+    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} · requerido ${g.fechaRequerida||'–'} ${badge}
+    ${g.justificacion?('<div style="font-weight:400;font-size:11.5px;color:var(--cactus);margin-top:3px">'+g.justificacion+'</div>'):''}
+  </td></tr>`;
+  return cabecera + g.items.map(r=>renderItemPendiente(r)).join('');
+}
+function renderItemPendiente(r){
+  const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal,justificacion,urgencia]=r;
   return `<tr>
-    <td>${id}</td><td>${depto}</td><td>${articulo}<div style="font-size:10.5px;color:var(--cactus);margin-top:2px">${justificacion||''}</div></td>
+    <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
-    <td class="num">${presupuesto?'$'+money(presupuesto):'–'}</td><td>${fechaReq||'–'}</td>
+    <td class="num">${precioUnitario?'$'+money(precioUnitario):'–'}</td>
+    <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td>${urgencia==='Urgente'||urgencia==='Alta'?`<span class="pill p-rech">${urgencia}</span>`:urgencia}</td>
-    <td>${solNombre||solId}</td>
     <td><div class="row-actions">
-      <button class="mini-btn ok" onclick="aprobarReq('${id}')">Aprobar</button>
+      <button class="mini-btn ok" onclick="aprobarItem('${id}')">Aprobar</button>
       <button class="mini-btn bad" onclick="pedirRechazo('${id}')">Rechazar</button>
     </div><div id="rj_${id}"></div></td>
   </tr>`;
 }
-async function aprobarReq(id){
-  if(!confirm('¿Aprobar la requisición '+id+'?'))return;
-  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idReq:id,accionEstatus:'aprobar'});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
+async function aprobarItem(id){
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'aprobar'});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
 }
 function pedirRechazo(id){
   const box=document.getElementById('rj_'+id);
-  box.innerHTML=`<textarea class="just-input" id="mot_${id}" placeholder="Motivo del rechazo"></textarea><button class="mini-btn bad" style="margin-top:4px" onclick="rechazarReq('${id}')">Confirmar</button>`;
+  box.innerHTML=`<textarea class="just-input" id="mot_${id}" placeholder="Motivo del rechazo"></textarea><button class="mini-btn bad" style="margin-top:4px" onclick="rechazarItem('${id}')">Confirmar</button>`;
 }
-async function rechazarReq(id){
+async function rechazarItem(id){
   const motivo=document.getElementById('mot_'+id).value.trim();
   if(!motivo){alert('Escribe un motivo.');return;}
-  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idReq:id,accionEstatus:'rechazar',motivo});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'rechazar',motivo});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
 }
 async function marcarEstado(id,estado){
-  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idReq:id,accionEstatus:estado});if(!j.ok){alert(j.error);return;}cargarHistorial();}catch(e){alert('No se pudo procesar.');}
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});if(!j.ok){alert(j.error);return;}cargarHistorial();}catch(e){alert('No se pudo procesar.');}
 }
-function generarPago(articulo,presupuesto,proveedor,idReq){
-  const p=new URLSearchParams({prefill:'1',proveedor:proveedor||'',concepto:articulo||'',monto:presupuesto||'',notas:'Generado desde requisición '+idReq});
+function generarPago(articulo,subtotal,idPedido){
+  const p=new URLSearchParams({prefill:'1',proveedor:'',concepto:articulo||'',monto:subtotal||'',notas:'Generado desde requisición '+idPedido});
   window.open(CONFIG.PAGOS_URL+'?'+p.toString(),'_blank');
 }
 
-// ————— Historial —————
-const ESTATUS_PILL={Pendiente:'p-pend',Aprobada:'p-aprob',Comprada:'p-comprada',Recibida:'p-recibida',Rechazada:'p-rech'};
+// ————— Historial / Mis solicitudes —————
+const ESTATUS_PILL={Pendiente:'p-pend',Aprobado:'p-aprob',Comprada:'p-comprada',Recibida:'p-recibida',Rechazado:'p-rech'};
 async function cargarHistorial(){
   const el=document.getElementById('historialBody');
   const desde=document.getElementById('hDesde').value, hasta=document.getElementById('hHasta').value, estatus=document.getElementById('hEstatus').value;
+  const departamento = SESSION.nivel==='lider' ? '' : document.getElementById('hDepto').value; // el backend ya fuerza el propio si es líder
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  document.getElementById('historialBody').dataset.loaded='1';
   try{
-    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta,estatus});
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta,estatus,departamento});
     if(!j.ok)throw new Error(j.error);
     const filas=j.filas||[];
     renderHistorialKpis(filas);
     if(!filas.length){el.innerHTML='<div class="empty">Sin resultados para ese filtro.</div>';return;}
-    el.innerHTML=`<div style="overflow-x:auto"><table class="aud"><thead><tr>
-      <th>ID</th><th>Fecha</th><th>Depto</th><th>Artículo/Servicio</th><th>Cant.</th><th>Presupuesto</th><th>Estatus</th><th>Aprobó</th><th>Acción</th>
-    </tr></thead><tbody>${filas.map(r=>rowHistorial(r)).join('')}</tbody></table></div>`;
+    const grupos=agruparPorPedido(filas);
+    el.innerHTML=`<div style="overflow-x:auto"><table class="aud" id="histTable"><thead><tr>
+      <th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Aprobó</th><th>Acción</th>
+    </tr></thead><tbody>${grupos.map(g=>renderGrupoHistorial(g)).join('')}</tbody></table></div>`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
-function rowHistorial(r){
-  const [id,fechaSol,solId,solNombre,depto,articulo,cantidad,unidad,justificacion,urgencia,presupuesto,provSug,fechaReq,estatus,aprobadoPor,fechaAprob,motivoRech]=r;
+function renderGrupoHistorial(g){
+  const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
+  const cabecera=`<tr class="pedido-head"><td colspan="6">
+    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
+  </td></tr>`;
+  return cabecera + g.items.map(r=>renderItemHistorial(r,g.pedidoId)).join('');
+}
+function renderItemHistorial(r,pedidoId){
+  const [id,,,,,,articulo,,cantidad,unidad,precioUnitario,subtotal,,,,,estatus,aprobadoPor,,motivoRech]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
   let accionCol='–';
-  if(estatus==='Aprobada')accionCol=`<div class="row-actions no-pdf"><button class="mini-btn info" onclick="marcarEstado('${id}','marcarComprada')">Marcar comprada</button><button class="mini-btn purp" onclick="generarPago('${articulo}',${presupuesto||0},'${(provSug||'').replace(/'/g,"")}','${id}')">Generar pago</button></div>`;
-  else if(estatus==='Comprada')accionCol=`<button class="mini-btn ok no-pdf" onclick="marcarEstado('${id}','marcarRecibida')">Marcar recibida</button>`;
+  if(SESSION.nivel==='full'){
+    if(estatus==='Aprobado')accionCol=`<div class="row-actions no-pdf"><button class="mini-btn info" onclick="marcarEstado('${id}','marcarComprada')">Comprada</button><button class="mini-btn purp" onclick="generarPago('${articulo}',${subtotal||0},'${pedidoId}')">Generar pago</button></div>`;
+    else if(estatus==='Comprada')accionCol=`<button class="mini-btn ok no-pdf" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`;
+  }
   return `<tr>
-    <td>${id}</td><td>${fechaSol||'–'}</td><td>${depto}</td><td>${articulo}</td>
+    <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
-    <td class="num">${presupuesto?'$'+money(presupuesto):'–'}</td>
-    <td><span class="pill ${pillClass}">${estatus}</span>${estatus==='Rechazada'&&motivoRech?`<div style="font-size:10.5px;color:var(--cactus);margin-top:3px">${motivoRech}</div>`:''}</td>
+    <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
+    <td><span class="pill ${pillClass}">${estatus}</span>${estatus==='Rechazado'&&motivoRech?`<div style="font-size:10.5px;color:var(--cactus);margin-top:3px">${motivoRech}</div>`:''}</td>
     <td>${aprobadoPor||'–'}</td><td>${accionCol}</td>
   </tr>`;
 }
 function renderHistorialKpis(filas){
-  let pendientes=0,aprobadas=0,rechazadas=0,gastoEstimado=0;
+  let pendientes=0,aprobadas=0,rechazadas=0,gasto=0;
+  const porDepto={};
   filas.forEach(r=>{
-    const estatus=r[13],presupuesto=num(r[10]);
+    const estatus=r[16], subtotal=num(r[11]), depto=r[5];
     if(estatus==='Pendiente')pendientes++;
-    if(estatus==='Rechazada')rechazadas++;
-    if(estatus&&estatus!=='Pendiente'&&estatus!=='Rechazada'){aprobadas++;gastoEstimado+=presupuesto;}
+    if(estatus==='Rechazado')rechazadas++;
+    if(estatus && estatus!=='Pendiente' && estatus!=='Rechazado'){aprobadas++; gasto+=subtotal; porDepto[depto]=(porDepto[depto]||0)+subtotal;}
   });
+  let topDepto='–',topVal=0;
+  Object.keys(porDepto).forEach(d=>{if(porDepto[d]>topVal){topVal=porDepto[d];topDepto=d;}});
   document.getElementById('historialKpis').innerHTML=`<div class="kpis">
-    <div class="kpi"><div class="k-lbl">Requisiciones</div><div class="k-val">${filas.length}</div></div>
+    <div class="kpi"><div class="k-lbl">Artículos</div><div class="k-val">${filas.length}</div></div>
     <div class="kpi"><div class="k-lbl">Pendientes</div><div class="k-val">${pendientes}</div></div>
-    <div class="kpi"><div class="k-lbl">Aprobadas/en curso</div><div class="k-val">${aprobadas}</div></div>
-    <div class="kpi"><div class="k-lbl">Gasto estimado aprobado</div><div class="k-val" style="font-size:17px">$${money(gastoEstimado)}</div></div>
+    <div class="kpi"><div class="k-lbl">Aprobados/en curso</div><div class="k-val">${aprobadas}</div></div>
+    <div class="kpi"><div class="k-lbl">Gasto ${SESSION.nivel==='full'?'(top: '+topDepto+')':''}</div><div class="k-val" style="font-size:17px">$${money(gasto)}</div></div>
   </div>`;
 }
 function pdfHistorial(){
@@ -376,6 +602,64 @@ function pdfHistorial(){
     clon.outerHTML+'</body></html>');
   w.document.close();
   setTimeout(function(){w.focus();w.print();},600);
+}
+
+// ————— Gasto por departamento (con gráfica) —————
+async function cargarGasto(){
+  const el=document.getElementById('gastoBody');
+  const mes=document.getElementById('gMes').value || new Date().toISOString().slice(0,7);
+  const desde=mes+'-01';
+  const hasta=new Date(Number(mes.slice(0,4)), Number(mes.slice(5,7)), 0).toISOString().slice(0,10);
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  document.getElementById('gastoBody').dataset.loaded='1';
+  try{
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta});
+    if(!j.ok)throw new Error(j.error);
+    const filas=(j.filas||[]).filter(r=>['Aprobado','Comprada','Recibida'].indexOf(r[16])!==-1);
+    if(SESSION.nivel==='full') renderGastoFull(el,filas,mes);
+    else renderGastoLider(el,filas,mes);
+  }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
+}
+function renderGastoFull(el,filas,mes){
+  const totales={}; DEPARTAMENTOS.forEach(d=>totales[d.nombre]=0);
+  filas.forEach(r=>{ const d=r[5]; if(totales[d]==null)totales[d]=0; totales[d]+=num(r[11]); });
+  const max=Math.max(1,...Object.values(totales));
+  const total=Object.values(totales).reduce((a,b)=>a+b,0);
+  const barH=24, gap=14, chartW=560;
+  const filasSvg=DEPARTAMENTOS.map((d,i)=>{
+    const val=totales[d.nombre]||0;
+    const w=Math.max(val>0?6:0, (val/max)*chartW);
+    const y=i*(barH+gap);
+    return `<g>
+      <text x="0" y="${y+barH/2-6}" font-size="11.5" fill="var(--text-secondary)" font-family="var(--mono)">${d.nombre}</text>
+      <rect x="0" y="${y}" width="${chartW+40}" height="${barH}" fill="none"/>
+      <rect x="0" y="${y}" rx="4" ry="4" width="${w}" height="${barH}" fill="${d.color}"/>
+      <text x="${w+8}" y="${y+barH/2+4}" font-size="12" fill="var(--text-primary)" font-family="var(--mono)" font-variant-numeric="tabular-nums">$${money(val)}</text>
+    </g>`;
+  }).join('');
+  const svgH=DEPARTAMENTOS.length*(barH+gap);
+  el.innerHTML=`
+    <div class="kpis"><div class="kpi"><div class="k-lbl">Gasto total del mes</div><div class="k-val">$${money(total)}</div></div></div>
+    <div class="chart-wrap viz-root">
+      <svg width="100%" viewBox="0 0 ${chartW+140} ${svgH+30}" style="max-width:760px" role="img" aria-label="Gasto por departamento, ${mes}">
+        <g transform="translate(120,10)">${filasSvg}</g>
+      </svg>
+    </div>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Departamento</th><th>Gasto del mes</th></tr></thead><tbody>
+      ${DEPARTAMENTOS.map(d=>`<tr><td><span class="dept-dot" style="background:${d.color}"></span>${d.nombre}</td><td class="num">$${money(totales[d.nombre]||0)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos (no cuenta pendientes ni rechazados).</div>`;
+}
+function renderGastoLider(el,filas,mes){
+  const total=filas.reduce((s,r)=>s+num(r[11]),0);
+  const porEstatus={};
+  filas.forEach(r=>{ porEstatus[r[16]]=(porEstatus[r[16]]||0)+num(r[11]); });
+  el.innerHTML=`
+    <div class="kpis">
+      <div class="kpi"><div class="k-lbl">Gasto de ${SESSION.departamento} este mes</div><div class="k-val">$${money(total)}</div></div>
+      ${Object.keys(porEstatus).map(k=>`<div class="kpi"><div class="k-lbl">${k}</div><div class="k-val" style="font-size:17px">$${money(porEstatus[k])}</div></div>`).join('')}
+    </div>
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento (no cuenta pendientes ni rechazados).</div>`;
 }
 </script>
 </body>

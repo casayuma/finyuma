@@ -109,7 +109,7 @@ main{max-width:1080px;margin:0 auto;padding:40px 20px 80px}
 <script>
 // ————— Directorio de colaboradores (debe existir igual en la hoja "Usuarios" del backend) —————
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/a/macros/casayuma.com/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec', // URL del Apps Script "Casa Yuma · Finanzas" (ver guía de instalación)
+  WEBAPP_URL:'PEGA_AQUI_LA_URL_DE_TU_WEB_APP', // URL del Apps Script "Casa Yuma · Finanzas" (ver guía de instalación)
   AUDITORIA_URL:'auditoria.html', // nombre/ubicación del archivo de Auditoría que ya tienes
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
@@ -129,7 +129,7 @@ const MODULES=[
    href:'pagos.html', levels:['full']},
   {id:'requisiciones', tag:'Compras internas', title:'Requisiciones', stripe:'req',
    desc:'Solicitud y aprobación de requisiciones de compra por departamento.',
-   href:'requisiciones.html', levels:['full']},
+   href:'requisiciones.html', levels:['full','lider']},
 ];
 
 let SESSION=null,PENDING=null;
@@ -145,7 +145,7 @@ async function identificar(){
   try{
     const j=await apiGet({accion:'login',id:id});
     if(!j.ok){info.textContent='';err.textContent=j.error;return;}
-    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,tienePin:j.tienePin};info.textContent='';
+    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento,tienePin:j.tienePin};info.textContent='';
     document.getElementById('step1').classList.add('hidden');document.getElementById('step2').classList.remove('hidden');
     if(j.tienePin){document.getElementById('pinLabel').textContent='Tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.add('hidden');document.getElementById('pinBtn').textContent='Entrar';}
     else{document.getElementById('pinLabel').textContent='Crea tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.remove('hidden');document.getElementById('pinBtn').textContent='Crear PIN y entrar';info.textContent='Primera vez: define un PIN de 4 a 6 dígitos.';}
@@ -161,7 +161,7 @@ async function pinSubmit(){
     if(PENDING.tienePin){j=await apiGet({accion:'entrar',id:PENDING.id,pin:pin});}
     else{const pin2=document.getElementById('pinInput2').value.trim();if(pin!==pin2){err.textContent='Los PIN no coinciden.';return;}j=await apiPost({accion:'crearPin',id:PENDING.id,pin:pin});}
     if(!j.ok){err.textContent=j.error;return;}
-    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:j.nivel||PENDING.nivel};
+    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:j.nivel||PENDING.nivel,departamento:j.departamento||PENDING.departamento||''};
     entrarApp();
   }catch(e){err.textContent='No se pudo conectar.';}
 }
@@ -200,7 +200,9 @@ function buildCards(){
   grid.appendChild(soon);
   document.getElementById('footNote').textContent = SESSION.nivel==='full'
     ? 'Ves todos los módulos porque tu nivel de acceso es "full". Auditoría te pedirá tu PIN de ese sistema por separado la primera vez.'
-    : 'Pagos y Requisiciones están reservados a nivel de acceso "full" por ahora. Habla con administración si necesitas acceso.';
+    : SESSION.nivel==='lider'
+      ? 'Como líder de departamento, tienes acceso a Requisiciones para tu propio departamento ('+(SESSION.departamento||'')+'). Pagos está reservado a nivel "full".'
+      : 'Pagos y Requisiciones están reservados a colaboradores con acceso asignado. Habla con administración si lo necesitas.';
 }
 </script>
 </body>
