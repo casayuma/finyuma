@@ -446,11 +446,11 @@ function renderDaily(){
   <div class="section-eyebrow">Daily Report · ${g(0)}</div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table class="dr-table">
     ${head('Habitaciones')}
-    ${fInt('Hab. ocupadas (vendidas)',1)}
+    ${fInt('Hab. ocupadas (vendidas)',1,'','Total cuartos ocupados')}
     ${fInt('Hab. cortesía',2)}
     ${fInt('Hab. uso casa',3)}
     ${fInt('Hab. intercambio',4)}
-    ${fInt('Total cuartos ocupados',6,'total','Total cuartos ocupados')}
+    ${fInt('Total cuartos ocupados',6,'total')}
     ${fInd('% Ocupación', pct(g(8)), ocupPctMTD, ocupPctYTD, fmtPct, '% de Ocupación')}
     ${fInd('ADR', '$'+money(num(g(9))), adrMTD, adrYTD, fmtMoney, 'ADR')}
     ${fInd('RevPAR', '$'+money(num(g(10))), revparMTD, revparYTD, fmtMoney, 'RevPAR')}
