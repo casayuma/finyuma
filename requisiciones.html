@@ -68,9 +68,22 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .cap-btn.sec{background:var(--blue)}
 .cap-btn.sec:hover{background:#255a5e}
 .cap-btn.ghost2{background:transparent;border:1px solid var(--line);color:var(--cactus);padding:8px 14px}
-.item-row{display:grid;grid-template-columns:2fr 1fr 1fr .9fr .9fr auto;gap:8px;align-items:end;margin-bottom:14px}
+.item-row{display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:14px}
 .item-row .fld{margin-bottom:0}
 @media(max-width:760px){.item-row{grid-template-columns:1fr 1fr}}
+.search-wrap{position:relative}
+.search-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-top:none;max-height:230px;overflow-y:auto;z-index:20;box-shadow:0 10px 20px rgba(0,0,0,.14)}
+.sr-item{padding:9px 12px;font-size:12.5px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
+.sr-item:hover,.sr-item:active{background:var(--wool)}
+.sr-item:last-child{border-bottom:none}
+.sr-nombre{font-weight:600}
+.sr-precio{color:var(--cactus);white-space:nowrap;font-size:11px}
+.sr-empty{padding:9px 12px;font-size:12px;color:var(--cactus);font-style:italic}
+.sr-nuevo{color:var(--blue);font-weight:600}
+.nuevo-art-box{background:var(--wool);border:1px solid var(--line);border-radius:2px;padding:16px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.nuevo-art-box .fld{margin-bottom:0}
+.nuevo-art-box .cap-full{grid-column:1/-1}
+.nuevo-art-box .row-actions{grid-column:1/-1;margin-top:2px}
 .cart-box{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px;position:sticky;top:16px}
 .cart-box h3{font-size:15px;color:var(--cactus);margin-bottom:12px}
 .cart-empty{font-size:12.5px;color:var(--cactus);font-style:italic;padding:14px 0}
@@ -174,7 +187,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 
 <script>
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec', // misma Web App que usa index.html y pagos.html
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
   PAGOS_URL:'pagos.html',
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
@@ -200,7 +213,9 @@ const URGENCIAS=['Baja','Media','Alta','Urgente'];
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
-let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[];
+let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[],ITEM_SELECCIONADO=null,RESULTADOS_BUSQUEDA=[];
+function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 (function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
@@ -332,25 +347,34 @@ function renderNueva(){
           <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito()">${deptoOpts}</select></div>
           <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
           <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
-          <div class="fld cap-full"><label>Justificación del pedido</label><textarea id="rJustificacion" rows="2" placeholder="¿Por qué se necesita este pedido?"></textarea></div>
         </div>
 
         <div class="section-eyebrow" style="margin-top:6px">Agregar artículo</div>
         <div class="item-row">
-          <div class="fld"><label>Artículo (catálogo)</label>
-            <select id="iCatalogo" onchange="seleccionCatalogo()">
-              <option value="">— Elegir del catálogo —</option>
-              ${CATALOGO.map(c=>`<option value="${c[0]}" data-unidad="${c[2]}" data-precio="${c[3]}">${c[1]} ${c[3]?('($'+money(c[3])+'/'+c[2]+')'):''}</option>`).join('')}
-              <option value="__otro__">Otro (personalizado)</option>
-            </select>
+          <div class="fld search-wrap"><label>Artículo</label>
+            <input id="iBuscar" type="text" placeholder="Busca por nombre…" autocomplete="off"
+              oninput="buscarCatalogo()" onfocus="buscarCatalogo()"
+              onblur="setTimeout(function(){var c=document.getElementById('iResultados');if(c)c.classList.add('hidden');},150)">
+            <div id="iResultados" class="search-results hidden"></div>
           </div>
-          <div class="fld" id="iArticuloWrap" style="display:none"><label>Nombre del artículo</label><input id="iArticulo" placeholder="Ej. Bomba de alberca 1HP"></div>
           <div class="fld"><label>Cantidad</label><input id="iCantidad" type="number" step="1" min="1" value="1" oninput="actualizarPrevisualizacion()"></div>
           <div class="fld"><label>Unidad</label><input id="iUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario</label><input id="iPrecio" type="number" step="0.01" placeholder="0.00" oninput="actualizarPrevisualizacion()"></div>
           <button class="cap-btn ghost2" onclick="agregarAlCarrito()">+ Agregar</button>
         </div>
         <div class="note" id="iPrevisualizacion"></div>
+
+        <div id="nuevoArtBox" class="nuevo-art-box hidden">
+          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)">Este artículo no está en el catálogo — se guardará para que la próxima vez ya aparezca en la búsqueda.</div>
+          <div class="fld"><label>Nombre del artículo nuevo</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
+          <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
+          <div class="fld"><label>Precio unitario (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Departamento (opcional)</label><select id="naDepto"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+          <div class="row-actions">
+            <button class="cap-btn" style="padding:9px 16px" onclick="guardarNuevoArticulo()">Guardar y usar</button>
+            <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
+          </div>
+        </div>
 
         <button class="cap-btn" id="btnEnviarPedido" onclick="enviarPedido()" style="margin-top:18px">Enviar pedido</button>
         <div id="nuevaMsg"></div>
@@ -365,19 +389,63 @@ function renderNueva(){
     </div>`;
   renderCarrito();
 }
-function seleccionCatalogo(){
-  const sel=document.getElementById('iCatalogo');
-  const opt=sel.options[sel.selectedIndex];
-  const esOtro = sel.value==='__otro__';
-  document.getElementById('iArticuloWrap').style.display = esOtro ? 'block' : 'none';
-  if(!esOtro && sel.value){
-    document.getElementById('iUnidad').value=opt.dataset.unidad||'';
-    document.getElementById('iPrecio').value=opt.dataset.precio||'';
-  } else if(esOtro){
-    document.getElementById('iUnidad').value='';
-    document.getElementById('iPrecio').value='';
+function buscarCatalogo(){
+  const q=document.getElementById('iBuscar').value.trim();
+  const cont=document.getElementById('iResultados');
+  ITEM_SELECCIONADO=null;
+  if(!q){ cont.classList.add('hidden'); cont.innerHTML=''; RESULTADOS_BUSQUEDA=[]; return; }
+  const qn=normaliza(q);
+  RESULTADOS_BUSQUEDA=CATALOGO.filter(c=>normaliza(c[1]).indexOf(qn)!==-1).slice(0,8);
+  let html='';
+  if(RESULTADOS_BUSQUEDA.length){
+    html+=RESULTADOS_BUSQUEDA.map((c,i)=>`<div class="sr-item" onmousedown="event.preventDefault();elegirResultado(${i})">
+        <span class="sr-nombre">${escapeHtml(c[1])}</span><span class="sr-precio">${c[3]?('$'+money(c[3])+' / '+escapeHtml(c[2]||'')):''}</span>
+      </div>`).join('');
+  } else {
+    html+='<div class="sr-empty">Sin coincidencias en el catálogo.</div>';
   }
+  html+=`<div class="sr-item sr-nuevo" onmousedown="event.preventDefault();mostrarNuevoArticulo()">+ Agregar "${escapeHtml(q)}" como artículo nuevo</div>`;
+  cont.innerHTML=html;
+  cont.classList.remove('hidden');
+}
+function elegirResultado(i){
+  const c=RESULTADOS_BUSQUEDA[i];
+  if(!c)return;
+  document.getElementById('iBuscar').value=c[1];
+  document.getElementById('iUnidad').value=c[2]||'';
+  document.getElementById('iPrecio').value=c[3]||'';
+  ITEM_SELECCIONADO={catalogoId:c[0], articulo:c[1]};
+  document.getElementById('iResultados').classList.add('hidden');
   actualizarPrevisualizacion();
+}
+function mostrarNuevoArticulo(){
+  document.getElementById('iResultados').classList.add('hidden');
+  document.getElementById('naNombre').value=document.getElementById('iBuscar').value.trim();
+  document.getElementById('naUnidad').value='';
+  document.getElementById('naPrecio').value='';
+  const deptoSel=document.getElementById('rDepto');
+  document.getElementById('naDepto').value = deptoSel ? deptoSel.value : '';
+  document.getElementById('nuevoArtBox').classList.remove('hidden');
+  document.getElementById('naNombre').focus();
+}
+function cancelarNuevoArticulo(){ document.getElementById('nuevoArtBox').classList.add('hidden'); }
+async function guardarNuevoArticulo(){
+  const nombre=document.getElementById('naNombre').value.trim();
+  if(!nombre){ alert('Escribe el nombre del artículo.'); return; }
+  const unidad=document.getElementById('naUnidad').value.trim();
+  const precioUnitario=num(document.getElementById('naPrecio').value)||0;
+  const departamento=document.getElementById('naDepto').value;
+  try{
+    const j=await apiPost({accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,articulo:nombre,unidad,precioUnitario,departamento});
+    if(!j.ok){ alert(j.error); return; }
+    CATALOGO.push([j.id, nombre, unidad, precioUnitario, departamento]);
+    document.getElementById('iBuscar').value=nombre;
+    document.getElementById('iUnidad').value=unidad;
+    document.getElementById('iPrecio').value=precioUnitario||'';
+    ITEM_SELECCIONADO={catalogoId:j.id, articulo:nombre};
+    document.getElementById('nuevoArtBox').classList.add('hidden');
+    actualizarPrevisualizacion();
+  }catch(e){ alert('No se pudo guardar el artículo nuevo.'); }
 }
 function actualizarPrevisualizacion(){
   const cant=num(document.getElementById('iCantidad').value)||0;
@@ -385,23 +453,20 @@ function actualizarPrevisualizacion(){
   document.getElementById('iPrevisualizacion').textContent = (cant&&precio) ? ('Subtotal de este artículo: $'+money(cant*precio)) : '';
 }
 function agregarAlCarrito(){
-  const sel=document.getElementById('iCatalogo');
-  const esOtro = sel.value==='__otro__' || !sel.value;
-  const opt=sel.options[sel.selectedIndex];
-  const articulo = esOtro ? document.getElementById('iArticulo').value.trim() : opt.textContent.replace(/\s*\(\$.*\)$/,'');
-  const catalogoId = esOtro ? '' : sel.value;
+  const articulo=document.getElementById('iBuscar').value.trim();
+  const catalogoId = ITEM_SELECCIONADO ? ITEM_SELECCIONADO.catalogoId : '';
   const cantidad = num(document.getElementById('iCantidad').value)||1;
   const unidad = document.getElementById('iUnidad').value.trim();
   const precioUnitario = num(document.getElementById('iPrecio').value)||0;
   if(!articulo){ alert('Escribe o elige un artículo.'); return; }
   CARRITO.push({articulo, catalogoId, cantidad, unidad, precioUnitario, subtotal:Math.round(cantidad*precioUnitario*100)/100});
-  document.getElementById('iCatalogo').value='';
-  document.getElementById('iArticuloWrap').style.display='none';
-  document.getElementById('iArticulo').value='';
+  document.getElementById('iBuscar').value='';
+  document.getElementById('iResultados').classList.add('hidden');
   document.getElementById('iCantidad').value='1';
   document.getElementById('iUnidad').value='';
   document.getElementById('iPrecio').value='';
   document.getElementById('iPrevisualizacion').textContent='';
+  ITEM_SELECCIONADO=null;
   renderCarrito();
 }
 function quitarDelCarrito(idx){ CARRITO.splice(idx,1); renderCarrito(); }
@@ -443,7 +508,6 @@ async function enviarPedido(){
   const msg=document.getElementById('nuevaMsg');
   const body={accion:'requisiciones_crear',id:SESSION.id,pin:SESSION.pin,
     departamento,
-    justificacion:document.getElementById('rJustificacion').value.trim(),
     urgencia:document.getElementById('rUrgencia').value,
     fechaRequerida:document.getElementById('rFecha').value,
     items:CARRITO};
