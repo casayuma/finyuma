@@ -368,7 +368,7 @@ function renderDaily(){
   const i=CAP_INDEX[key]; const r=CAP_ROWS[i]; const g=k=>r[k]!==undefined?r[k]:'';
   const fSel=parseFecha(r[0]);
   // acumuladores MTD (mes de la fecha, hasta el día) y YTD (todo el año hasta el día)
-  const cols=[1,2,3,4,6,7,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,39];
+  const cols=[1,2,3,4,6,7,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,39,41];
   let mtd={},ytd={}; cols.forEach(c=>{mtd[c]=0;ytd[c]=0;});
   if(fSel)CAP_ROWS.forEach(rr=>{const f=parseFecha(rr[0]);if(!f)return;
     const enYTD=(f.y===fSel.y)&&(f.m<fSel.m||(f.m===fSel.m&&f.d<=fSel.d));
