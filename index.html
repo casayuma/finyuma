@@ -101,6 +101,7 @@ select:focus{border-color:var(--blue)}
 @media(max-width:640px){.libro-cols{grid-template-columns:1fr !important}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="gate">
@@ -153,8 +154,18 @@ select:focus{border-color:var(--blue)}
       <div id="ingpagoBody"><div class="empty">Elige una fecha (o rango) para detectar cargos sin contrapago.</div></div>
     </section>
     <section class="view" id="v-propinas">
-      <div class="ctl"><label for="propFecha">Fecha</label><input id="propFecha" type="date" onchange="cargarPropinas()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarPropinas()">Ver</button></div>
-      <div id="propinasBody"><div class="empty">Elige una fecha para ver el desglose de propinas.</div></div>
+      <div class="ctl">
+        <label>Modo</label>
+        <select id="propModo" onchange="cambiarModoProp()"><option value="dia">Un día</option><option value="rango">Rango (quincena)</option></select>
+      </div>
+      <div class="ctl" id="propCtlDia"><label for="propFecha">Fecha</label><input id="propFecha" type="date" onchange="cargarPropinas()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarPropinas()">Ver</button></div>
+      <div class="ctl" id="propCtlRango" style="display:none">
+        <label>Desde</label><input id="propDesde" type="date">
+        <label>Hasta</label><input id="propHasta" type="date">
+        <button class="cap-btn" style="padding:9px 16px" onclick="cargarPropinasRango()">Ver</button>
+        <button class="cap-btn no-pdf" style="padding:9px 16px" onclick="descargarPropinasExcel()">Descargar Excel</button>
+      </div>
+      <div id="propinasBody"><div class="empty">Elige una fecha (o rango) para ver el desglose de propinas.</div></div>
     </section>
     <section class="view" id="v-concil">
       <div class="ctl"><label for="concilFecha">Fecha</label><input id="concilFecha" type="date" onchange="cargarConcil()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarConcil()">Ver</button></div>
@@ -801,6 +812,66 @@ function pintarPropinas(p){
     <table class="aud"><thead><tr><th>Concepto</th><th style="text-align:right">Monto</th></tr></thead><tbody>${posterRows}</tbody></table>
     <div class="section-eyebrow" style="margin-top:22px">Propinas de servicios (Cloudbeds) · $${money(p.cbTotal)}</div>
     <table class="aud"><thead><tr><th>Concepto</th><th>Registró</th><th style="text-align:right">Monto</th></tr></thead><tbody>${cbRows}</tbody></table>`;
+}
+function cambiarModoProp(){
+  const modo=document.getElementById('propModo').value;
+  document.getElementById('propCtlDia').style.display = modo==='dia'?'flex':'none';
+  document.getElementById('propCtlRango').style.display = modo==='rango'?'flex':'none';
+  document.getElementById('propinasBody').innerHTML='<div class="empty">Elige '+(modo==='dia'?'una fecha':'un rango')+'.</div>';
+}
+let _PROP_RANGO=null;
+function cargarPropinasRango(){
+  const desde=document.getElementById('propDesde').value;
+  let hasta=document.getElementById('propHasta').value||desde;
+  if(!desde){ document.getElementById('propinasBody').innerHTML='<div class="empty">Elige al menos "Desde".</div>'; return; }
+  document.getElementById('propinasBody').innerHTML='<div class="loading"><div class="spinner"></div>Consultando propinas del período… (puede tardar)</div>';
+  apiGet({accion:'propinasRango',id:SESSION.id,pin:SESSION.pin,desde:desde,hasta:hasta}).then(j=>{
+    if(!j.ok){ document.getElementById('propinasBody').innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+    _PROP_RANGO=j.rango;
+    pintarPropinasRango(j.rango);
+  }).catch(e=>{ document.getElementById('propinasBody').innerHTML='<div class="errbox">No se pudo consultar.</div>'; });
+}
+function pintarPropinasRango(R){
+  if(R.error){ document.getElementById('propinasBody').innerHTML=`<div class="errbox">${R.error}</div>`; return; }
+  const periodo=R.desde===R.hasta?R.desde:(R.desde+' → '+R.hasta);
+  const tiposRows=R.totalTipos.map(t=>`<tr><td>${t.concepto}</td><td class="num">$${money(t.monto)}</td></tr>`).join('');
+  // tabla por día
+  const diaRows=R.dias.map(d=>{
+    const serv=(d.servicios||[]).map(s=>s.concepto+': $'+money(s.monto)).join(', ')||'—';
+    return `<tr><td>${d.fecha}</td><td class="num">$${money(d.restaurante)}</td><td class="num">$${money(d.serviciosTotal)}</td><td class="num"><strong>$${money(d.total)}</strong></td></tr>`;
+  }).join('');
+  document.getElementById('propinasBody').innerHTML=`
+    <div style="padding:16px;background:var(--wool);border-radius:2px;margin-bottom:14px">
+      <strong style="font-family:var(--disp);font-size:19px">Propinas del período · ${periodo}</strong>
+      <div style="font-size:15px;margin-top:6px">Total a repartir: <strong style="color:var(--purple)">$${money(R.totalGeneral)}</strong></div>
+      <div style="font-size:12px;color:var(--cactus);margin-top:4px">${R.dias.length} días · Restaurante $${money(R.totalRestaurante)} + Servicios</div>
+    </div>
+    <div class="section-eyebrow">Total por tipo</div>
+    <table class="aud"><thead><tr><th>Concepto</th><th style="text-align:right">Monto</th></tr></thead><tbody>
+      <tr><td>Propinas restaurante (Poster)</td><td class="num">$${money(R.totalRestaurante)}</td></tr>
+      ${tiposRows}
+      <tr style="border-top:2px solid var(--line)"><td><strong>TOTAL</strong></td><td class="num"><strong>$${money(R.totalGeneral)}</strong></td></tr>
+    </tbody></table>
+    <div class="section-eyebrow" style="margin-top:22px">Detalle por día</div>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Fecha</th><th style="text-align:right">Restaurante</th><th style="text-align:right">Servicios</th><th style="text-align:right">Total</th></tr></thead><tbody>${diaRows}</tbody></table></div>`;
+}
+function descargarPropinasExcel(){
+  if(!_PROP_RANGO){ alert('Primero consulta un rango de fechas.'); return; }
+  const R=_PROP_RANGO;
+  // hoja 1: detalle por día
+  const rows=[['Fecha','Propinas Restaurante','Propinas Servicios','Total del día']];
+  R.dias.forEach(d=>rows.push([d.fecha, d.restaurante, d.serviciosTotal, d.total]));
+  rows.push([]);
+  rows.push(['TOTALES','','','']);
+  rows.push(['Restaurante (Poster)', R.totalRestaurante]);
+  R.totalTipos.forEach(t=>rows.push([t.concepto, t.monto]));
+  rows.push(['TOTAL A REPARTIR', R.totalGeneral]);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:14},{wch:20},{wch:20},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Propinas');
+  const nombre='Propinas_CasaYuma_'+R.desde+'_a_'+R.hasta+'.xlsx';
+  XLSX.writeFile(wb, nombre);
 }
 function cargarConcil(){
   const fecha=document.getElementById('concilFecha').value;
