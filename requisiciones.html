@@ -161,6 +161,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
   <nav class="tabs" id="tabs"></nav>
   <main>
     <section class="view active" id="v-nueva"><div id="nuevaBody"></div></section>
+    <section class="view" id="v-compras"><div id="comprasBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-pendientes"><div id="pendientesBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-historial">
       <div class="ctl">
@@ -197,7 +198,7 @@ const CONFIG={
     {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
     {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY025',n:'Egbert Cruz García'},
     {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
-    {id:'CY005',n:'Horacio Muñoz Martínez'},
+    {id:'CY005',n:'Horacio Muñoz Martínez'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
   ],
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
@@ -288,6 +289,10 @@ function entrarApp(){
   document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase()+(SESSION.departamento?' · '+SESSION.departamento:'');
   try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
   buildTabs();
+  if(esCompras()){
+    cargarCatalogo().then(cargarCompras);
+    return;
+  }
   cargarCatalogo().then(renderNueva);
   if(SESSION.nivel==='full')cargarPendientes();
   // Fija/oculta el filtro de depto según el rol
@@ -308,8 +313,14 @@ const TABDEFS_LIDER=[
   {id:'historial',label:'Mis solicitudes'},
   {id:'gasto',label:'Gasto de mi depto'},
 ];
+const TABDEFS_COMPRAS=[
+  {id:'compras',label:'Por comprar'},
+];
+// El rol de Compras es un "lider" cuyo Departamento (en Usuarios) es exactamente "Compras" —
+// no es líder de un departamento operativo, es el encargado de compras.
+function esCompras(){ return !!(SESSION && SESSION.nivel==='lider' && String(SESSION.departamento||'').trim()==='Compras'); }
 function buildTabs(){
-  const defs = SESSION.nivel==='full' ? TABDEFS_FULL : TABDEFS_LIDER;
+  const defs = esCompras() ? TABDEFS_COMPRAS : (SESSION.nivel==='full' ? TABDEFS_FULL : TABDEFS_LIDER);
   const tabs=document.getElementById('tabs');
   tabs.innerHTML='';
   defs.forEach((t,i)=>{
@@ -587,6 +598,70 @@ async function marcarEstado(id,estado){
 function generarPago(articulo,subtotal,idPedido){
   const p=new URLSearchParams({prefill:'1',proveedor:'',concepto:articulo||'',monto:subtotal||'',notas:'Generado desde requisición '+idPedido});
   window.open(CONFIG.PAGOS_URL+'?'+p.toString(),'_blank');
+}
+
+// ————— Compras (rol dedicado: lider con Departamento = "Compras") —————
+async function cargarCompras(){
+  const el=document.getElementById('comprasBody');
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  try{
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,estatus:'Aprobado'});
+    if(!j.ok)throw new Error(j.error);
+    renderCompras(j.filas||[]);
+  }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
+}
+function proveedorDeCatalogo(catalogoId){
+  if(!catalogoId)return'Sin proveedor';
+  const c=CATALOGO.find(x=>String(x[0])===String(catalogoId));
+  const prov=c?String(c[5]||'').trim():'';
+  return prov||'Sin proveedor';
+}
+function renderCompras(filas){
+  const el=document.getElementById('comprasBody');
+  if(!filas.length){el.innerHTML='<div class="empty">No hay artículos aprobados esperando compra. Lo que no se marque como surtido se queda aquí para el siguiente día de compra.</div>';return;}
+  const porDepto={};
+  const ordenVistos=[];
+  filas.forEach(r=>{
+    const depto=r[5]||'Sin departamento';
+    const prov=proveedorDeCatalogo(r[7]);
+    if(!porDepto[depto]){porDepto[depto]={};ordenVistos.push(depto);}
+    if(!porDepto[depto][prov])porDepto[depto][prov]=[];
+    porDepto[depto][prov].push(r);
+  });
+  // Respeta el orden fijo de DEPARTAMENTOS y agrega al final cualquier depto no listado ahí.
+  const ordenFinal=DEPARTAMENTOS.map(d=>d.nombre).filter(n=>porDepto[n])
+    .concat(ordenVistos.filter(n=>DEPARTAMENTOS.every(d=>d.nombre!==n)));
+  let html=`<div class="section-eyebrow">Por comprar (${filas.length} artículo(s))</div>
+    <div class="note" style="margin-top:0 0 14px">Marca "Surtido" cuando ya lo compraste. Lo que dejes sin marcar se queda en esta lista para el siguiente día de compra.</div>`;
+  ordenFinal.forEach(depto=>{
+    const proveedores=Object.keys(porDepto[depto]).sort((a,b)=>{
+      if(a==='Sin proveedor')return 1; if(b==='Sin proveedor')return -1;
+      return a.localeCompare(b,'es');
+    });
+    html+=`<h3 style="margin-top:24px;display:flex;align-items:center;gap:8px"><span class="dept-dot" style="background:${deptoColor(depto)}"></span>${depto}</h3>`;
+    proveedores.forEach(prov=>{
+      const items=porDepto[depto][prov];
+      html+=`<div style="overflow-x:auto;margin-top:8px"><table class="aud"><thead>
+        <tr><th colspan="6" style="background:var(--wool);color:var(--ink)">Proveedor: ${escapeHtml(prov)}</th></tr>
+        <tr><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Solicitó</th><th>Pedido</th><th>Acción</th></tr>
+      </thead><tbody>${items.map(r=>renderItemCompra(r)).join('')}</tbody></table></div>`;
+    });
+  });
+  el.innerHTML=html;
+}
+function renderItemCompra(r){
+  const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal]=r;
+  return `<tr>
+    <td>${articulo}</td>
+    <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
+    <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
+    <td>${solNombre}</td>
+    <td>${pedidoId}</td>
+    <td><button class="mini-btn ok" onclick="marcarSurtido('${id}')">Surtido</button></td>
+  </tr>`;
+}
+async function marcarSurtido(id){
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'marcarComprada'});if(!j.ok){alert(j.error);return;}cargarCompras();}catch(e){alert('No se pudo procesar.');}
 }
 
 // ————— Historial / Mis solicitudes —————
