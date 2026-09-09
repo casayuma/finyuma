@@ -152,6 +152,10 @@ select:focus{border-color:var(--blue)}
       </div>
       <div id="ingpagoBody"><div class="empty">Elige una fecha (o rango) para detectar cargos sin contrapago.</div></div>
     </section>
+    <section class="view" id="v-propinas">
+      <div class="ctl"><label for="propFecha">Fecha</label><input id="propFecha" type="date" onchange="cargarPropinas()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarPropinas()">Ver</button></div>
+      <div id="propinasBody"><div class="empty">Elige una fecha para ver el desglose de propinas.</div></div>
+    </section>
     <section class="view" id="v-concil">
       <div class="ctl"><label for="concilFecha">Fecha</label><input id="concilFecha" type="date" onchange="cargarConcil()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarConcil()">Ver</button></div>
       <div id="concilBody"><div class="empty">Elige una fecha para conciliar Cloudbeds vs CAPTURA.</div></div>
@@ -311,6 +315,7 @@ const TABDEFS=[
   {id:'ajustes',label:'Ajustes por usuario',levels:['full','superfull']},
   {id:'control',label:'Control mensual',levels:['full','superfull']},
   {id:'ingpago',label:'Ingreso vs Pago',levels:['capture','full','superfull']},
+  {id:'propinas',label:'Propinas',levels:['full','superfull']},
   {id:'concil',label:'Conciliación CB',levels:['superfull']},
 ];
 function buildTabs(){const tabs=document.getElementById('tabs');tabs.innerHTML='';const allowed=TABDEFS.filter(t=>t.levels.includes(SESSION.nivel));allowed.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.label;b.dataset.view=t.id;if(i===0)b.classList.add('active');b.onclick=()=>switchView(t.id,b);tabs.appendChild(b);});switchView(allowed[0].id,tabs.querySelector('button'));}
@@ -772,6 +777,30 @@ function detalleCuadre(idx){
       ${estadoLinea('Efectivo Rest', m(arqR), resER)}
     </div>`;
   document.getElementById('cuadreDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function cargarPropinas(){
+  const fecha=document.getElementById('propFecha').value;
+  if(!fecha){ document.getElementById('propinasBody').innerHTML='<div class="empty">Elige una fecha.</div>'; return; }
+  document.getElementById('propinasBody').innerHTML='<div class="loading"><div class="spinner"></div>Cargando propinas…</div>';
+  apiGet({accion:'propinas',id:SESSION.id,pin:SESSION.pin,fecha:fecha}).then(j=>{
+    if(!j.ok){ document.getElementById('propinasBody').innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+    pintarPropinas(j.prop);
+  }).catch(e=>{ document.getElementById('propinasBody').innerHTML='<div class="errbox">No se pudo consultar.</div>'; });
+}
+function pintarPropinas(p){
+  if(p.error){ document.getElementById('propinasBody').innerHTML=`<div class="errbox">${p.error}</div>`; return; }
+  const posterRows=p.posterProp.length? p.posterProp.map(x=>`<tr><td>${x.concepto}</td><td class="num">$${money(x.monto)}</td></tr>`).join('') : '<tr><td colspan=2 style="color:var(--cactus)">Sin propinas de restaurante este día</td></tr>';
+  const cbRows=p.cbProp.length? p.cbProp.map(x=>`<tr><td>${x.concepto}</td><td>${x.usuario}</td><td class="num">$${money(x.monto)}</td></tr>`).join('') : '<tr><td colspan=3 style="color:var(--cactus)">Sin propinas de servicios este día</td></tr>';
+  document.getElementById('propinasBody').innerHTML=`
+    <div style="padding:16px;background:var(--wool);border-radius:2px;margin-bottom:14px">
+      <strong style="font-family:var(--disp);font-size:19px">Propinas · ${p.fecha}</strong>
+      <div style="font-size:14px;margin-top:6px">Total del día: <strong style="color:var(--purple)">$${money(p.total)}</strong></div>
+      <div style="font-size:12px;color:var(--cactus);margin-top:4px">Las propinas NO son ingreso del hotel — son de los colaboradores. Se registran aquí solo para control.</div>
+    </div>
+    <div class="section-eyebrow">Propinas de restaurante (Poster) · $${money(p.posterTotal)}</div>
+    <table class="aud"><thead><tr><th>Concepto</th><th style="text-align:right">Monto</th></tr></thead><tbody>${posterRows}</tbody></table>
+    <div class="section-eyebrow" style="margin-top:22px">Propinas de servicios (Cloudbeds) · $${money(p.cbTotal)}</div>
+    <table class="aud"><thead><tr><th>Concepto</th><th>Registró</th><th style="text-align:right">Monto</th></tr></thead><tbody>${cbRows}</tbody></table>`;
 }
 function cargarConcil(){
   const fecha=document.getElementById('concilFecha').value;
