@@ -303,14 +303,14 @@ document.getElementById('userId').addEventListener('keydown',e=>{if(e.key==='Ent
 function entrarApp(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase();buildTabs();loadAll();}
 function logout(){location.reload();}
 const TABDEFS=[
-  {id:'daily',label:'Daily Report',levels:['read','capture','full']},
-  {id:'captura',label:'Cuadre diario',levels:['capture','full']},
-  {id:'historial',label:'Historial cuadres',levels:['full']},
-  {id:'auditoria',label:'Auditoría del día',levels:['capture','full']},
-  {id:'libro',label:'Libro del día',levels:['capture','full']},
-  {id:'ajustes',label:'Ajustes por usuario',levels:['full']},
-  {id:'control',label:'Control mensual',levels:['full']},
-  {id:'ingpago',label:'Ingreso vs Pago',levels:['capture','full']},
+  {id:'daily',label:'Daily Report',levels:['read','capture','full','superfull']},
+  {id:'captura',label:'Cuadre diario',levels:['capture','full','superfull']},
+  {id:'historial',label:'Historial cuadres',levels:['full','superfull']},
+  {id:'auditoria',label:'Auditoría del día',levels:['capture','full','superfull']},
+  {id:'libro',label:'Libro del día',levels:['capture','full','superfull']},
+  {id:'ajustes',label:'Ajustes por usuario',levels:['full','superfull']},
+  {id:'control',label:'Control mensual',levels:['full','superfull']},
+  {id:'ingpago',label:'Ingreso vs Pago',levels:['capture','full','superfull']},
   {id:'concil',label:'Conciliación CB',levels:['superfull']},
 ];
 function buildTabs(){const tabs=document.getElementById('tabs');tabs.innerHTML='';const allowed=TABDEFS.filter(t=>t.levels.includes(SESSION.nivel));allowed.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.label;b.dataset.view=t.id;if(i===0)b.classList.add('active');b.onclick=()=>switchView(t.id,b);tabs.appendChild(b);});switchView(allowed[0].id,tabs.querySelector('button'));}
@@ -321,8 +321,8 @@ async function loadAll(){
     try{const jp=await apiGet({accion:'presupuesto',id:SESSION.id,pin:SESSION.pin});if(jp.ok)DATA.presupuesto=jp.filas;}catch(_){}
     initDaily();}
   catch(e){document.getElementById('dailyBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
-  if(SESSION.nivel==='capture'||SESSION.nivel==='full')renderCaptura();
-  if(SESSION.nivel==='full'){
+  if(SESSION.nivel==='capture'||SESSION.nivel==='full'||SESSION.nivel==='superfull')renderCaptura();
+  if(SESSION.nivel==='full'||SESSION.nivel==='superfull'){
     try{const j=await apiGet({accion:'ajustes',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.ajustes=j.filas;renderAjustes();}}
     catch(e){document.getElementById('ajustesBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
     try{const j=await apiGet({accion:'control',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.control=j.filas;renderControl();}}
