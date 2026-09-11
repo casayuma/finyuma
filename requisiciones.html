@@ -229,7 +229,7 @@ function esAprobador(){ return SESSION && (SESSION.nivel==='full' || SESSION.niv
 function esLiderCompras(){ return SESSION && SESSION.nivel==='lider' && SESSION.rolEspecial==='compras'; }
 function esLiderNormal(){ return SESSION && SESSION.nivel==='lider' && !esLiderCompras(); }
 function verTodosDeptos(){ return esAprobador() || esLiderCompras(); }
-function administraCatalogo(){ return esSuperfull() || esLiderCompras(); }
+function administraCatalogo(){ return esAprobador() || esLiderCompras(); } // superfull, full y líder compras
 function rolLabel(){
   if(esSuperfull())return 'Superfull';
   if(SESSION.nivel==='full')return 'Full';
@@ -317,9 +317,13 @@ function entrarApp(){
 }
 function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}location.reload();}
 
+// Convención: Full/Superfull deben ver SIEMPRE todas las pestañas que exista en la app,
+// incluidas las que se agreguen a futuro para un rol especial (como "Pedidos acumulados"
+// de Líder Compras) — al crear una pestaña nueva para cualquier rol, agrégala también aquí.
 const TABDEFS_FULL=[
   {id:'nueva',label:'Nueva requisición'},
   {id:'pendientes',label:'Pendientes'},
+  {id:'acumulados',label:'Pedidos acumulados'},
   {id:'historial',label:'Historial'},
   {id:'gasto',label:'Gasto por depto'},
 ];
