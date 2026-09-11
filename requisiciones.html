@@ -189,6 +189,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
     </section>
     <section class="view" id="v-catalogo"><div id="catalogoBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-acumulados"><div id="acumuladosBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
+    <section class="view" id="v-compraslinea"><div id="compraslineaBody"></div></section>
   </main>
 </div>
 
@@ -322,6 +323,7 @@ function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}loc
 // de Líder Compras) — al crear una pestaña nueva para cualquier rol, agrégala también aquí.
 const TABDEFS_FULL=[
   {id:'nueva',label:'Nueva requisición'},
+  {id:'compraslinea',label:'Compras en línea'},
   {id:'pendientes',label:'Pendientes'},
   {id:'acumulados',label:'Pedidos acumulados'},
   {id:'historial',label:'Historial'},
@@ -329,12 +331,14 @@ const TABDEFS_FULL=[
 ];
 const TABDEFS_COMPRAS=[
   {id:'nueva',label:'Nueva requisición'},
+  {id:'compraslinea',label:'Compras en línea'},
   {id:'acumulados',label:'Pedidos acumulados'},
   {id:'historial',label:'Historial'},
   {id:'gasto',label:'Gasto por depto'},
 ];
 const TABDEFS_LIDER=[
   {id:'nueva',label:'Nueva requisición'},
+  {id:'compraslinea',label:'Compras en línea'},
   {id:'historial',label:'Mis solicitudes'},
   {id:'gasto',label:'Gasto de mi depto'},
 ];
@@ -356,6 +360,7 @@ function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach
   if(id==='historial' && !document.getElementById('historialBody').dataset.loaded) cargarHistorial();
   if(id==='gasto' && !document.getElementById('gastoBody').dataset.loaded) cargarGasto();
   if(id==='catalogo') cargarCatalogoAdmin();
+  if(id==='compraslinea') renderCompraLinea();
   if(id==='acumulados') cargarAcumulados();
 }
 
@@ -797,6 +802,105 @@ async function marcarEstadoAcumulado(id,estado){
 async function borrarItemAcumulado(id){
   if(!confirm('¿Borrar este artículo ya aprobado? Esta acción no se puede deshacer.'))return;
   try{const j=await apiPost({accion:'requisiciones_borrar',id:SESSION.id,pin:SESSION.pin,idItem:id});if(!j.ok){alert(j.error);return;}cargarAcumulados();}catch(e){alert('No se pudo borrar.');}
+}
+
+// ————— Compras en línea (link, sin catálogo) — solo le llega a quien tiene la tarjeta —————
+// No pasa por la ventana de días/horario ni por Pendientes: es su propio flujo simple,
+// Pendiente → Comprada, y solo Superfull puede marcarla Comprada (es quien tiene la tarjeta).
+function renderCompraLinea(){
+  const deptoOpts = esLiderNormal()
+    ? `<option>${SESSION.departamento}</option>`
+    : DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('');
+  const deptoDisabled = esLiderNormal() ? 'disabled' : '';
+  const hoy=new Date().toISOString().slice(0,10);
+  document.getElementById('compraslineaBody').innerHTML=`
+    <div class="section-eyebrow">Compras en línea</div>
+    <div class="note" style="margin-top:0;margin-bottom:14px">Para artículos que se compran con tarjeta por internet (Amazon, etc.) — pega el link del producto. No pasa por aprobación de Pendientes: se manda directo a Manuel, que es quien tiene la tarjeta.</div>
+    <div class="grid2">
+      <div class="cap-form">
+        <div class="cap-grid">
+          <div class="fld cap-full"><label>Descripción del artículo</label><input id="clDescripcion" placeholder="Ej. Cargador USB-C 65W"></div>
+          <div class="fld cap-full"><label>Link del producto</label><input id="clLink" type="url" placeholder="https://..."></div>
+          <div class="fld"><label>Cantidad</label><input id="clCantidad" type="number" step="1" min="1" value="1"></div>
+          <div class="fld"><label>Precio estimado</label><input id="clPrecio" type="number" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Departamento</label><select id="clDepto" ${deptoDisabled}>${deptoOpts}</select></div>
+          <div class="fld"><label>Urgencia</label><select id="clUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
+          <div class="fld"><label>Fecha requerida</label><input id="clFecha" type="date" value="${hoy}"></div>
+          <div class="fld cap-full"><label>Notas (opcional)</label><input id="clNotas" placeholder="Talla, color, alguna especificación…"></div>
+        </div>
+        <button class="cap-btn" style="margin-top:14px" onclick="enviarCompraLinea()">Enviar a Manuel</button>
+        <div id="clMsg"></div>
+      </div>
+      <div class="cart-box">
+        <h3>${esSuperfull() ? 'Por comprar' : 'Mis solicitudes'}</h3>
+        <div id="compraslineaListaBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div>
+      </div>
+    </div>`;
+  cargarComprasLinea();
+}
+async function enviarCompraLinea(){
+  const msg=document.getElementById('clMsg');
+  const descripcion=document.getElementById('clDescripcion').value.trim();
+  const link=document.getElementById('clLink').value.trim();
+  const cantidad=num(document.getElementById('clCantidad').value)||1;
+  const precioEstimado=num(document.getElementById('clPrecio').value)||0;
+  const departamento=document.getElementById('clDepto').value;
+  const urgencia=document.getElementById('clUrgencia').value;
+  const fechaRequerida=document.getElementById('clFecha').value;
+  const notas=document.getElementById('clNotas').value.trim();
+  if(!descripcion){ msg.innerHTML='<div class="errbox">Escribe qué es lo que se quiere comprar.</div>'; return; }
+  if(!link){ msg.innerHTML='<div class="errbox">Pega el link del producto.</div>'; return; }
+  msg.innerHTML='<div class="loading"><div class="spinner"></div>Enviando…</div>';
+  try{
+    const j=await apiPost({accion:'compras_linea_crear',id:SESSION.id,pin:SESSION.pin,descripcion,link,cantidad,precioEstimado,departamento,urgencia,fechaRequerida,notas});
+    if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Manuel la va a revisar.</div>`;
+    document.getElementById('clDescripcion').value='';
+    document.getElementById('clLink').value='';
+    document.getElementById('clCantidad').value='1';
+    document.getElementById('clPrecio').value='';
+    document.getElementById('clNotas').value='';
+    cargarComprasLinea();
+  }catch(e){ msg.innerHTML='<div class="errbox">No se pudo enviar.</div>'; }
+}
+async function cargarComprasLinea(){
+  const el=document.getElementById('compraslineaListaBody');
+  if(!el) return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  try{
+    const j=await apiGet({accion:'compras_linea_list',id:SESSION.id,pin:SESSION.pin});
+    if(!j.ok) throw new Error(j.error);
+    const filas=j.filas||[];
+    if(!filas.length){ el.innerHTML='<div class="cart-empty">Todavía no hay solicitudes.</div>'; return; }
+    el.innerHTML = filas.map(r=>renderItemCompraLinea(r)).join('');
+  }catch(e){ el.innerHTML=`<div class="errbox">${e.message}</div>`; }
+}
+function renderItemCompraLinea(r){
+  const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra]=r;
+  const pillClass = estatus==='Comprada' ? 'p-comprada' : 'p-pend';
+  let acciones='';
+  if(esSuperfull() && estatus==='Pendiente'){
+    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button>`;
+  }
+  return `<div class="cart-item" style="flex-direction:column;align-items:flex-start;gap:4px">
+    <div style="display:flex;justify-content:space-between;width:100%;gap:8px">
+      <strong>${escapeHtml(descripcion)}</strong>
+      <span class="pill ${pillClass}">${estatus}</span>
+    </div>
+    <div style="font-size:11.5px;color:var(--cactus)">${escapeHtml(solNombre)} · ${escapeHtml(depto)} · ${fecha} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}</div>
+    <a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:11.5px;word-break:break-all">${escapeHtml(link)}</a>
+    ${notas?`<div style="font-size:11px;color:var(--cactus)">${escapeHtml(notas)}</div>`:''}
+    ${notaCompra?`<div style="font-size:11px;color:var(--cactus)">Nota de compra: ${escapeHtml(notaCompra)}</div>`:''}
+    ${acciones}
+  </div>`;
+}
+async function marcarCompraLineaComprada(idCompra){
+  const notaCompra=prompt('¿Alguna nota de la compra? (opcional: número de guía, confirmación, etc.)')||'';
+  try{
+    const j=await apiPost({accion:'compras_linea_actualizar',id:SESSION.id,pin:SESSION.pin,idCompra,notaCompra});
+    if(!j.ok){ alert(j.error); return; }
+    cargarComprasLinea();
+  }catch(e){ alert('No se pudo procesar.'); }
 }
 
 // ————— Historial / Mis solicitudes —————
