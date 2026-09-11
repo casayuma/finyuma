@@ -476,6 +476,7 @@ function renderDaily(){
     ${fInd('ADR', '$'+money(num(g(9))), adrMTD, adrYTD, fmtMoney, 'ADR')}
     ${fInd('RevPAR', '$'+money(num(g(10))), revparMTD, revparYTD, fmtMoney, 'RevPAR')}
     ${fMoney('Total cuartos (ingreso)',7,'total','Total Cuartos (Ingreso Hab.)')}
+    <div id="desgloseHabBox"></div>
 
     ${head('División cuartos')}
     ${fMoney('Spa',11,'sub','Spa')}
@@ -518,6 +519,7 @@ function renderDaily(){
   </table></div>
   <div class="note">MTD = todo el mes en curso sumado hasta la fecha elegida · YTD = todo el año sumado hasta la fecha elegida · Var = acumulado real menos Ppto del mes (verde = meta alcanzada/superada, rojo = lo que falta para llegar). Ppto/Var solo aparecen si esa fila tiene una meta capturada en la pestaña PRESUPUESTO para el mes seleccionado; si la celda está vacía ahí, aquí se ve "–". % Ocupación y RevPAR se recalculan con ${ROOMS} cuartos disponibles × días transcurridos; ADR y cheque promedio, con el acumulado de ingreso entre el acumulado de cuartos/pax.</div>`;
   document.getElementById('dailyBody').innerHTML=kpis+t;
+  cargarDesgloseHab(key);  // carga el desglose del ingreso de habitaciones (Tarifas, No-Show, Late, Early)
 }
 
 function descargarPDF(){
@@ -872,6 +874,24 @@ function descargarPropinasExcel(){
   XLSX.utils.book_append_sheet(wb, ws, 'Propinas');
   const nombre='Propinas_CasaYuma_'+R.desde+'_a_'+R.hasta+'.xlsx';
   XLSX.writeFile(wb, nombre);
+}
+function cargarDesgloseHab(fecha){
+  const box=document.getElementById('desgloseHabBox');
+  if(!box) return;
+  box.innerHTML='';
+  if(!fecha) return;
+  apiGet({accion:'desgloseHab',id:SESSION.id,pin:SESSION.pin,fecha:fecha}).then(j=>{
+    if(!j.ok||!j.desg||j.desg.error){ return; }
+    const d=j.desg;
+    const filas=[];
+    filas.push(['Tarifas', d.tarifas]);
+    if(Math.abs(d.noShow)>0.01) filas.push(['No-Show', d.noShow]);
+    if(Math.abs(d.lateOut)>0.01) filas.push(['Late Check-Out', d.lateOut]);
+    if(Math.abs(d.earlyIn)>0.01) filas.push(['Early Check-In', d.earlyIn]);
+    if(Math.abs(d.otrosHab)>0.01) filas.push(['Otros (extra person, upgrade…)', d.otrosHab]);
+    const rows=filas.map(f=>`<div class="row" style="padding-left:24px;font-size:13px;color:var(--cactus)"><span>· ${f[0]}</span><span class="num">$${money(f[1])}</span></div>`).join('');
+    box.innerHTML=rows;
+  }).catch(e=>{});
 }
 function cargarConcil(){
   const fecha=document.getElementById('concilFecha').value;
