@@ -127,6 +127,11 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .chart-wrap{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px;margin-bottom:20px;overflow-x:auto}
 .chart-legend-label{font-size:11.5px}
 .dept-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.cat-inp{width:100%;font-family:var(--mono);font-size:12.5px;padding:6px 7px;border:1px solid var(--line);border-radius:2px;background:#fff;color:var(--ink)}
+.cat-inp:disabled{background:var(--wool);color:var(--cactus)}
+.edit-box{background:var(--wool);border:1px solid var(--line);border-radius:2px;padding:12px;margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;align-items:end}
+.edit-box .fld{margin-bottom:0}
+.edit-box .row-actions{grid-column:1/-1}
 @media(max-width:560px){main{padding:20px 12px 70px}.cap-grid{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -161,7 +166,6 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
   <nav class="tabs" id="tabs"></nav>
   <main>
     <section class="view active" id="v-nueva"><div id="nuevaBody"></div></section>
-    <section class="view" id="v-compras"><div id="comprasBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-pendientes"><div id="pendientesBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-historial">
       <div class="ctl">
@@ -183,6 +187,8 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
       </div>
       <div id="gastoBody"><div class="empty">Elige un mes para ver el gasto.</div></div>
     </section>
+    <section class="view" id="v-catalogo"><div id="catalogoBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
+    <section class="view" id="v-acumulados"><div id="acumuladosBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
   </main>
 </div>
 
@@ -198,7 +204,7 @@ const CONFIG={
     {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
     {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY025',n:'Egbert Cruz García'},
     {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
-    {id:'CY005',n:'Horacio Muñoz Martínez'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
+    {id:'CY005',n:'Horacio Muñoz Martínez'},
   ],
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
@@ -217,6 +223,19 @@ const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);retur
 let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[],ITEM_SELECCIONADO=null,RESULTADOS_BUSQUEDA=[];
 function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const NIVELES_VALIDOS=['superfull','full','lider'];
+function esSuperfull(){ return SESSION && SESSION.nivel==='superfull'; }
+function esAprobador(){ return SESSION && (SESSION.nivel==='full' || SESSION.nivel==='superfull'); }
+function esLiderCompras(){ return SESSION && SESSION.nivel==='lider' && SESSION.rolEspecial==='compras'; }
+function esLiderNormal(){ return SESSION && SESSION.nivel==='lider' && !esLiderCompras(); }
+function verTodosDeptos(){ return esAprobador() || esLiderCompras(); }
+function administraCatalogo(){ return esSuperfull() || esLiderCompras(); }
+function rolLabel(){
+  if(esSuperfull())return 'Superfull';
+  if(SESSION.nivel==='full')return 'Full';
+  if(esLiderCompras())return 'Líder Compras';
+  return 'Líder · '+(SESSION.departamento||'');
+}
 
 (function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
@@ -244,8 +263,8 @@ function ventanaInfo(){
     const j=await apiGet({accion:'entrar',id:s.id,pin:s.pin});
     if(j.ok){
       const nivel=j.nivel||s.nivel;
-      if(nivel!=='full' && nivel!=='lider'){return;}
-      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:nivel,departamento:j.departamento||s.departamento||''};
+      if(NIVELES_VALIDOS.indexOf(nivel)===-1){return;}
+      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:nivel,departamento:j.departamento||s.departamento||'',rolEspecial:j.rolEspecial||s.rolEspecial||''};
       entrarApp();
     }
   }catch(e){}
@@ -258,7 +277,7 @@ async function identificar(){
   try{
     const j=await apiGet({accion:'login',id:id});
     if(!j.ok){info.textContent='';err.textContent=j.error;return;}
-    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento,tienePin:j.tienePin};info.textContent='';
+    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento,rolEspecial:j.rolEspecial,tienePin:j.tienePin};info.textContent='';
     document.getElementById('step1').classList.add('hidden');document.getElementById('step2').classList.remove('hidden');
     if(j.tienePin){document.getElementById('pinLabel').textContent='Tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.add('hidden');document.getElementById('pinBtn').textContent='Entrar';}
     else{document.getElementById('pinLabel').textContent='Crea tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.remove('hidden');document.getElementById('pinBtn').textContent='Crear PIN y entrar';info.textContent='Primera vez: define un PIN de 4 a 6 dígitos.';}
@@ -275,8 +294,8 @@ async function pinSubmit(){
     else{const pin2=document.getElementById('pinInput2').value.trim();if(pin!==pin2){err.textContent='Los PIN no coinciden.';return;}j=await apiPost({accion:'crearPin',id:PENDING.id,pin:pin});}
     if(!j.ok){err.textContent=j.error;return;}
     const nivel=j.nivel||PENDING.nivel;
-    if(nivel!=='full' && nivel!=='lider'){err.textContent='Tu usuario no tiene acceso a Requisiciones.';return;}
-    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel,departamento:j.departamento||PENDING.departamento||''};entrarApp();
+    if(NIVELES_VALIDOS.indexOf(nivel)===-1){err.textContent='Tu usuario no tiene acceso a Requisiciones.';return;}
+    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel,departamento:j.departamento||PENDING.departamento||'',rolEspecial:j.rolEspecial||PENDING.rolEspecial||''};entrarApp();
   }catch(e){err.textContent='No se pudo conectar.';}
 }
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')pinSubmit();});
@@ -286,18 +305,14 @@ document.getElementById('userId').addEventListener('keydown',e=>{if(e.key==='Ent
 function entrarApp(){
   document.getElementById('gate').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase()+(SESSION.departamento?' · '+SESSION.departamento:'');
+  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+rolLabel();
   try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
   buildTabs();
-  if(esCompras()){
-    cargarCatalogo().then(cargarCompras);
-    return;
-  }
   cargarCatalogo().then(renderNueva);
-  if(SESSION.nivel==='full')cargarPendientes();
-  // Fija/oculta el filtro de depto según el rol
+  if(esAprobador())cargarPendientes();
+  // Fija/oculta el filtro de depto según el rol (líder normal solo ve el suyo)
   const wrap=document.getElementById('hDeptoWrap');
-  if(SESSION.nivel==='lider'){wrap.classList.add('hidden');}
+  if(esLiderNormal()){wrap.classList.add('hidden');}
   const gMes=document.getElementById('gMes'); gMes.value=new Date().toISOString().slice(0,7);
 }
 function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}location.reload();}
@@ -308,19 +323,20 @@ const TABDEFS_FULL=[
   {id:'historial',label:'Historial'},
   {id:'gasto',label:'Gasto por depto'},
 ];
+const TABDEFS_COMPRAS=[
+  {id:'nueva',label:'Nueva requisición'},
+  {id:'acumulados',label:'Pedidos acumulados'},
+  {id:'historial',label:'Historial'},
+  {id:'gasto',label:'Gasto por depto'},
+];
 const TABDEFS_LIDER=[
   {id:'nueva',label:'Nueva requisición'},
   {id:'historial',label:'Mis solicitudes'},
   {id:'gasto',label:'Gasto de mi depto'},
 ];
-const TABDEFS_COMPRAS=[
-  {id:'compras',label:'Por comprar'},
-];
-// El rol de Compras es un "lider" cuyo Departamento (en Usuarios) es exactamente "Compras" —
-// no es líder de un departamento operativo, es el encargado de compras.
-function esCompras(){ return !!(SESSION && SESSION.nivel==='lider' && String(SESSION.departamento||'').trim()==='Compras'); }
 function buildTabs(){
-  const defs = esCompras() ? TABDEFS_COMPRAS : (SESSION.nivel==='full' ? TABDEFS_FULL : TABDEFS_LIDER);
+  let defs = esAprobador() ? TABDEFS_FULL : (esLiderCompras() ? TABDEFS_COMPRAS : TABDEFS_LIDER);
+  if(administraCatalogo()) defs = defs.concat([{id:'catalogo',label:'Catálogo'}]);
   const tabs=document.getElementById('tabs');
   tabs.innerHTML='';
   defs.forEach((t,i)=>{
@@ -335,6 +351,8 @@ function buildTabs(){
 function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');
   if(id==='historial' && !document.getElementById('historialBody').dataset.loaded) cargarHistorial();
   if(id==='gasto' && !document.getElementById('gastoBody').dataset.loaded) cargarGasto();
+  if(id==='catalogo') cargarCatalogoAdmin();
+  if(id==='acumulados') cargarAcumulados();
 }
 
 // ————— Catálogo —————
@@ -346,10 +364,10 @@ async function cargarCatalogo(){
 function renderNueva(){
   CARRITO=[];
   const hoy=new Date().toISOString().slice(0,10);
-  const deptoOpts = SESSION.nivel==='lider'
+  const deptoOpts = esLiderNormal()
     ? `<option>${SESSION.departamento}</option>`
     : DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('');
-  const deptoDisabled = SESSION.nivel==='lider' ? 'disabled' : '';
+  const deptoDisabled = esLiderNormal() ? 'disabled' : '';
   document.getElementById('nuevaBody').innerHTML=`
     <div class="section-eyebrow">Nueva requisición</div>
     <div class="grid2">
@@ -515,7 +533,7 @@ function renderCarrito(){
 async function enviarPedido(){
   if(!CARRITO.length){ alert('Agrega al menos un artículo a la lista.'); return; }
   const deptoSel=document.getElementById('rDepto');
-  const departamento = SESSION.nivel==='lider' ? SESSION.departamento : deptoSel.value;
+  const departamento = esLiderNormal() ? SESSION.departamento : deptoSel.value;
   const msg=document.getElementById('nuevaMsg');
   const body={accion:'requisiciones_crear',id:SESSION.id,pin:SESSION.pin,
     departamento,
@@ -526,15 +544,17 @@ async function enviarPedido(){
   try{
     const j=await apiPost(body);
     if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}
-    msg.innerHTML=`<div class="okmsg">Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${SESSION.nivel==='full'?'"Pendientes"':'"Mis solicitudes"'}.</div>`;
+    msg.innerHTML=`<div class="okmsg">Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${esAprobador()?'"Pendientes"':'"Historial"'}.</div>`;
     renderNueva();
-    if(SESSION.nivel==='full')cargarPendientes();
+    if(esAprobador())cargarPendientes();
     document.getElementById('historialBody').dataset.loaded='';
   }catch(e){msg.innerHTML='<div class="errbox">No se pudo enviar.</div>';}
 }
 
 // ————— Pendientes (solo full) — agrupadas por pedido, aprobación por artículo —————
+const SEL_PENDIENTES=new Set();
 async function cargarPendientes(){
+  SEL_PENDIENTES.clear();
   const el=document.getElementById('pendientesBody');
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
@@ -544,8 +564,15 @@ async function cargarPendientes(){
     if(!filas.length){el.innerHTML='<div class="empty">No hay requisiciones pendientes de aprobación.</div>';return;}
     const grupos=agruparPorPedido(filas);
     el.innerHTML=`<div class="section-eyebrow">Pendientes de aprobación (${filas.length} artículo(s) en ${grupos.length} pedido(s))</div>
+      <div class="bulk-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="chkTodosPend" onchange="toggleSeleccionarTodos(this.checked)"> Seleccionar todos
+        </label>
+        <span id="contadorSelPend" style="font-size:12.5px;color:var(--cactus)">0 seleccionados</span>
+        <button class="mini-btn ok" id="btnAprobarSel" disabled onclick="aprobarSeleccionados()" style="margin-left:auto">Aprobar seleccionados</button>
+      </div>
       <div style="overflow-x:auto"><table class="aud"><thead><tr>
-        <th>Artículo</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th>Urgencia</th><th>Acción</th>
+        <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th>Urgencia</th><th>Acción</th>
       </tr></thead><tbody>${grupos.map(g=>renderGrupoPendiente(g)).join('')}</tbody></table></div>`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
@@ -560,7 +587,7 @@ function agruparPorPedido(filas){
 }
 function renderGrupoPendiente(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
-  const cabecera=`<tr class="pedido-head"><td colspan="6">
+  const cabecera=`<tr class="pedido-head"><td colspan="7">
     Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} · requerido ${g.fechaRequerida||'–'} ${badge}
     ${g.justificacion?('<div style="font-weight:400;font-size:11.5px;color:var(--cactus);margin-top:3px">'+g.justificacion+'</div>'):''}
   </td></tr>`;
@@ -569,6 +596,7 @@ function renderGrupoPendiente(g){
 function renderItemPendiente(r){
   const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal,justificacion,urgencia]=r;
   return `<tr>
+    <td><input type="checkbox" class="pend-check" value="${id}" onchange="actualizarSeleccionPendientes()"></td>
     <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${precioUnitario?'$'+money(precioUnitario):'–'}</td>
@@ -579,6 +607,33 @@ function renderItemPendiente(r){
       <button class="mini-btn bad" onclick="pedirRechazo('${id}')">Rechazar</button>
     </div><div id="rj_${id}"></div></td>
   </tr>`;
+}
+function actualizarSeleccionPendientes(){
+  SEL_PENDIENTES.clear();
+  document.querySelectorAll('.pend-check:checked').forEach(c=>SEL_PENDIENTES.add(c.value));
+  const total=document.querySelectorAll('.pend-check').length;
+  const contador=document.getElementById('contadorSelPend');
+  if(contador) contador.textContent=SEL_PENDIENTES.size+' seleccionado'+(SEL_PENDIENTES.size===1?'':'s');
+  const btn=document.getElementById('btnAprobarSel');
+  if(btn) btn.disabled = SEL_PENDIENTES.size===0;
+  const chkTodos=document.getElementById('chkTodosPend');
+  if(chkTodos) chkTodos.checked = total>0 && SEL_PENDIENTES.size===total;
+}
+function toggleSeleccionarTodos(checked){
+  document.querySelectorAll('.pend-check').forEach(c=>{c.checked=checked;});
+  actualizarSeleccionPendientes();
+}
+async function aprobarSeleccionados(){
+  if(!SEL_PENDIENTES.size)return;
+  const ids=Array.from(SEL_PENDIENTES);
+  if(!confirm(`¿Aprobar ${ids.length} artículo(s) seleccionado(s)?`))return;
+  const btn=document.getElementById('btnAprobarSel');
+  if(btn){btn.disabled=true;btn.textContent='Aprobando…';}
+  try{
+    const j=await apiPost({accion:'requisiciones_aprobar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids});
+    if(!j.ok){alert(j.error);cargarPendientes();return;}
+    cargarPendientes();
+  }catch(e){alert('No se pudo procesar la aprobación múltiple.');cargarPendientes();}
 }
 async function aprobarItem(id){
   try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'aprobar'});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
@@ -600,68 +655,45 @@ function generarPago(articulo,subtotal,idPedido){
   window.open(CONFIG.PAGOS_URL+'?'+p.toString(),'_blank');
 }
 
-// ————— Compras (rol dedicado: lider con Departamento = "Compras") —————
-async function cargarCompras(){
-  const el=document.getElementById('comprasBody');
+// ————— Pedidos acumulados (Líder Compras) — todos los departamentos, en curso —————
+// Junta lo Pendiente + Aprobado + Comprado de TODOS los departamentos en una sola cola,
+// para que Compras tenga en un solo lugar todo lo que sigue vivo (sin tener que ir
+// pestaña por pestaña ni elegir fechas). Lo Recibido/Rechazado ya no aparece aquí — para
+// eso está Historial.
+const ESTATUS_ACUMULADOS=['Pendiente','Aprobado','Comprada'];
+async function cargarAcumulados(){
+  const el=document.getElementById('acumuladosBody');
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
-    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,estatus:'Aprobado'});
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
-    renderCompras(j.filas||[]);
+    const filas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1);
+    if(!filas.length){el.innerHTML='<div class="empty">No hay pedidos en curso por ahora.</div>';return;}
+    const grupos=agruparPorPedido(filas);
+    const total=filas.reduce((s,r)=>s+num(r[11]),0);
+    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${grupos.length} pedido(s) · $${money(total)})</div>
+      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial".</div>
+      <div style="overflow-x:auto"><table class="aud"><thead><tr>
+        <th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th>
+      </tr></thead><tbody>${grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
-function proveedorDeCatalogo(catalogoId){
-  if(!catalogoId)return'Sin proveedor';
-  const c=CATALOGO.find(x=>String(x[0])===String(catalogoId));
-  const prov=c?String(c[5]||'').trim():'';
-  return prov||'Sin proveedor';
+function renderGrupoAcumulado(g){
+  const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
+  const cabecera=`<tr class="pedido-head"><td colspan="4">
+    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
+  </td></tr>`;
+  return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
 }
-function renderCompras(filas){
-  const el=document.getElementById('comprasBody');
-  if(!filas.length){el.innerHTML='<div class="empty">No hay artículos aprobados esperando compra. Lo que no se marque como surtido se queda aquí para el siguiente día de compra.</div>';return;}
-  const porDepto={};
-  const ordenVistos=[];
-  filas.forEach(r=>{
-    const depto=r[5]||'Sin departamento';
-    const prov=proveedorDeCatalogo(r[7]);
-    if(!porDepto[depto]){porDepto[depto]={};ordenVistos.push(depto);}
-    if(!porDepto[depto][prov])porDepto[depto][prov]=[];
-    porDepto[depto][prov].push(r);
-  });
-  // Respeta el orden fijo de DEPARTAMENTOS y agrega al final cualquier depto no listado ahí.
-  const ordenFinal=DEPARTAMENTOS.map(d=>d.nombre).filter(n=>porDepto[n])
-    .concat(ordenVistos.filter(n=>DEPARTAMENTOS.every(d=>d.nombre!==n)));
-  let html=`<div class="section-eyebrow">Por comprar (${filas.length} artículo(s))</div>
-    <div class="note" style="margin-top:0 0 14px">Marca "Surtido" cuando ya lo compraste. Lo que dejes sin marcar se queda en esta lista para el siguiente día de compra.</div>`;
-  ordenFinal.forEach(depto=>{
-    const proveedores=Object.keys(porDepto[depto]).sort((a,b)=>{
-      if(a==='Sin proveedor')return 1; if(b==='Sin proveedor')return -1;
-      return a.localeCompare(b,'es');
-    });
-    html+=`<h3 style="margin-top:24px;display:flex;align-items:center;gap:8px"><span class="dept-dot" style="background:${deptoColor(depto)}"></span>${depto}</h3>`;
-    proveedores.forEach(prov=>{
-      const items=porDepto[depto][prov];
-      html+=`<div style="overflow-x:auto;margin-top:8px"><table class="aud"><thead>
-        <tr><th colspan="6" style="background:var(--wool);color:var(--ink)">Proveedor: ${escapeHtml(prov)}</th></tr>
-        <tr><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Solicitó</th><th>Pedido</th><th>Acción</th></tr>
-      </thead><tbody>${items.map(r=>renderItemCompra(r)).join('')}</tbody></table></div>`;
-    });
-  });
-  el.innerHTML=html;
-}
-function renderItemCompra(r){
-  const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal]=r;
+function renderItemAcumulado(r){
+  const [,,,,,,articulo,,cantidad,unidad,,subtotal,,,,,estatus]=r;
+  const pillClass=ESTATUS_PILL[estatus]||'p-pend';
   return `<tr>
     <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
-    <td>${solNombre}</td>
-    <td>${pedidoId}</td>
-    <td><button class="mini-btn ok" onclick="marcarSurtido('${id}')">Surtido</button></td>
+    <td><span class="pill ${pillClass}">${estatus}</span></td>
   </tr>`;
-}
-async function marcarSurtido(id){
-  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'marcarComprada'});if(!j.ok){alert(j.error);return;}cargarCompras();}catch(e){alert('No se pudo procesar.');}
 }
 
 // ————— Historial / Mis solicitudes —————
@@ -669,7 +701,7 @@ const ESTATUS_PILL={Pendiente:'p-pend',Aprobado:'p-aprob',Comprada:'p-comprada',
 async function cargarHistorial(){
   const el=document.getElementById('historialBody');
   const desde=document.getElementById('hDesde').value, hasta=document.getElementById('hHasta').value, estatus=document.getElementById('hEstatus').value;
-  const departamento = SESSION.nivel==='lider' ? '' : document.getElementById('hDepto').value; // el backend ya fuerza el propio si es líder
+  const departamento = verTodosDeptos() ? document.getElementById('hDepto').value : ''; // el backend ya fuerza el propio si es líder
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   document.getElementById('historialBody').dataset.loaded='1';
   try{
@@ -694,18 +726,49 @@ function renderGrupoHistorial(g){
 function renderItemHistorial(r,pedidoId){
   const [id,,,,,,articulo,,cantidad,unidad,precioUnitario,subtotal,,,,,estatus,aprobadoPor,,motivoRech]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
-  let accionCol='–';
-  if(SESSION.nivel==='full'){
-    if(estatus==='Aprobado')accionCol=`<div class="row-actions no-pdf"><button class="mini-btn info" onclick="marcarEstado('${id}','marcarComprada')">Comprada</button><button class="mini-btn purp" onclick="generarPago('${articulo}',${subtotal||0},'${pedidoId}')">Generar pago</button></div>`;
-    else if(estatus==='Comprada')accionCol=`<button class="mini-btn ok no-pdf" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`;
+  let acciones=[];
+  if(esAprobador()){
+    if(estatus==='Aprobado'){
+      acciones.push(`<button class="mini-btn info" onclick="marcarEstado('${id}','marcarComprada')">Comprada</button>`);
+      acciones.push(`<button class="mini-btn purp" onclick="generarPago('${articulo}',${subtotal||0},'${pedidoId}')">Generar pago</button>`);
+    } else if(estatus==='Comprada'){
+      acciones.push(`<button class="mini-btn ok" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`);
+    }
   }
+  if(esSuperfull()){
+    if(estatus!=='Pendiente') acciones.push(`<button class="mini-btn bad" onclick="revertirItem('${id}')">Revertir</button>`);
+    acciones.push(`<button class="mini-btn info" onclick="mostrarEditarItem('${id}',${cantidad},'${escapeHtml(unidad||'')}',${precioUnitario||0})">Editar</button>`);
+  }
+  const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
   return `<tr>
     <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td><span class="pill ${pillClass}">${estatus}</span>${estatus==='Rechazado'&&motivoRech?`<div style="font-size:10.5px;color:var(--cactus);margin-top:3px">${motivoRech}</div>`:''}</td>
-    <td>${aprobadoPor||'–'}</td><td>${accionCol}</td>
+    <td>${aprobadoPor||'–'}</td><td>${accionCol}<div id="ed_${id}" class="no-pdf"></div></td>
   </tr>`;
+}
+async function revertirItem(id){
+  if(!confirm('¿Regresar este artículo a Pendiente? Se borra quién lo aprobó/rechazó y sus fechas.'))return;
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'revertir'});if(!j.ok){alert(j.error);return;}cargarHistorial();if(esAprobador())cargarPendientes();}catch(e){alert('No se pudo procesar.');}
+}
+function mostrarEditarItem(id,cantidad,unidad,precio){
+  const box=document.getElementById('ed_'+id);
+  box.innerHTML=`<div class="edit-box">
+    <div class="fld"><label>Cantidad</label><input class="cat-inp" id="edCant_${id}" type="number" step="1" value="${cantidad}"></div>
+    <div class="fld"><label>Unidad</label><input class="cat-inp" id="edUnidad_${id}" value="${unidad}"></div>
+    <div class="fld"><label>Precio unitario</label><input class="cat-inp" id="edPrecio_${id}" type="number" step="0.01" value="${precio}"></div>
+    <div class="row-actions">
+      <button class="mini-btn ok" onclick="guardarEdicionItem('${id}')">Guardar</button>
+      <button class="mini-btn bad" onclick="document.getElementById('ed_${id}').innerHTML=''">Cancelar</button>
+    </div>
+  </div>`;
+}
+async function guardarEdicionItem(id){
+  const cantidad=num(document.getElementById('edCant_'+id).value);
+  const unidad=document.getElementById('edUnidad_'+id).value.trim();
+  const precioUnitario=num(document.getElementById('edPrecio_'+id).value);
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'editar',cantidad,unidad,precioUnitario});if(!j.ok){alert(j.error);return;}cargarHistorial();}catch(e){alert('No se pudo procesar.');}
 }
 function renderHistorialKpis(filas){
   let pendientes=0,aprobadas=0,rechazadas=0,gasto=0;
@@ -722,7 +785,7 @@ function renderHistorialKpis(filas){
     <div class="kpi"><div class="k-lbl">Artículos</div><div class="k-val">${filas.length}</div></div>
     <div class="kpi"><div class="k-lbl">Pendientes</div><div class="k-val">${pendientes}</div></div>
     <div class="kpi"><div class="k-lbl">Aprobados/en curso</div><div class="k-val">${aprobadas}</div></div>
-    <div class="kpi"><div class="k-lbl">Gasto ${SESSION.nivel==='full'?'(top: '+topDepto+')':''}</div><div class="k-val" style="font-size:17px">$${money(gasto)}</div></div>
+    <div class="kpi"><div class="k-lbl">Gasto ${verTodosDeptos()?'(top: '+topDepto+')':''}</div><div class="k-val" style="font-size:17px">$${money(gasto)}</div></div>
   </div>`;
 }
 function pdfHistorial(){
@@ -755,7 +818,7 @@ async function cargarGasto(){
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta});
     if(!j.ok)throw new Error(j.error);
     const filas=(j.filas||[]).filter(r=>['Aprobado','Comprada','Recibida'].indexOf(r[16])!==-1);
-    if(SESSION.nivel==='full') renderGastoFull(el,filas,mes);
+    if(verTodosDeptos()) renderGastoFull(el,filas,mes);
     else renderGastoLider(el,filas,mes);
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
@@ -799,6 +862,67 @@ function renderGastoLider(el,filas,mes){
       ${Object.keys(porEstatus).map(k=>`<div class="kpi"><div class="k-lbl">${k}</div><div class="k-val" style="font-size:17px">$${money(porEstatus[k])}</div></div>`).join('')}
     </div>
     <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento (no cuenta pendientes ni rechazados).</div>`;
+}
+
+// ————— Catálogo (administración — Superfull / Líder Compras) —————
+async function cargarCatalogoAdmin(){
+  const el=document.getElementById('catalogoBody');
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  try{
+    const j=await apiGet({accion:'catalogo_list_todo',id:SESSION.id,pin:SESSION.pin});
+    if(!j.ok)throw new Error(j.error);
+    const filas=j.filas||[];
+    el.innerHTML=`
+      <div class="section-eyebrow">Agregar artículo al catálogo</div>
+      <div class="cap-form" style="margin-bottom:26px">
+        <div class="cap-grid">
+          <div class="fld"><label>Nombre del artículo</label><input id="caNombre" placeholder="Ej. Servilletas de tela"></div>
+          <div class="fld"><label>Unidad</label><input id="caUnidad" placeholder="pza, litro…"></div>
+          <div class="fld"><label>Precio unitario</label><input id="caPrecio" type="number" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Departamento (opcional)</label><select id="caDepto"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+        </div>
+        <button class="cap-btn" onclick="agregarArticuloCatalogo()">Agregar al catálogo</button>
+        <div id="catalogoMsg"></div>
+      </div>
+      <div class="section-eyebrow">Catálogo completo (${filas.length})</div>
+      <div style="overflow-x:auto"><table class="aud"><thead><tr>
+        <th>ID</th><th>Artículo</th><th>Unidad</th><th>Precio</th><th>Departamento</th><th>Activo</th><th>Acción</th>
+      </tr></thead><tbody>${filas.map(f=>renderFilaCatalogoAdmin(f)).join('')||'<tr><td colspan="7" class="empty">Aún no hay artículos en el catálogo.</td></tr>'}</tbody></table></div>`;
+  }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
+}
+function renderFilaCatalogoAdmin(f){
+  const [id,articulo,unidad,precio,departamento,activo]=f;
+  const deptoOpts='<option value="">Cualquier departamento</option>'+DEPARTAMENTOS.map(d=>`<option ${d.nombre===departamento?'selected':''}>${d.nombre}</option>`).join('');
+  return `<tr>
+    <td>${id}</td>
+    <td><input class="cat-inp" id="cArt_${id}" value="${escapeHtml(articulo)}"></td>
+    <td><input class="cat-inp" id="cUni_${id}" value="${escapeHtml(unidad||'')}"></td>
+    <td><input class="cat-inp" id="cPre_${id}" type="number" step="0.01" value="${precio||0}"></td>
+    <td><select class="cat-inp" id="cDep_${id}">${deptoOpts}</select></td>
+    <td><select class="cat-inp" id="cAct_${id}"><option value="SI" ${activo==='SI'?'selected':''}>SI</option><option value="NO" ${activo==='NO'?'selected':''}>NO</option></select></td>
+    <td><button class="mini-btn info" onclick="guardarFilaCatalogo('${id}')">Guardar</button></td>
+  </tr>`;
+}
+async function agregarArticuloCatalogo(){
+  const articulo=document.getElementById('caNombre').value.trim();
+  const msg=document.getElementById('catalogoMsg');
+  if(!articulo){msg.innerHTML='<div class="errbox">Escribe el nombre del artículo.</div>';return;}
+  const body={accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,
+    articulo, unidad:document.getElementById('caUnidad').value.trim(),
+    precioUnitario:num(document.getElementById('caPrecio').value)||0,
+    departamento:document.getElementById('caDepto').value};
+  msg.innerHTML='<div class="okmsg">Guardando…</div>';
+  try{const j=await apiPost(body);if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}cargarCatalogoAdmin();}catch(e){msg.innerHTML='<div class="errbox">No se pudo guardar.</div>';}
+}
+async function guardarFilaCatalogo(id){
+  const body={accion:'catalogo_actualizar',id:SESSION.id,pin:SESSION.pin,
+    catalogoId:id,
+    articulo:document.getElementById('cArt_'+id).value.trim(),
+    unidad:document.getElementById('cUni_'+id).value.trim(),
+    precioUnitario:num(document.getElementById('cPre_'+id).value)||0,
+    departamento:document.getElementById('cDep_'+id).value,
+    activo:document.getElementById('cAct_'+id).value};
+  try{const j=await apiPost(body);if(!j.ok){alert(j.error);return;}await cargarCatalogo();cargarCatalogoAdmin();}catch(e){alert('No se pudo guardar.');}
 }
 </script>
 </body>
