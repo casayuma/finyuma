@@ -668,7 +668,10 @@ function generarPago(articulo,subtotal,idPedido){
 // "Recibida" cerrando el circuito — recién ahí el artículo desaparece de esta lista (lo
 // Recibido/Rechazado ya no aparece aquí, para eso está "Historial").
 const ESTATUS_ACUMULADOS=['Pendiente','Aprobado','Comprada'];
+const SEL_ACUM_COMPRAR=new Set(); // artículos Aprobado seleccionados para marcar Comprada
+const SEL_ACUM_RECIBIR=new Set(); // artículos Comprada seleccionados para marcar Recibida
 async function cargarAcumulados(){
+  SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
   const el=document.getElementById('acumuladosBody');
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
@@ -680,10 +683,23 @@ async function cargarAcumulados(){
     const bloques=agruparPorDepartamentoYPedido(filas);
     el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${bloques.reduce((s,b)=>s+b.grupos.length,0)} pedido(s) · $${money(total)})</div>
       <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista.</div>
+      <div class="bulk-bar" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="chkTodosComprar" onchange="toggleSeleccionarTodosAcum('comprar',this.checked)"> Todos los aprobados
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="chkTodosRecibir" onchange="toggleSeleccionarTodosAcum('recibir',this.checked)"> Todos los comprados
+        </label>
+        <span id="contadorSelAcum" style="font-size:12.5px;color:var(--cactus)">0 seleccionados</span>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini-btn info" id="btnCompradosSel" disabled onclick="marcarCompradosSeleccionados()">Marcar comprados</button>
+          <button class="mini-btn ok" id="btnRecibidosSel" disabled onclick="marcarRecibidosSeleccionados()">Marcar recibidos</button>
+        </div>
+      </div>
       ${bloques.map(b=>`
         <div class="section-eyebrow" style="margin-top:18px"><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento}</div>
         <div style="overflow-x:auto"><table class="aud"><thead><tr>
-          <th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
+          <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
         </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
       `).join('')}`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
@@ -699,7 +715,7 @@ function agruparPorDepartamentoYPedido(filas){
 }
 function renderGrupoAcumulado(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
-  const cabecera=`<tr class="pedido-head"><td colspan="5">
+  const cabecera=`<tr class="pedido-head"><td colspan="6">
     Pedido ${g.pedidoId} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
@@ -707,9 +723,12 @@ function renderGrupoAcumulado(g){
 function renderItemAcumulado(r){
   const [id,,,,,depto,articulo,,cantidad,unidad,,subtotal,,,,,estatus]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
-  let acciones=[];
+  let acciones=[]; let checkbox='';
   if(estatus==='Aprobado'){
+    // Comprada: la marca Compras (Rainier) o Full/Superfull. Borrar: exclusivo Full/Superfull
+    // (Compras no puede borrar artículos del pedido, solo marcarlos Comprada).
     if(esAprobador() || esLiderCompras()){
+      checkbox=`<input type="checkbox" class="acum-check-comprar" value="${id}" onchange="actualizarSeleccionAcumulados()">`;
       acciones.push(`<button class="mini-btn info" onclick="marcarEstadoAcumulado('${id}','marcarComprada')">Comprada</button>`);
     }
     if(esAprobador()){
@@ -717,17 +736,60 @@ function renderItemAcumulado(r){
     }
   } else if(estatus==='Comprada'){
     if(esAprobador() || (SESSION.departamento && SESSION.departamento===depto)){
+      checkbox=`<input type="checkbox" class="acum-check-recibir" value="${id}" onchange="actualizarSeleccionAcumulados()">`;
       acciones.push(`<button class="mini-btn ok" onclick="marcarEstadoAcumulado('${id}','marcarRecibida')">Recibida</button>`);
     }
   }
   const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
   return `<tr>
+    <td>${checkbox}</td>
     <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td><span class="pill ${pillClass}">${estatus}</span></td>
     <td>${accionCol}</td>
   </tr>`;
+}
+function actualizarSeleccionAcumulados(){
+  SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
+  document.querySelectorAll('.acum-check-comprar:checked').forEach(c=>SEL_ACUM_COMPRAR.add(c.value));
+  document.querySelectorAll('.acum-check-recibir:checked').forEach(c=>SEL_ACUM_RECIBIR.add(c.value));
+  const totalSel=SEL_ACUM_COMPRAR.size+SEL_ACUM_RECIBIR.size;
+  const contador=document.getElementById('contadorSelAcum');
+  if(contador) contador.textContent=totalSel+' seleccionado'+(totalSel===1?'':'s');
+  const btnC=document.getElementById('btnCompradosSel'); if(btnC) btnC.disabled=SEL_ACUM_COMPRAR.size===0;
+  const btnR=document.getElementById('btnRecibidosSel'); if(btnR) btnR.disabled=SEL_ACUM_RECIBIR.size===0;
+  const totalComprar=document.querySelectorAll('.acum-check-comprar').length;
+  const totalRecibir=document.querySelectorAll('.acum-check-recibir').length;
+  const chkC=document.getElementById('chkTodosComprar'); if(chkC) chkC.checked = totalComprar>0 && SEL_ACUM_COMPRAR.size===totalComprar;
+  const chkR=document.getElementById('chkTodosRecibir'); if(chkR) chkR.checked = totalRecibir>0 && SEL_ACUM_RECIBIR.size===totalRecibir;
+}
+function toggleSeleccionarTodosAcum(tipo,checked){
+  const cls = tipo==='comprar' ? '.acum-check-comprar' : '.acum-check-recibir';
+  document.querySelectorAll(cls).forEach(c=>{c.checked=checked;});
+  actualizarSeleccionAcumulados();
+}
+async function marcarCompradosSeleccionados(){
+  if(!SEL_ACUM_COMPRAR.size)return;
+  const ids=Array.from(SEL_ACUM_COMPRAR);
+  if(!confirm(`¿Marcar ${ids.length} artículo(s) como Comprados?`))return;
+  const btn=document.getElementById('btnCompradosSel'); if(btn){btn.disabled=true;btn.textContent='Marcando…';}
+  try{
+    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,accionEstatus:'marcarComprada'});
+    if(!j.ok){alert(j.error);}
+    cargarAcumulados();
+  }catch(e){alert('No se pudo procesar.');cargarAcumulados();}
+}
+async function marcarRecibidosSeleccionados(){
+  if(!SEL_ACUM_RECIBIR.size)return;
+  const ids=Array.from(SEL_ACUM_RECIBIR);
+  if(!confirm(`¿Marcar ${ids.length} artículo(s) como Recibidos?`))return;
+  const btn=document.getElementById('btnRecibidosSel'); if(btn){btn.disabled=true;btn.textContent='Marcando…';}
+  try{
+    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,accionEstatus:'marcarRecibida'});
+    if(!j.ok){alert(j.error);}
+    cargarAcumulados();
+  }catch(e){alert('No se pudo procesar.');cargarAcumulados();}
 }
 async function marcarEstadoAcumulado(id,estado){
   try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});if(!j.ok){alert(j.error);return;}cargarAcumulados();}catch(e){alert('No se pudo procesar.');}
