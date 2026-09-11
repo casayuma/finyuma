@@ -492,6 +492,8 @@ function agregarAlCarrito(){
   const unidad = document.getElementById('iUnidad').value.trim();
   const precioUnitario = num(document.getElementById('iPrecio').value)||0;
   if(!articulo){ alert('Escribe o elige un artículo.'); return; }
+  const yaEnCarrito = CARRITO.some(it => (catalogoId && it.catalogoId===catalogoId) || normaliza(it.articulo)===normaliza(articulo));
+  if(yaEnCarrito){ alert('Ese artículo ya está en tu lista. Si necesitas más cantidad, quítalo de la lista y agrégalo de nuevo con la cantidad correcta.'); return; }
   CARRITO.push({articulo, catalogoId, cantidad, unidad, precioUnitario, subtotal:Math.round(cantidad*precioUnitario*100)/100});
   document.getElementById('iBuscar').value='';
   document.getElementById('iResultados').classList.add('hidden');
@@ -659,11 +661,12 @@ function generarPago(articulo,subtotal,idPedido){
   window.open(CONFIG.PAGOS_URL+'?'+p.toString(),'_blank');
 }
 
-// ————— Pedidos acumulados (Líder Compras) — todos los departamentos, en curso —————
-// Junta lo Pendiente + Aprobado + Comprado de TODOS los departamentos en una sola cola,
-// para que Compras tenga en un solo lugar todo lo que sigue vivo (sin tener que ir
-// pestaña por pestaña ni elegir fechas). Lo Recibido/Rechazado ya no aparece aquí — para
-// eso está Historial.
+// ————— Pedidos acumulados (Líder Compras / Full / Superfull) — todos los deptos, en curso —————
+// Junta lo Pendiente + Aprobado + Comprado de TODOS los departamentos, separado por
+// departamento, para que Compras tenga en un solo lugar todo lo que sigue vivo. Control
+// cruzado: Compras (o Full/Superfull) marca "Comprada"; el departamento que lo pidió marca
+// "Recibida" cerrando el circuito — recién ahí el artículo desaparece de esta lista (lo
+// Recibido/Rechazado ya no aparece aquí, para eso está "Historial").
 const ESTATUS_ACUMULADOS=['Pendiente','Aprobado','Comprada'];
 async function cargarAcumulados(){
   const el=document.getElementById('acumuladosBody');
@@ -673,31 +676,65 @@ async function cargarAcumulados(){
     if(!j.ok)throw new Error(j.error);
     const filas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1);
     if(!filas.length){el.innerHTML='<div class="empty">No hay pedidos en curso por ahora.</div>';return;}
-    const grupos=agruparPorPedido(filas);
     const total=filas.reduce((s,r)=>s+num(r[11]),0);
-    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${grupos.length} pedido(s) · $${money(total)})</div>
-      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial".</div>
-      <div style="overflow-x:auto"><table class="aud"><thead><tr>
-        <th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th>
-      </tr></thead><tbody>${grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>`;
+    const bloques=agruparPorDepartamentoYPedido(filas);
+    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${bloques.reduce((s,b)=>s+b.grupos.length,0)} pedido(s) · $${money(total)})</div>
+      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista.</div>
+      ${bloques.map(b=>`
+        <div class="section-eyebrow" style="margin-top:18px"><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento}</div>
+        <div style="overflow-x:auto"><table class="aud"><thead><tr>
+          <th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
+        </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+      `).join('')}`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
+}
+function agruparPorDepartamentoYPedido(filas){
+  const porDepto={}; const orden=[];
+  filas.forEach(r=>{
+    const depto=r[5];
+    if(!porDepto[depto]){ porDepto[depto]=[]; orden.push(depto); }
+    porDepto[depto].push(r);
+  });
+  return orden.map(depto=>({departamento:depto, grupos:agruparPorPedido(porDepto[depto])}));
 }
 function renderGrupoAcumulado(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
-  const cabecera=`<tr class="pedido-head"><td colspan="4">
-    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
+  const cabecera=`<tr class="pedido-head"><td colspan="5">
+    Pedido ${g.pedidoId} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
 }
 function renderItemAcumulado(r){
-  const [,,,,,,articulo,,cantidad,unidad,,subtotal,,,,,estatus]=r;
+  const [id,,,,,depto,articulo,,cantidad,unidad,,subtotal,,,,,estatus]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
+  let acciones=[];
+  if(estatus==='Aprobado'){
+    if(esAprobador() || esLiderCompras()){
+      acciones.push(`<button class="mini-btn info" onclick="marcarEstadoAcumulado('${id}','marcarComprada')">Comprada</button>`);
+    }
+    if(esAprobador()){
+      acciones.push(`<button class="mini-btn bad" onclick="borrarItemAcumulado('${id}')">Borrar</button>`);
+    }
+  } else if(estatus==='Comprada'){
+    if(esAprobador() || (SESSION.departamento && SESSION.departamento===depto)){
+      acciones.push(`<button class="mini-btn ok" onclick="marcarEstadoAcumulado('${id}','marcarRecibida')">Recibida</button>`);
+    }
+  }
+  const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
   return `<tr>
     <td>${articulo}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td><span class="pill ${pillClass}">${estatus}</span></td>
+    <td>${accionCol}</td>
   </tr>`;
+}
+async function marcarEstadoAcumulado(id,estado){
+  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});if(!j.ok){alert(j.error);return;}cargarAcumulados();}catch(e){alert('No se pudo procesar.');}
+}
+async function borrarItemAcumulado(id){
+  if(!confirm('¿Borrar este artículo ya aprobado? Esta acción no se puede deshacer.'))return;
+  try{const j=await apiPost({accion:'requisiciones_borrar',id:SESSION.id,pin:SESSION.pin,idItem:id});if(!j.ok){alert(j.error);return;}cargarAcumulados();}catch(e){alert('No se pudo borrar.');}
 }
 
 // ————— Historial / Mis solicitudes —————
@@ -728,16 +765,17 @@ function renderGrupoHistorial(g){
   return cabecera + g.items.map(r=>renderItemHistorial(r,g.pedidoId)).join('');
 }
 function renderItemHistorial(r,pedidoId){
-  const [id,,,,,,articulo,,cantidad,unidad,precioUnitario,subtotal,,,,,estatus,aprobadoPor,,motivoRech]=r;
+  const [id,,,,,depto,articulo,,cantidad,unidad,precioUnitario,subtotal,,,,,estatus,aprobadoPor,,motivoRech]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
   let acciones=[];
-  if(esAprobador()){
-    if(estatus==='Aprobado'){
-      acciones.push(`<button class="mini-btn info" onclick="marcarEstado('${id}','marcarComprada')">Comprada</button>`);
-      acciones.push(`<button class="mini-btn purp" onclick="generarPago('${articulo}',${subtotal||0},'${pedidoId}')">Generar pago</button>`);
-    } else if(estatus==='Comprada'){
-      acciones.push(`<button class="mini-btn ok" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`);
-    }
+  // Historial es de solo consulta + generar pago. Marcar Comprada/Recibida ahora vive en
+  // "Pedidos acumulados": Comprada la pone Compras (control cruzado), Recibida la pone el
+  // propio departamento que lo pidió — cerrando el circuito.
+  if(esAprobador() && estatus==='Aprobado'){
+    acciones.push(`<button class="mini-btn purp" onclick="generarPago('${escapeHtml(articulo)}',${subtotal||0},'${pedidoId}')">Generar pago</button>`);
+  }
+  if(estatus==='Comprada' && (esAprobador() || (SESSION.departamento && SESSION.departamento===depto))){
+    acciones.push(`<button class="mini-btn ok" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`);
   }
   if(esSuperfull()){
     if(estatus!=='Pendiente') acciones.push(`<button class="mini-btn bad" onclick="revertirItem('${id}')">Revertir</button>`);
