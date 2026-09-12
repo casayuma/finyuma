@@ -131,10 +131,13 @@ const CONFIG={
 };
 
 // ————— Definición de módulos: nivel mínimo requerido para verlos habilitados —————
+// "levels" es por nivel (superfull/full/lider). "deptosExtra" agrega departamentos
+// puntuales aunque su nivel no baste por sí solo — ej. Recepción entra a Auditoría
+// aunque sea "lider", porque hace el cierre/cuadre diario.
 const MODULES=[
   {id:'auditoria', tag:'Cuadre · Libro · Auditoría', title:'Auditoría', stripe:'aud',
    desc:'Daily report, cuadre diario, libro contable y auditoría de transacciones por día.',
-   href:CONFIG.AUDITORIA_URL, levels:['superfull','full']},
+   href:CONFIG.AUDITORIA_URL, levels:['superfull','full'], deptosExtra:['Recepción']},
   {id:'pagos', tag:'Cuentas por pagar', title:'Pagos a Proveedores', stripe:'pagos',
    desc:'Solicitud, aprobación y seguimiento de pagos a proveedores, con catálogo e historial.',
    href:'pagos.html', levels:['superfull','full','lider']},
@@ -145,12 +148,12 @@ const MODULES=[
 
 // ————— Módulos anunciados pero aún sin HTML/backend — se configuran más adelante —————
 const PENDING_MODULES=[
-  {id:'incidencias', tag:'Nómina', title:'Incidencias', stripe:'inc',
-   desc:'Registro mensual de incidencias de nómina por colaborador (faltas, permisos, horas extra…).'},
-  {id:'bitacora', tag:'Operación diaria', title:'Bitácora de turnos', stripe:'bit',
-   desc:'Registro de lo que pasa en cada turno, para que el siguiente turno sepa qué siguió pendiente.'},
   {id:'calendario', tag:'Reservas · Eventos', title:'Calendario', stripe:'cal',
    desc:'Calendario compartido de reservas, eventos y fechas clave de Casa Yuma.'},
+  {id:'incidencias', tag:'Nómina', title:'Incidencias', stripe:'inc',
+   desc:'Registro mensual de incidencias de nómina por colaborador (faltas, permisos, horas extra…).'},
+  {id:'horarios', tag:'Operación diaria', title:'Horarios Universal', stripe:'bit',
+   desc:'Horarios y bitácora de turnos — aquí es donde se registra lo que pasó en cada turno para el siguiente.'},
 ];
 
 let SESSION=null,PENDING=null;
@@ -213,7 +216,7 @@ function buildCards(){
   const grid=document.getElementById('cardGrid');
   grid.innerHTML='';
   MODULES.forEach(m=>{
-    const allowed=m.levels.includes(SESSION.nivel);
+    const allowed=m.levels.includes(SESSION.nivel) || (m.deptosExtra && m.deptosExtra.includes(SESSION.departamento));
     const card=document.createElement('div');
     card.className='card'+(allowed?'':' locked');
     card.innerHTML=`<div class="stripe ${m.stripe}"></div>
