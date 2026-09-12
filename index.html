@@ -118,6 +118,7 @@ main{max-width:1080px;margin:0 auto;padding:40px 20px 80px}
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
   AUDITORIA_URL:'auditoria.html', // nombre/ubicación del archivo de Auditoría que ya tienes
+  BITACORA_URL:'https://claude.ai/code/artifact/da5d646f-3b9e-44ad-bab1-fef44ebfc3c4', // Bitácora de Turnos (edición) — solo líderes+
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
@@ -144,6 +145,9 @@ const MODULES=[
   {id:'requisiciones', tag:'Compras internas', title:'Requisiciones', stripe:'req',
    desc:'Solicitud y aprobación de requisiciones de compra por departamento.',
    href:'requisiciones.html', levels:['superfull','full','lider']},
+  {id:'horarios', tag:'Operación diaria', title:'Horarios Universal', stripe:'bit',
+   desc:'Bitácora de turnos — cada líder captura y actualiza el horario semanal de su departamento. Solo líderes y administración pueden modificarlo; en el dashboard de Briefing Diario se ve de forma informativa, sin edición.',
+   href:CONFIG.BITACORA_URL, levels:['superfull','full','lider']},
 ];
 
 // ————— Módulos anunciados pero aún sin HTML/backend — se configuran más adelante —————
@@ -152,8 +156,6 @@ const PENDING_MODULES=[
    desc:'Calendario compartido de reservas, eventos y fechas clave de Casa Yuma.'},
   {id:'incidencias', tag:'Nómina', title:'Incidencias', stripe:'inc',
    desc:'Registro mensual de incidencias de nómina por colaborador (faltas, permisos, horas extra…).'},
-  {id:'horarios', tag:'Operación diaria', title:'Horarios Universal', stripe:'bit',
-   desc:'Horarios y bitácora de turnos — aquí es donde se registra lo que pasó en cada turno para el siguiente.'},
 ];
 
 let SESSION=null,PENDING=null;
