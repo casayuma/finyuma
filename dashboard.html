@@ -1,294 +1,1110 @@
-<!doctype html>
-<html lang="es">
-<head>
-<base target="_top">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ocupación Casa Yuma</title>
+<!doctype html><html><head><base target="_top"><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Bitácora de Turnos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f6f4ef;
-    --surface:#ffffff;
-    --surface-2:#faf8f3;
-    --border:#e6e0d4;
-    --text:#2a241c;
-    --text-dim:#7a7263;
-    --accent:#b5622f;
-    --accent-2:#2f6b5e;
-    --bar-track:#efe9db;
-    --bar-fill:#b5622f;
-    --good:#2f6b5e;
-    --warn:#b5622f;
-    --shadow: 0 1px 2px rgba(40,30,10,.06), 0 8px 24px rgba(40,30,10,.05);
-    color-scheme: light dark;
+    --bg:#EFF5F1; --surface:#FFFFFF; --surface-alt:#E3ECE6;
+    --ink:#16302B; --ink-soft:#52655F; --ink-faint:#84958E;
+    --accent:#C97F1E; --accent-ink:#4A3009; --accent-soft:#F3E3C9;
+    --teal:#1F6F63; --rose:#B5504A;
+    --c-desc:#2D6FB0; --c-inc:#B4651B; --c-psg:#6E4C9E; --c-pcg:#1D7A8C; --c-susp:#7A2331;
+    --border:#D7DED2; --border-strong:#C1CBC3;
+    --shadow:0 1px 2px rgba(22,48,43,.07), 0 10px 28px -14px rgba(22,48,43,.24);
+    --radius-s:8px; --radius-m:14px; --radius-l:22px;
+    --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+    --font-body:'Work Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
-      --bg:#1b1712;
-      --surface:#242019;
-      --surface-2:#2a2520;
-      --border:#3a3327;
-      --text:#f1ece0;
-      --text-dim:#a89d87;
-      --accent:#e08a52;
-      --accent-2:#5fae99;
-      --bar-track:#3a3327;
-      --bar-fill:#e08a52;
-      --good:#5fae99;
-      --warn:#e08a52;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --bg:#0F1E1A; --surface:#16302B; --surface-alt:#1C3830;
+      --ink:#F1EEE3; --ink-soft:#AEBDB6; --ink-faint:#6F857D;
+      --accent:#E3A23D; --accent-ink:#2A1B04; --accent-soft:#3A2E15;
+      --teal:#4FA593; --rose:#E08278;
+      --c-desc:#6FA8DC; --c-inc:#E2954F; --c-psg:#B79BDE; --c-pcg:#5FC2D6; --c-susp:#D98A98;
+      --border:#2C463F; --border-strong:#3B584F;
+      --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
     }
   }
   :root[data-theme="dark"]{
-    --bg:#1b1712;
-    --surface:#242019;
-    --surface-2:#2a2520;
-    --border:#3a3327;
-    --text:#f1ece0;
-    --text-dim:#a89d87;
-    --accent:#e08a52;
-    --accent-2:#5fae99;
-    --bar-track:#3a3327;
-    --bar-fill:#e08a52;
-    --good:#5fae99;
-    --warn:#e08a52;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    --bg:#0F1E1A; --surface:#16302B; --surface-alt:#1C3830;
+    --ink:#F1EEE3; --ink-soft:#AEBDB6; --ink-faint:#6F857D;
+    --accent:#E3A23D; --accent-ink:#2A1B04; --accent-soft:#3A2E15;
+    --teal:#4FA593; --rose:#E08278;
+    --c-desc:#6FA8DC; --c-inc:#E2954F; --c-psg:#B79BDE; --c-pcg:#5FC2D6; --c-susp:#D98A98;
+    --border:#2C463F; --border-strong:#3B584F;
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.55);
   }
 
   *{box-sizing:border-box;}
   body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
-    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-    padding: 24px 16px 48px;
+    background:var(--bg); color:var(--ink);
+    font-family:var(--font-body);
+    padding-inline:20px; padding-block:28px 60px;
+    min-height:100dvh;
   }
-  .wrap{ max-width: 900px; margin: 0 auto; }
+  .wrap{max-width:1040px; margin-inline:auto;}
+  h1,h2,h3{font-family:var(--font-display); text-wrap:balance; margin:0;}
+  button{font-family:inherit;}
+  a{color:inherit;}
+  ::selection{background:var(--accent-soft); color:var(--accent-ink);}
 
-  header{
-    display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
-    flex-wrap:wrap;
-    margin-bottom: 20px;
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; margin-bottom:28px;
   }
-  .eyebrow{
-    font-size:12px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--text-dim); margin:0 0 4px;
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand .mark{font-family:var(--font-display); font-weight:600; font-size:1.3rem; letter-spacing:.01em;}
+  .brand .sub{font-family:var(--font-mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint);}
+  .home-link{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:.85rem; font-weight:600; color:var(--ink-soft);
+    background:none; border:none; cursor:pointer; padding:6px 4px;
   }
-  h1{ margin:0; font-size: clamp(22px, 4vw, 30px); font-weight:700; text-wrap:balance; }
-  .subtitle{ color:var(--text-dim); font-size:14px; margin-top:4px; }
-
-  .card{
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:16px;
-    box-shadow: var(--shadow);
-    padding: 20px;
+  .home-link:hover{color:var(--ink);}
+  .today-pill{
+    font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint);
+    letter-spacing:.03em;
   }
-
-  .nav{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    margin-bottom:18px; flex-wrap:wrap;
-  }
-  .nav-week{
-    display:flex; align-items:center; gap:10px;
-  }
-  .nav-btn{
-    appearance:none; border:1px solid var(--border); background:var(--surface-2);
-    color:var(--text); width:34px; height:34px; border-radius:10px;
-    font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  }
-  .nav-btn:disabled{ opacity:.35; cursor:default; }
-  .nav-btn:not(:disabled):hover{ border-color:var(--accent); color:var(--accent); }
-  select#weekSelect{
-    appearance:none; border:1px solid var(--border); background:var(--surface-2);
-    color:var(--text); padding:8px 12px; border-radius:10px; font-size:14px;
-    font-family:inherit; cursor:pointer; max-width: 60vw;
-  }
-  .week-tag{
-    font-size:11px; text-transform:uppercase; letter-spacing:.06em;
-    color:var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent);
-    padding:3px 8px; border-radius:999px; font-weight:700;
+  .topbar-right{display:flex; align-items:center; gap:10px;}
+  .ro-pill{
+    font-family:var(--font-mono); font-size:.68rem; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--ink-soft); background:var(--surface-alt); border:1px solid var(--border);
+    padding:4px 10px; border-radius:99px; white-space:nowrap;
   }
 
-  .avg{ text-align:right; }
-  .avg .num{ font-size:28px; font-weight:800; font-variant-numeric: tabular-nums; }
-  .avg .lbl{ font-size:12px; color:var(--text-dim); }
+  /* ---------- home ---------- */
+  .home-head{margin-bottom:26px;}
+  .home-head h1{font-size:clamp(1.7rem,3.4vw,2.3rem); font-weight:600;}
+  .home-head p{margin:8px 0 0; color:var(--ink-soft); max-width:56ch; line-height:1.5;}
 
-  .grid{
-    display:grid; grid-template-columns: repeat(7, 1fr); gap:10px;
-    align-items:end;
+  .dept-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+    gap:14px;
   }
-  .day{ display:flex; flex-direction:column; align-items:center; gap:8px; }
-  .day-name{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; }
-  .day-name.today{ color:var(--accent); }
-  .day-date{ font-size:11px; color:var(--text-dim); margin-top:-6px; }
-  .bar-track{
-    width:100%; max-width:44px; height:120px; background:var(--bar-track);
-    border-radius:8px; display:flex; align-items:flex-end; overflow:hidden;
-    position:relative;
+  .dept-card{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-m); padding:0; overflow:hidden;
+    box-shadow:var(--shadow); cursor:pointer; text-align:left;
+    display:flex; flex-direction:column; width:100%;
+    transition:transform .12s ease, box-shadow .12s ease;
   }
-  .bar-track.today{ box-shadow: inset 0 0 0 2px var(--accent); }
-  .bar-fill{ width:100%; background:var(--bar-fill); border-radius:8px; transition: height .4s ease; }
-  .pct{ font-weight:700; font-variant-numeric: tabular-nums; font-size:14px; }
-  .pct.empty{ color:var(--text-dim); font-weight:500; }
-  .inout{ font-size:11px; color:var(--text-dim); font-variant-numeric: tabular-nums; white-space:nowrap; }
-  .inout .in{ color:var(--good); }
-  .inout .out{ color:var(--warn); }
+  .dept-card:hover{transform:translateY(-2px);}
+  .dept-card:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .dept-stripe{height:6px; width:100%;}
+  .dept-body{padding:18px 18px 16px;}
+  .dept-body h3{font-size:1.2rem; font-weight:600; margin-bottom:4px;}
+  .dept-count{font-family:var(--font-mono); font-size:.78rem; color:var(--ink-soft);}
+  .dept-status{
+    margin-top:12px; display:inline-flex; align-items:center; gap:6px;
+    font-size:.76rem; font-weight:600; padding:4px 9px; border-radius:99px;
+  }
+  .dept-status.ok{background:color-mix(in srgb, var(--teal) 16%, transparent); color:var(--teal);}
+  .dept-status.pending{background:color-mix(in srgb, var(--rose) 14%, transparent); color:var(--rose);}
+  .dept-status .dot{width:6px; height:6px; border-radius:50%; background:currentColor;}
 
-  .foot{
-    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
-    gap:8px; margin-top:18px; padding-top:14px; border-top:1px solid var(--border);
-    font-size:12px; color:var(--text-dim);
+  .db-warning{
+    margin-top:22px; padding:12px 16px; border-radius:var(--radius-s);
+    background:var(--surface-alt); border:1px solid var(--border);
+    color:var(--ink-soft); font-size:.85rem; line-height:1.5;
   }
-  .legend{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
-  .legend span{ display:inline-flex; align-items:center; gap:5px; }
-  .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
-  .dot.in{ background:var(--good); }
-  .dot.out{ background:var(--warn); }
 
-  .empty-state{ text-align:center; padding: 40px 16px; color:var(--text-dim); font-size:14px; }
-  .meta{ margin-top:14px; font-size:12px; color:var(--text-dim); }
+  /* ---------- view tabs + auth affordances ---------- */
+  .view-tabs{display:flex; gap:6px; margin-bottom:22px;}
+  .view-tab{
+    font-family:var(--font-mono); font-size:.76rem; font-weight:600; letter-spacing:.02em;
+    padding:7px 14px; border-radius:99px; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink-soft); cursor:pointer;
+  }
+  .view-tab:hover{background:var(--surface-alt);}
+  .view-tab.on{background:var(--ink); color:var(--bg); border-color:var(--ink);}
+  .gate-open-btn{
+    font-family:var(--font-mono); font-size:.76rem; font-weight:600;
+    background:var(--accent); color:var(--accent-ink); border:none;
+    padding:7px 14px; border-radius:99px; cursor:pointer; white-space:nowrap;
+  }
+  .gate-open-btn:hover{filter:brightness(0.97);}
+  .mine-tag{
+    display:inline-block; font-family:var(--font-mono); font-size:.6rem; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--teal);
+    background:color-mix(in srgb, var(--teal) 16%, transparent); padding:2px 7px; border-radius:99px;
+    vertical-align:middle;
+  }
+
+  /* ---------- vista Todos ---------- */
+  .week-strip{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-l);
+    box-shadow:var(--shadow); padding:16px 14px 12px; margin-bottom:20px;
+  }
+  .week-strip-head{margin-bottom:14px; display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 14px;}
+  .week-strip-title{font-family:var(--font-mono); font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint);}
+  .week-strip-key{display:flex; gap:10px; font-family:var(--font-mono); font-size:.66rem; font-weight:600;}
+  .week-strip-key .in{color:var(--teal);}
+  .week-strip-key .out{color:var(--rose);}
+  .week-strip-cols{display:flex; align-items:flex-end; gap:6px;}
+  .week-day-col{
+    flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:none; border:none; cursor:pointer; padding:4px 2px 6px;
+    border-radius:10px;
+  }
+  .week-day-col:hover{background:var(--surface-alt);}
+  .week-day-num{font-family:var(--font-mono); font-size:.8rem; font-weight:700; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
+  .week-day-col.on .week-day-num{color:var(--accent-ink);}
+  .week-day-bar-wrap{height:56px; display:flex; align-items:flex-end; width:100%; justify-content:center;}
+  .week-day-bar{width:58%; min-height:4px; border-radius:4px 4px 0 0; background:var(--border-strong); transition:background .12s, height .15s;}
+  .week-day-col.is-today .week-day-bar{background:var(--accent-soft);}
+  .week-day-col.on .week-day-bar{background:var(--accent);}
+  .week-day-name{font-family:var(--font-mono); font-size:.64rem; font-weight:600; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-faint);}
+  .week-day-col.on .week-day-name{color:var(--ink);}
+  .week-day-inout{display:flex; gap:6px; font-family:var(--font-mono); font-size:.62rem; font-weight:700; font-variant-numeric:tabular-nums;}
+  .week-day-inout .in{color:var(--teal);}
+  .week-day-inout .out{color:var(--rose);}
+  .week-strip-empty{margin-top:12px; font-size:.76rem; color:var(--ink-faint); border-top:1px solid var(--border); padding-top:10px;}
+  .todos-list{display:flex; flex-direction:column; gap:14px;}
+  .todos-dept{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-l);
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .todos-dept-h{
+    width:100%; display:flex; align-items:center; gap:10px; text-align:left;
+    font-family:var(--font-display); font-size:1.05rem; font-weight:600; color:var(--ink);
+    background:none; border:none; cursor:pointer; padding:14px 18px;
+  }
+  .todos-dept-h:hover{background:var(--surface-alt);}
+  .todos-dot{width:10px; height:10px; border-radius:50%; flex:none;}
+  .todos-dept-n{margin-left:auto; font-family:var(--font-mono); font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft);}
+  .todos-group{
+    font-family:var(--font-mono); font-size:.68rem; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--ink-soft); font-weight:600; padding:6px 18px; background:var(--surface-alt);
+    border-top:1px solid var(--border);
+  }
+  .todos-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 18px; border-top:1px solid var(--border);}
+  .todos-row-info{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  .todos-row-name{font-size:.85rem; font-weight:600; color:var(--ink);}
+  .todos-row-puesto{font-size:.72rem; color:var(--ink-soft);}
+  .todos-code{font-family:var(--font-mono); font-size:.74rem; color:var(--ink-soft); background:var(--surface-alt); padding:3px 9px; border-radius:5px; flex:none;}
+  .todos-empty-val{font-family:var(--font-mono); font-size:.74rem; color:var(--ink-faint); flex:none;}
+  .todos-empty{padding:14px 18px; font-size:.83rem; color:var(--ink-soft); border-top:1px solid var(--border);}
+
+  /* ---------- department view ---------- */
+  .dept-header{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-l); padding:20px 24px;
+    box-shadow:var(--shadow); margin-bottom:16px;
+  }
+  .dept-header-top{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  .dept-title{display:flex; align-items:center; gap:12px;}
+  .dept-swatch{width:14px; height:14px; border-radius:4px; flex:none;}
+  .dept-title h2{font-size:clamp(1.5rem,3vw,1.9rem); font-weight:600;}
+  .save-indicator{
+    font-family:var(--font-mono); font-size:.74rem; color:var(--ink-faint);
+    display:flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .save-indicator .dot{width:6px; height:6px; border-radius:50%; background:var(--ink-faint);}
+  .save-indicator.saving .dot{background:var(--accent);}
+  .save-indicator.saved .dot{background:var(--teal);}
+  .save-indicator.error{color:var(--rose);}
+  .save-indicator.error .dot{background:var(--rose);}
+  .save-indicator.ro{color:var(--ink-soft);}
+  .save-indicator.ro .dot{background:var(--ink-soft);}
+
+  .week-nav{
+    display:flex; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap;
+  }
+  .week-nav button.arrow{
+    width:32px; height:32px; border-radius:50%; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink); font-size:1rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .week-nav button.arrow:hover{background:var(--surface-alt);}
+  .week-range{font-family:var(--font-mono); font-weight:500; font-size:.95rem; min-width:170px;}
+  .week-nav .today-btn{
+    font-size:.78rem; font-weight:600; color:var(--teal); background:none; border:none;
+    cursor:pointer; padding:4px 8px; border-radius:6px;
+  }
+  .week-nav .today-btn:hover{background:color-mix(in srgb, var(--teal) 12%, transparent);}
+  .copy-prev-btn{
+    font-size:.78rem; font-weight:600; color:var(--accent-ink); background:var(--accent-soft);
+    border:none; cursor:pointer; padding:5px 11px; border-radius:99px; margin-left:auto;
+  }
+  .copy-prev-btn:hover{filter:brightness(0.96);}
+
+  .leader-row{
+    display:flex; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap;
+  }
+  .leader-row label{font-size:.78rem; color:var(--ink-soft);}
+  .leader-row input{
+    font-family:var(--font-body); font-size:.85rem; padding:5px 10px;
+    border:1px solid var(--border-strong); border-radius:7px; background:var(--bg); color:var(--ink);
+    width:200px; max-width:100%;
+  }
+  .ro-meta{
+    margin-top:14px; font-size:.78rem; color:var(--ink-soft);
+  }
+
+  .history-rail{
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; margin-top:16px;
+    scrollbar-width:thin;
+  }
+  .history-chip{
+    font-family:var(--font-mono); font-size:.74rem; white-space:nowrap;
+    padding:6px 12px; border-radius:99px; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink-soft); cursor:pointer; flex:none;
+  }
+  .history-chip:hover{background:var(--surface-alt);}
+  .history-chip.current{
+    background:var(--ink); color:var(--bg); border-color:var(--ink);
+    font-weight:600;
+  }
+
+  /* ---------- table ---------- */
+  .table-card{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-l); box-shadow:var(--shadow); overflow:hidden;
+  }
+  .table-scroll{overflow-x:auto;}
+  table{border-collapse:collapse; width:100%; min-width:920px;}
+  thead th{
+    font-family:var(--font-mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); text-align:left; padding:12px 10px; background:var(--surface-alt);
+    border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  thead th.day-col{text-align:center;}
+  thead th.day-col.is-today{color:var(--accent-ink); background:var(--accent-soft);}
+  tbody td{
+    padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:middle;
+  }
+  tbody tr.group-row td{
+    background:var(--surface-alt); font-family:var(--font-mono); font-size:.72rem;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); font-weight:600;
+    padding:7px 10px;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  .emp-clave{font-family:var(--font-mono); font-size:.76rem; color:var(--ink-faint); white-space:nowrap;}
+  .emp-name{font-weight:600; font-size:.9rem;}
+  .emp-role{font-size:.78rem; color:var(--ink-soft);}
+  td.day-cell{text-align:center; min-width:118px;}
+  td.day-cell.is-today{background:color-mix(in srgb, var(--accent) 7%, transparent);}
+  .rest-count{
+    font-family:var(--font-mono); text-align:center; font-variant-numeric:tabular-nums;
+    font-weight:600; color:var(--teal);
+  }
+  td.notas-col{min-width:150px;}
+  .notas-input{
+    width:100%; font-family:var(--font-body); font-size:.82rem; padding:6px 8px;
+    border:1px solid transparent; border-radius:6px; background:transparent; color:var(--ink);
+  }
+  .notas-input:hover, .notas-input:focus{border-color:var(--border-strong); background:var(--bg);}
+  .notas-ro{font-size:.82rem; color:var(--ink-soft); display:inline-block; padding:6px 8px;}
+
+  .shift-select{
+    width:100%; font-family:var(--font-mono); font-size:.78rem; padding:7px 26px 7px 10px;
+    border:1px solid var(--border-strong); border-radius:8px; background:var(--bg); color:var(--ink);
+    appearance:none; cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%2384958E'/></svg>");
+    background-repeat:no-repeat; background-position:right 9px center;
+  }
+  .shift-select option[value="DESCANSO"]{}
+  .shift-custom-wrap{display:flex; align-items:center; gap:4px;}
+  .shift-input{
+    width:100%; font-family:var(--font-mono); font-size:.78rem; padding:7px 8px;
+    border:1px solid var(--accent); border-radius:8px; background:var(--bg); color:var(--ink);
+  }
+  .shift-back{
+    flex:none; border:none; background:none; cursor:pointer; color:var(--ink-faint);
+    font-size:.9rem; padding:2px 4px; border-radius:5px;
+  }
+  .shift-back:hover{color:var(--ink); background:var(--surface-alt);}
+  .shift-ro{font-family:var(--font-mono); font-size:.78rem; color:var(--ink);}
+  .shift-ro.empty{color:var(--ink-faint);}
+
+  /* ---------- color por código (Descanso, Vacaciones, Incapacidad, PSG, PCG, Falta, Suspensión) ---------- */
+  .shift-select.code-descanso{border-color:var(--c-desc); color:var(--c-desc); background-color:color-mix(in srgb, var(--c-desc) 14%, var(--bg));}
+  .shift-select.code-vacaciones{border-color:var(--teal); color:var(--teal); background-color:color-mix(in srgb, var(--teal) 14%, var(--bg));}
+  .shift-select.code-inc{border-color:var(--c-inc); color:var(--c-inc); background-color:color-mix(in srgb, var(--c-inc) 14%, var(--bg));}
+  .shift-select.code-psg{border-color:var(--c-psg); color:var(--c-psg); background-color:color-mix(in srgb, var(--c-psg) 14%, var(--bg));}
+  .shift-select.code-pcg{border-color:var(--c-pcg); color:var(--c-pcg); background-color:color-mix(in srgb, var(--c-pcg) 14%, var(--bg));}
+  .shift-select.code-falta{border-color:var(--rose); color:var(--rose); background-color:color-mix(in srgb, var(--rose) 14%, var(--bg));}
+  .shift-select.code-suspension{border-color:var(--c-susp); color:var(--c-susp); background-color:color-mix(in srgb, var(--c-susp) 14%, var(--bg));}
+  .shift-ro.code-descanso, .todos-code.code-descanso{color:var(--c-desc); background:color-mix(in srgb, var(--c-desc) 18%, var(--surface-alt));}
+  .shift-ro.code-vacaciones, .todos-code.code-vacaciones{color:var(--teal); background:color-mix(in srgb, var(--teal) 18%, var(--surface-alt));}
+  .shift-ro.code-inc, .todos-code.code-inc{color:var(--c-inc); background:color-mix(in srgb, var(--c-inc) 18%, var(--surface-alt));}
+  .shift-ro.code-psg, .todos-code.code-psg{color:var(--c-psg); background:color-mix(in srgb, var(--c-psg) 18%, var(--surface-alt));}
+  .shift-ro.code-pcg, .todos-code.code-pcg{color:var(--c-pcg); background:color-mix(in srgb, var(--c-pcg) 18%, var(--surface-alt));}
+  .shift-ro.code-falta, .todos-code.code-falta{color:var(--rose); background:color-mix(in srgb, var(--rose) 18%, var(--surface-alt));}
+  .shift-ro.code-suspension, .todos-code.code-suspension{color:var(--c-susp); background:color-mix(in srgb, var(--c-susp) 18%, var(--surface-alt));}
+  .shift-ro.code-descanso, .shift-ro.code-vacaciones, .shift-ro.code-inc, .shift-ro.code-psg, .shift-ro.code-pcg, .shift-ro.code-falta, .shift-ro.code-suspension{
+    border-radius:5px; padding:2px 7px; font-weight:600;
+  }
+  .legend-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle;}
+  .legend-dot.code-descanso{background:var(--c-desc);}
+  .legend-dot.code-vacaciones{background:var(--teal);}
+  .legend-dot.code-inc{background:var(--c-inc);}
+  .legend-dot.code-psg{background:var(--c-psg);}
+  .legend-dot.code-pcg{background:var(--c-pcg);}
+  .legend-dot.code-falta{background:var(--rose);}
+  .legend-dot.code-suspension{background:var(--c-susp);}
+
+  .legend{
+    display:flex; flex-wrap:wrap; gap:10px 18px; padding:16px 20px;
+    border-top:1px solid var(--border); font-size:.78rem; color:var(--ink-soft);
+  }
+  .legend b{color:var(--ink); font-weight:600;}
+
+  .empty-week-hint{
+    padding:14px 20px; font-size:.83rem; color:var(--ink-soft);
+    border-top:1px solid var(--border); background:var(--surface-alt);
+  }
+
+  /* ---------- login gate ---------- */
+  .gate-shell{
+    min-height:calc(100dvh - 88px); display:flex; align-items:center; justify-content:center;
+  }
+  .gate-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-l);
+    box-shadow:var(--shadow); padding:32px 28px; max-width:380px; width:100%;
+  }
+  .gate-brand{display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center; margin-bottom:6px;}
+  .gate-brand .mark{font-family:var(--font-display); font-weight:600; font-size:1.4rem;}
+  .gate-brand .sub{font-family:var(--font-mono); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint);}
+  .gate-tag{margin:0 0 22px; text-align:center; color:var(--ink-soft); font-size:.85rem; line-height:1.45;}
+  .gate-fld{margin-bottom:14px;}
+  .gate-fld label{display:block; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;}
+  .gate-fld select, .gate-fld input{
+    width:100%; font-family:var(--font-body); font-size:.95rem; padding:10px 12px;
+    border:1px solid var(--border-strong); border-radius:8px; background:var(--bg); color:var(--ink); outline:none;
+  }
+  .gate-fld select:focus, .gate-fld input:focus{border-color:var(--accent);}
+  .gate-pin{font-family:var(--font-mono); letter-spacing:.35em; text-align:center; font-size:1.15rem;}
+  .gate-btn{
+    width:100%; background:var(--accent); color:var(--accent-ink); border:none; font-weight:600;
+    padding:11px; font-size:.85rem; border-radius:8px; cursor:pointer; margin-top:4px;
+  }
+  .gate-btn:hover{filter:brightness(0.97);}
+  .gate-btn.ghost{background:none; border:1px solid var(--border-strong); color:var(--ink-soft); margin-top:8px;}
+  .gate-err{color:var(--rose); font-size:.8rem; margin-top:12px; min-height:1em;}
+  .gate-info{color:var(--ink-soft); font-size:.8rem; margin-top:8px; min-height:1em;}
+  .gate-hint{color:var(--ink-faint); font-size:.76rem; margin-top:10px; line-height:1.4;}
+
+  @media (max-width:640px){
+    body{padding-inline:14px;}
+    .dept-header{padding:16px 16px;}
+    .dept-grid{grid-template-columns:1fr 1fr;}
+  }
+  @media (max-width:420px){
+    .dept-grid{grid-template-columns:1fr;}
+  }
 </style>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <div>
-      <p class="eyebrow">Casa Yuma · Hospedaje</p>
-      <h1>Ocupación del hotel</h1>
-      <p class="subtitle">Datos en vivo desde Cloudbeds — se sincroniza solo cada 5 minutos.</p>
-    </div>
-  </header>
 
-  <div class="card" id="cardRoot">
-    <div class="empty-state" id="loading">Cargando…</div>
-  </div>
-</div>
+<div class="wrap" id="app"></div>
 
 <script>
 (function(){
-  var DIA_NOMBRES = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-  var cardRoot = document.getElementById("cardRoot");
-  var state = { data: null, weekKeys: [], currentIndex: 0 };
+  "use strict";
 
-  function fmtDayDate(weekStartIso, i){
-    var d = new Date(weekStartIso + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() + i);
-    return d.getUTCDate() + "/" + (d.getUTCMonth()+1);
+  /* ================= mode ================= */
+  // ?ro=1 abre la Bitácora en modo solo-lectura: sin controles de edición,
+  // pensado para enlazarse desde un dashboard informativo.
+  var READONLY = false;
+  try { READONLY = new URLSearchParams(window.location.search).get("ro") === "1"; } catch(e){}
+
+  /* ================= puente con Apps Script ================= */
+  function gsRun(fnName){
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject){
+      if (!(window.google && google.script && google.script.run)){
+        reject(new Error("Esta página debe abrirse desde su URL de Apps Script (Deploy → Web app)."));
+        return;
+      }
+      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      runner[fnName].apply(runner, args);
+    });
   }
 
-  function todayMexicoIso(){
-    var now = new Date();
-    var mx = new Date(now.getTime() - 6*60*60*1000);
-    return mx.toISOString().slice(0,10);
-  }
+  /* ================= data (llega del servidor, ver Api.gs) ================= */
+  var DEPARTMENTS = {};   // se llena con la respuesta de getAppData()
+  var ALL_USERS = [];     // idem — solo líderes/admins, sin PIN nunca
+  var SLUGS = ["administracion","restaurante","cocina","mantenimiento","amadellaves","recepcion"];
+  var DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+  var MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  var SHIFT_PRESETS = ["07:00 - 15:00","15:00 - 23:00","23:00 - 07:00","10:00 - 18:00","17:00 - 21:00","DESCANSO","VACACIONES","INC","PSG","PCG","FALTA","SUSPENSIÓN","N/A"];
+  var LEGEND = [["DESCANSO","día de descanso semanal"],["VACACIONES","de vacaciones"],["INC","incapacidad IMSS o médica"],["PSG","permiso sin goce de sueldo"],["PCG","permiso con goce de sueldo"],["FALTA","falta injustificada"],["SUSPENSIÓN","suspensión disciplinaria"],["N/A","puesto vacante o no aplica"]];
+  var CODE_CLASS = {
+    "DESCANSO":"code-descanso", "VACACIONES":"code-vacaciones", "INC":"code-inc",
+    "PSG":"code-psg", "PCG":"code-pcg", "FALTA":"code-falta", "SUSPENSIÓN":"code-suspension"
+  };
+  function codeClass(val){ return CODE_CLASS[val] || ""; }
 
-  function mondayOf(iso){
-    var d = new Date(iso + "T00:00:00Z");
-    var dow = (d.getUTCDay() + 6) % 7;
-    d.setUTCDate(d.getUTCDate() - dow);
-    return d.toISOString().slice(0,10);
-  }
-
-  function render(){
-    var weekKeys = state.weekKeys;
-    if (!weekKeys.length){
-      cardRoot.innerHTML = '<div class="empty-state">Todavía no hay datos de ocupación sincronizados.<br>Corre la función <code>syncOcupacion</code> una vez desde el editor de Apps Script (▶ Ejecutar), o espera a que dispare el trigger programado.</div>';
-      return;
+  function deptRows(slug){
+    var d = DEPARTMENTS[slug];
+    if (!d) return [];
+    if (d.groups) {
+      var out = [];
+      d.groups.forEach(function(g){
+        g[1].forEach(function(e){ out.push({clave:e[0], nombre:e[1], puesto:e[2], group:g[0]}); });
+      });
+      return out;
     }
-    var idx = state.currentIndex;
-    var weekStart = weekKeys[idx];
-    var wk = state.data.weeks[weekStart];
-    var totalRooms = state.data.totalRooms || 25;
-    var todayIso = todayMexicoIso();
-    var isCurrentWeek = mondayOf(todayIso) === weekStart;
+    return (d.employees||[]).map(function(e){ return {clave:e[0], nombre:e[1], puesto:e[2], group:null}; });
+  }
+  function deptCount(slug){ return deptRows(slug).length; }
 
-    var validPct = wk.pct.filter(function(p){ return typeof p === "number" && !isNaN(p); });
-    var avg = validPct.length ? Math.round(validPct.reduce(function(a,b){return a+b;},0) / validPct.length) : null;
+  /* ================= date helpers ================= */
+  function mondayOf(d){ var day=(d.getDay()+6)%7; var m=new Date(d.getFullYear(),d.getMonth(),d.getDate()-day); return m; }
+  function isoDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function addDays(d,n){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n); }
+  function parseISO(s){ var p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
+  function fmtShort(d){ return d.getDate()+" "+MESES[d.getMonth()]; }
+  function fmtRange(weekStart){
+    var s=parseISO(weekStart), e=addDays(s,6);
+    if (s.getMonth()===e.getMonth()) return s.getDate()+"–"+e.getDate()+" "+MESES[e.getMonth()]+" "+e.getFullYear();
+    return fmtShort(s)+" – "+fmtShort(e)+", "+e.getFullYear();
+  }
+  function todayISO(){ return isoDate(new Date()); }
+  function currentWeekStart(){ return isoDate(mondayOf(new Date())); }
+  function todayDiaIndex(){ return (new Date().getDay()+6)%7; } // 0=Lunes … 6=Domingo, igual que DIAS
+  function esTurno(v){ return /\d/.test(v||""); } // un horario real siempre trae dígitos; los códigos (DESCANSO…) no
 
-    var todayOffset = Math.round((new Date(todayIso+"T00:00:00Z") - new Date(mondayOf(todayIso)+"T00:00:00Z")) / 86400000);
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 
-    var daysHtml = "";
-    for (var i = 0; i < 7; i++){
-      var p = wk.pct[i];
-      var hasP = typeof p === "number" && !isNaN(p);
-      var arr = wk.arrivals ? wk.arrivals[i] : null;
-      var dep = wk.departures ? wk.departures[i] : null;
-      var dateStr = fmtDayDate(weekStart, i);
-      var isToday = isCurrentWeek && i === todayOffset;
+  /* ================= state ================= */
+  var state = { view:"todos", slug:null, weekStart:null, todosDay: todayDiaIndex() };
+  var scheduleCache = new Map();   // docId -> {slug,weekStart,shifts,notes,updatedAt,updatedBy}
+  var occupancyCache = new Map();  // weekStart -> {weekStart,pct,arrivals,departures,totalRooms,updatedAt}
+  var editBuffer = { shifts:{}, notes:{} };
+  var loadedDocId = null;
+  var customEditing = new Set();   // "clave:day" cells forced into free-text mode
+  var dataState = "loading";       // loading | ready | error
+  var saveTimer = null;
+  var saveStatus = "idle"; // idle | dirty | saving | saved | error
+  var pendingRetry = false; // true si se intentó guardar sin conexión al servidor
 
-      daysHtml += ''
-        + '<div class="day">'
-        +   '<div class="day-name' + (isToday ? ' today' : '') + '">' + DIA_NOMBRES[i] + '</div>'
-        +   '<div class="day-date">' + dateStr + '</div>'
-        +   '<div class="bar-track' + (isToday ? ' today' : '') + '"><div class="bar-fill" style="height:' + (hasP ? Math.max(p,3) : 0) + '%"></div></div>'
-        +   '<div class="pct' + (hasP ? '' : ' empty') + '">' + (hasP ? p + '%' : '—') + '</div>'
-        +   '<div class="inout">' + (arr != null && dep != null ? '<span class="in">↑' + arr + '</span> <span class="out">↓' + dep + '</span>' : '&nbsp;') + '</div>'
-        + '</div>';
-    }
+  /* ================= sesión (login por PIN) ================= */
+  // En modo ?ro=1 no hay sesión — es la vista informativa pública.
+  var SESSION = null;
+  if (!READONLY){
+    try { var rawSess = sessionStorage.getItem("byt_session"); if (rawSess) SESSION = JSON.parse(rawSess); } catch(e){}
+  }
+  var gateStep = 1;      // 1: elegir colaborador · 2: PIN
+  var gatePending = null; // {clave,nombre,scope,tienePin}
 
-    var selectHtml = '<select id="weekSelect">' + weekKeys.slice().reverse().map(function(wk2){
-      var lbl = wk2 + (wk2 === weekKeys[weekKeys.length-1] && mondayOf(todayIso) === wk2 ? " (semana actual)" : "");
-      return '<option value="' + wk2 + '"' + (wk2 === weekStart ? ' selected' : '') + '>' + lbl + '</option>';
-    }).join('') + '</select>';
-
-    cardRoot.innerHTML = ''
-      + '<div class="nav">'
-      +   '<div class="nav-week">'
-      +     '<button class="nav-btn" id="prevBtn" ' + (idx <= 0 ? 'disabled' : '') + ' aria-label="Semana anterior">‹</button>'
-      +     selectHtml
-      +     '<button class="nav-btn" id="nextBtn" ' + (idx >= weekKeys.length - 1 ? 'disabled' : '') + ' aria-label="Semana siguiente">›</button>'
-      +     (isCurrentWeek ? '<span class="week-tag">Semana actual</span>' : '')
-      +   '</div>'
-      +   '<div class="avg">'
-      +     '<div class="num">' + (avg != null ? avg + '%' : '—') + '</div>'
-      +     '<div class="lbl">promedio semanal</div>'
-      +   '</div>'
-      + '</div>'
-      + '<div class="grid">' + daysHtml + '</div>'
-      + '<div class="foot">'
-      +   '<div class="legend"><span><i class="dot in"></i> llegadas</span><span><i class="dot out"></i> salidas</span></div>'
-      +   '<div>' + totalRooms + ' cuartos · ' + (wk.reservationsConsidered != null ? wk.reservationsConsidered + ' reservaciones' : '') + '</div>'
-      + '</div>'
-      + '<div class="meta">Última actualización: ' + formatUpdatedAt(wk.updatedAt) + '</div>';
-
-    document.getElementById("prevBtn").onclick = function(){
-      if (state.currentIndex > 0){ state.currentIndex--; render(); }
-    };
-    document.getElementById("nextBtn").onclick = function(){
-      if (state.currentIndex < weekKeys.length - 1){ state.currentIndex++; render(); }
-    };
-    document.getElementById("weekSelect").onchange = function(e){
-      var i = weekKeys.indexOf(e.target.value);
-      if (i >= 0){ state.currentIndex = i; render(); }
-    };
+  // ¿Se puede editar el departamento que está abierto AHORA MISMO? Ver
+  // (navegar) cualquier departamento siempre está permitido — para todos,
+  // con o sin sesión. Solo EDITAR se restringe: tu propio departamento, o
+  // cualquiera si eres administración (scope "all"). El servidor vuelve a
+  // comprobar esto mismo en saveSchedule — esto de aquí es solo para la UI.
+  function isEditableHere(){
+    if (READONLY || !SESSION || state.view !== "dept" || !state.slug) return false;
+    return SESSION.scope === "all" || SESSION.scope === state.slug;
   }
 
-  function formatUpdatedAt(iso){
-    if (!iso) return "—";
-    try{
-      var d = new Date(iso);
-      return d.toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Mexico_City" }) + " (hora CDMX)";
-    }catch(e){ return iso; }
-  }
-
-  function onData(json){
-    state.data = json;
-    state.weekKeys = Object.keys(json.weeks || {}).sort();
-    state.currentIndex = state.weekKeys.length - 1;
+  function enterAppFor(session){
+    SESSION = session;
+    try { sessionStorage.setItem("byt_session", JSON.stringify(SESSION)); } catch(e){}
+    if (SESSION.scope === "all"){ state.view = "home"; state.slug = null; }
+    else { state.view = "dept"; state.slug = SESSION.scope; state.weekStart = currentWeekStart(); hydrateEditBuffer(); }
     render();
   }
 
-  function onError(err){
-    cardRoot.innerHTML = '<div class="empty-state">No se pudo cargar la información.<br><small>' + (err && err.message ? err.message : err) + '</small></div>';
+  function logout(){
+    try { sessionStorage.removeItem("byt_session"); } catch(e){}
+    SESSION = null; gateStep = 1; gatePending = null;
+    state = { view:"todos", slug:null, weekStart:null, todosDay: state.todosDay };
+    render();
   }
 
-  if (window.google && google.script && google.script.run) {
-    google.script.run.withSuccessHandler(onData).withFailureHandler(onError).getOccupancyData();
-  } else {
-    onError("Esta página debe abrirse desde su URL de Apps Script (Deploy → Web app), no como archivo local.");
+  function openGate(){ gateStep = 1; gatePending = null; state.view = "gate"; render(); }
+
+  async function gateContinue(){
+    var sel = document.getElementById("gateUserSel");
+    var clave = sel.value;
+    var err = document.getElementById("gateErr"), info = document.getElementById("gateInfo");
+    err.textContent = ""; info.textContent = "Verificando…";
+    var res;
+    try { res = await gsRun("loginStart", clave); }
+    catch(e){ info.textContent=""; err.textContent="No se pudo verificar. Intenta de nuevo."; return; }
+    if (!res || !res.ok){ info.textContent=""; err.textContent = (res && res.error) || "No se pudo verificar."; return; }
+    gatePending = { clave: res.clave, nombre: res.nombre, scope: res.scope, tienePin: res.tienePin };
+    info.textContent = "";
+    gateStep = 2;
+    render();
   }
+
+  async function gatePinSubmit(){
+    var pinEl = document.getElementById("gatePin");
+    var pin = pinEl.value.trim();
+    var err = document.getElementById("gateErr"); err.textContent = "";
+    if (!/^\d{4,6}$/.test(pin)){ err.textContent = "El PIN debe ser de 4 a 6 dígitos."; return; }
+    var pin2 = null;
+    if (!gatePending.tienePin){
+      pin2 = document.getElementById("gatePin2").value.trim();
+      if (pin !== pin2){ err.textContent = "Los PIN no coinciden."; return; }
+    }
+    var res;
+    try { res = await gsRun("loginSubmit", gatePending.clave, pin, pin2); }
+    catch(e){ err.textContent = "No se pudo conectar. Intenta de nuevo."; return; }
+    if (!res || !res.ok){ err.textContent = (res && res.error) || "No se pudo iniciar sesión."; return; }
+    enterAppFor(res.session);
+  }
+
+  function docId(slug, weekStart){ return slug + "__" + weekStart; }
+
+  function hydrateEditBuffer(){
+    var id = docId(state.slug, state.weekStart);
+    if (loadedDocId === id) return;
+    loadedDocId = id;
+    customEditing.clear();
+    var doc = scheduleCache.get(id);
+    editBuffer = { shifts:{}, notes:{} };
+    if (doc){
+      editBuffer.shifts = JSON.parse(JSON.stringify(doc.shifts || {}));
+      editBuffer.notes = JSON.parse(JSON.stringify(doc.notes || {}));
+    }
+    saveStatus = doc ? "saved" : "idle";
+  }
+
+  function weekIsEmpty(){
+    var rows = deptRows(state.slug);
+    return rows.every(function(r){
+      var arr = editBuffer.shifts[r.clave] || [];
+      return arr.every(function(v){ return !v; }) && !editBuffer.notes[r.clave];
+    });
+  }
+
+  function scheduleSave(){
+    if (!isEditableHere()) return;
+    saveStatus = "dirty";
+    paintSaveIndicator();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 700);
+  }
+
+  function doSave(){
+    if (!isEditableHere()) return;
+    if (dataState !== "ready"){
+      // Sin conexión con el servidor ahora mismo — pasa sobre todo en el
+      // primer segundo tras abrir la página. No perdemos en silencio lo
+      // capturado: queda marcado como pendiente y se reintenta solo en
+      // cuanto vuelva a haber datos (ver applyAppData).
+      saveStatus = "error"; paintSaveIndicator();
+      pendingRetry = true;
+      return;
+    }
+    saveStatus = "saving"; paintSaveIndicator();
+    var slug = state.slug, weekStart = state.weekStart;
+    var shiftsSnapshot = JSON.parse(JSON.stringify(editBuffer.shifts));
+    var notesSnapshot = JSON.parse(JSON.stringify(editBuffer.notes));
+    gsRun("saveSchedule", SESSION.clave, slug, weekStart, shiftsSnapshot, notesSnapshot).then(function(res){
+      if (!res || !res.ok){
+        saveStatus = "error"; paintSaveIndicator(); pendingRetry = true;
+        return;
+      }
+      pendingRetry = false;
+      // Refleja el guardado en la caché local al instante, sin esperar al
+      // próximo refresco periódico.
+      scheduleCache.set(docId(slug, weekStart), {
+        slug: slug, weekStart: weekStart, shifts: shiftsSnapshot, notes: notesSnapshot,
+        updatedAt: res.updatedAt, updatedBy: res.updatedBy
+      });
+      saveStatus = "saved"; paintSaveIndicator();
+    }).catch(function(){
+      saveStatus = "error"; paintSaveIndicator();
+      pendingRetry = true;
+    });
+  }
+
+  function paintSaveIndicator(){
+    if (!isEditableHere()) return;
+    var el = document.getElementById("saveIndicator");
+    if (!el) return;
+    el.className = "save-indicator " + saveStatus;
+    var label = { idle:"Sin cambios", dirty:"Editando…", saving:"Guardando…", saved:"Guardado", error:"No se pudo guardar" }[saveStatus] || "";
+    el.innerHTML = '<span class="dot"></span>' + label;
+  }
+
+  /* ================= datos del servidor (reemplaza el onSnapshot de antes) ================= */
+  var POLL_INTERVAL_MS = 20000; // sin push en tiempo real como antes — se
+                                 // refresca sola cada 20s (ver README).
+  var pollTimer = null;
+
+  function applyAppData(json){
+    DEPARTMENTS = json.departments || {};
+    ALL_USERS = (json.loginUsers || []).slice().sort(function(a,b){ return a.nombre.localeCompare(b.nombre,"es"); });
+    scheduleCache.clear();
+    Object.keys(json.schedules || {}).forEach(function(id){ scheduleCache.set(id, json.schedules[id]); });
+    occupancyCache.clear();
+    var weeks = (json.occupancy && json.occupancy.weeks) || {};
+    Object.keys(weeks).forEach(function(ws){ occupancyCache.set(ws, weeks[ws]); });
+    dataState = "ready";
+    if (pendingRetry){ pendingRetry = false; doSave(); }
+    if (!isEditingFocus()) render();
+  }
+
+  function refreshData(){
+    gsRun("getAppData").then(applyAppData).catch(function(err){
+      console.error("getAppData error", err);
+      if (dataState !== "ready"){ dataState = "error"; if (!isEditingFocus()) render(); }
+    });
+  }
+
+  function initData(){
+    refreshData();
+    pollTimer = setInterval(refreshData, POLL_INTERVAL_MS);
+  }
+
+  function isEditingFocus(){
+    var el = document.activeElement;
+    return !!(el && el.matches && el.matches(".shift-select, .shift-input, .notas-input"));
+  }
+
+  /* ================= render: root ================= */
+  function render(){
+    var app = document.getElementById("app");
+    if (state.view === "gate"){ app.innerHTML = renderGate(); return; }
+    if (state.view === "todos"){ app.innerHTML = renderTodos(); return; }
+    if (state.view === "home") app.innerHTML = renderHome();
+    else app.innerHTML = renderDept();
+  }
+
+  // Ver cualquier departamento está siempre permitido — la restricción
+  // (¿se puede EDITAR?) vive solo en isEditableHere(), no en la navegación.
+  function goTodos(){ state.view="todos"; state.slug=null; render(); }
+  function goHome(){ state.view="home"; state.slug=null; render(); }
+  function openDept(slug){
+    state.view="dept"; state.slug=slug; state.weekStart = currentWeekStart();
+    hydrateEditBuffer(); render();
+  }
+
+  /* ================= render: vista Todos (pública, informativa) ================= */
+  function renderTodos(){
+    var weekStart = currentWeekStart();
+    var dayIdx = state.todosDay;
+
+    var occDoc = occupancyCache.get(weekStart);
+    var occPct = occDoc && occDoc.pct ? occDoc.pct : null;
+
+    var sections = SLUGS.map(function(slug){
+      var d = DEPARTMENTS[slug];
+      if (!d) return "";
+      var doc = scheduleCache.get(docId(slug, weekStart));
+      var rows = deptRows(slug);
+      if (!doc){
+        return '' +
+          '<div class="todos-dept">' +
+            '<button type="button" class="todos-dept-h" data-open="'+slug+'"><span class="todos-dot" style="background:'+d.color+'"></span>'+esc(d.name)+'<span class="todos-dept-n">sin capturar</span></button>' +
+            '<div class="todos-empty">Aún no se ha capturado el horario de esta semana.</div>' +
+          '</div>';
+      }
+      var shifts = doc.shifts || {};
+      var lastGroup, enTurno = 0;
+      var rowsHtml = rows.map(function(r){
+        var val = (shifts[r.clave]||[])[dayIdx] || "";
+        var working = esTurno(val);
+        if (working) enTurno++;
+        var groupHtml = "";
+        if (r.group !== lastGroup){ lastGroup = r.group; if (r.group) groupHtml = '<div class="todos-group">'+esc(r.group)+'</div>'; }
+        var cls = working ? "shift-ro" : (val ? ("todos-code" + (codeClass(val) ? " "+codeClass(val) : "")) : "todos-empty-val");
+        return groupHtml + '<div class="todos-row"><div class="todos-row-info"><span class="todos-row-name">'+esc(r.nombre)+'</span><span class="todos-row-puesto">'+esc(r.puesto)+'</span></div><span class="'+cls+'">'+(val?esc(val):"—")+'</span></div>';
+      }).join("");
+      return '' +
+        '<div class="todos-dept">' +
+          '<button type="button" class="todos-dept-h" data-open="'+slug+'"><span class="todos-dot" style="background:'+d.color+'"></span>'+esc(d.name)+'<span class="todos-dept-n">'+enTurno+' en turno</span></button>' +
+          rowsHtml +
+        '</div>';
+    }).join("");
+
+    var occArr = occDoc && occDoc.arrivals ? occDoc.arrivals : null;
+    var occDep = occDoc && occDoc.departures ? occDoc.departures : null;
+
+    var weekCols = DIAS.map(function(dn,i){
+      var isSel = i === dayIdx;
+      var isToday = i === todayDiaIndex();
+      var pct = occPct ? occPct[i] : null;
+      var barPx = pct==null ? 4 : Math.max(4, Math.round(pct/100*56));
+      var inout = (occArr && occDep) ?
+        '<span class="week-day-inout"><span class="in">↑'+occArr[i]+'</span><span class="out">↓'+occDep[i]+'</span></span>' : "";
+      return '' +
+        '<button type="button" class="week-day-col'+(isSel?' on':'')+(isToday?' is-today':'')+'" data-todos-day="'+i+'">' +
+          '<span class="week-day-num">'+(pct==null?"—":pct+"%")+'</span>' +
+          '<span class="week-day-bar-wrap"><span class="week-day-bar" style="height:'+barPx+'px"></span></span>' +
+          '<span class="week-day-name">'+dn.slice(0,3)+'</span>' +
+          inout +
+        '</button>';
+    }).join("");
+
+    var occUpdated = "";
+    if (occDoc && occDoc.updatedAt){
+      var odt = new Date(occDoc.updatedAt);
+      if (!isNaN(odt.getTime())) occUpdated = " · actualizado " + String(odt.getHours()).padStart(2,"0")+":"+String(odt.getMinutes()).padStart(2,"0");
+    }
+    var occNote = occPct ? "" : '<div class="week-strip-empty">Aún no hay datos de Cloudbeds — se sincronizan solos cada 5 minutos.</div>';
+    var inoutKey = (occArr && occDep) ? '<span class="week-strip-key"><span class="in">↑ llegadas</span><span class="out">↓ salidas</span></span>' : "";
+
+    return '' + topbarHtml("todos") +
+      '<div class="home-head"><h1>¿Quién está de turno?</h1><p>El horario de toda Casa Yuma, todos los departamentos juntos. Cualquiera puede consultarlo — solo el líder de cada equipo puede editar el suyo.</p></div>' +
+      '<div class="week-strip">' +
+        '<div class="week-strip-head"><span class="week-strip-title">% de ocupación del hotel · '+fmtRange(weekStart)+esc(occUpdated)+'</span>'+inoutKey+'</div>' +
+        '<div class="week-strip-cols">'+weekCols+'</div>' +
+        occNote +
+      '</div>' +
+      '<div class="todos-list">'+sections+'</div>';
+  }
+
+  /* ================= render: login gate ================= */
+  function renderGate(){
+    var body;
+    if (gateStep === 1){
+      var opts = ALL_USERS.map(function(u){ return '<option value="'+esc(u.clave)+'">'+esc(u.nombre)+'</option>'; }).join("");
+      body = '' +
+        '<div class="gate-fld"><label for="gateUserSel">Colaborador</label><select id="gateUserSel">'+opts+'</select></div>' +
+        '<button type="button" class="gate-btn" data-gate-continue="1">Continuar</button>' +
+        '<button type="button" class="gate-btn ghost" data-todos="1">← Volver sin iniciar sesión</button>' +
+        '<div class="gate-err" id="gateErr"></div><div class="gate-info" id="gateInfo"></div>';
+    } else {
+      var first = (gatePending.nombre||"").split(" ")[0];
+      body = '' +
+        '<div class="gate-fld"><label>'+(gatePending.tienePin ? "Tu PIN · "+esc(first) : "Crea tu PIN · "+esc(first))+'</label>' +
+          '<input id="gatePin" class="gate-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off"></div>' +
+        (gatePending.tienePin ? '' : '<div class="gate-fld"><label>Confirma tu PIN</label><input id="gatePin2" class="gate-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off"></div>') +
+        '<button type="button" class="gate-btn" data-gate-submit="1">'+(gatePending.tienePin ? "Entrar" : "Crear PIN y entrar")+'</button>' +
+        '<button type="button" class="gate-btn ghost" data-gate-back="1">← Cambiar colaborador</button>' +
+        (gatePending.tienePin ? '' : '<div class="gate-hint">Primera vez: define un PIN de 4 a 6 dígitos. Solo tú lo vas a usar para entrar.</div>') +
+        '<div class="gate-err" id="gateErr"></div><div class="gate-info" id="gateInfo"></div>';
+    }
+    return '' +
+      '<div class="gate-shell"><div class="gate-card">' +
+        '<div class="gate-brand"><span class="mark">Bitácora de Turnos</span><span class="sub">Casa Yuma</span></div>' +
+        '<p class="gate-tag">Cada líder ve y captura el horario de su propio departamento. La vista general es solo para administración.</p>' +
+        body +
+      '</div></div>';
+  }
+  function shiftWeek(delta){
+    state.weekStart = isoDate(addDays(parseISO(state.weekStart), delta*7));
+    hydrateEditBuffer(); render();
+  }
+  function jumpToWeek(ws){ state.weekStart = ws; hydrateEditBuffer(); render(); }
+
+  /* ================= topbar compartido (Todos / Departamentos) ================= */
+  function topbarHtml(activeView){
+    var tabs = '' +
+      '<button type="button" class="view-tab '+(activeView==="todos"?"on":"")+'" data-view-todos="1">Todos</button>' +
+      '<button type="button" class="view-tab '+(activeView==="home"?"on":"")+'" data-view-home="1">Departamentos</button>';
+    var authHtml = READONLY
+      ? '<span class="ro-pill">Solo lectura</span>'
+      : (SESSION
+          ? '<span class="ro-pill">'+esc(SESSION.nombre)+'</span><button type="button" class="home-link" data-logout="1">Salir</button>'
+          : '<button type="button" class="gate-open-btn" data-open-gate="1">Iniciar sesión</button>');
+    return '' +
+      '<div class="topbar">' +
+        '<div class="brand"><span class="mark">Bitácora de Turnos</span><span class="sub">Casa Yuma</span></div>' +
+        '<div class="topbar-right">'+authHtml+'</div>' +
+      '</div>' +
+      '<div class="view-tabs">'+tabs+'</div>';
+  }
+
+  /* ================= render: home (grid de departamentos) ================= */
+  function renderHome(){
+    var cards = SLUGS.map(function(slug){
+      var d = DEPARTMENTS[slug];
+      if (!d) return "";
+      var id = docId(slug, currentWeekStart());
+      var has = scheduleCache.has(id);
+      var mine = !READONLY && SESSION && (SESSION.scope === slug || SESSION.scope === "all");
+      var statusHtml = dataState==="ready"
+        ? '<span class="dept-status '+(has?'ok':'pending')+'"><span class="dot"></span>'+(has?'Semana actual capturada':'Falta capturar esta semana')+'</span>'
+        : "";
+      return '' +
+        '<button class="dept-card" data-open="'+slug+'">' +
+          '<div class="dept-stripe" style="background:'+d.color+'"></div>' +
+          '<div class="dept-body">' +
+            '<h3>'+esc(d.name)+(mine?' <span class="mine-tag">tú editas</span>':'')+'</h3>' +
+            '<div class="dept-count">'+deptCount(slug)+' colaboradores</div>' +
+            statusHtml +
+          '</div>' +
+        '</button>';
+    }).join("");
+
+    var warning = (dataState==="error")
+      ? '<div class="db-warning">Esta vista no tiene conexión con el servidor en este momento. Recarga la página en unos segundos.</div>'
+      : "";
+
+    return '' + topbarHtml("home") +
+      '<div class="home-head">' +
+        '<h1>Departamentos</h1>' +
+        '<p>Consulta el horario semanal completo de cualquier equipo. Solo el líder de cada departamento puede editar el suyo — el tuyo aparece marcado si iniciaste sesión.</p>' +
+      '</div>' +
+      '<div class="dept-grid">'+cards+'</div>' +
+      warning;
+  }
+
+  /* ================= render: department ================= */
+  function renderDept(){
+    var d = DEPARTMENTS[state.slug];
+    if (!d) return topbarHtml("home") + '<div class="home-head"><h1>Departamento no encontrado</h1></div>';
+    var rows = deptRows(state.slug);
+    var isCurrentWeek = state.weekStart === currentWeekStart();
+    var todayIdx = -1;
+    if (isCurrentWeek){
+      todayIdx = Math.round((parseISO(todayISO()) - parseISO(state.weekStart)) / 86400000);
+    }
+
+    // history chips: all captured weeks for this dept, newest first
+    var docs = [];
+    scheduleCache.forEach(function(v,k){ if (v.slug===state.slug) docs.push(v); });
+    docs.sort(function(a,b){ return a.weekStart < b.weekStart ? 1 : -1; });
+    var chips = docs.map(function(v){
+      return '<button class="history-chip '+(v.weekStart===state.weekStart?'current':'')+'" data-week="'+v.weekStart+'">'+fmtRange(v.weekStart)+'</button>';
+    }).join("");
+    if (!docs.some(function(v){ return v.weekStart===state.weekStart; })){
+      chips += '<button class="history-chip current" data-week="'+state.weekStart+'">'+fmtRange(state.weekStart)+' (nueva)</button>';
+    }
+
+    var editableNow = isEditableHere();
+
+    var prevWs = isoDate(addDays(parseISO(state.weekStart), -7));
+    var prevDoc = scheduleCache.get(docId(state.slug, prevWs));
+    var showCopyPrev = prevDoc && weekIsEmpty() && editableNow;
+
+    var head = '<tr>' +
+      '<th>Colaborador</th><th>Puesto</th>' +
+      DIAS.map(function(dia, i){ return '<th class="day-col'+(i===todayIdx?' is-today':'')+'">'+dia+'</th>'; }).join("") +
+      '<th>Descanso</th><th>Notas</th></tr>';
+
+    var lastGroup = undefined;
+    var body = rows.map(function(r){
+      var rowHtml = "";
+      if (r.group !== lastGroup){
+        lastGroup = r.group;
+        if (r.group) rowHtml += '<tr class="group-row"><td colspan="11">'+esc(r.group)+'</td></tr>';
+      }
+      var arr = editBuffer.shifts[r.clave] || [];
+      var restCount = arr.filter(function(v){ return v==="DESCANSO"; }).length;
+      var notasCell = editableNow
+        ? '<input class="notas-input" type="text" placeholder="—" data-notas="'+r.clave+'" value="'+esc(editBuffer.notes[r.clave]||"")+'">'
+        : '<span class="notas-ro">'+esc(editBuffer.notes[r.clave]||"—")+'</span>';
+      rowHtml += '<tr>' +
+        '<td><div class="emp-name">'+esc(r.nombre)+'</div><div class="emp-clave">'+esc(r.clave)+'</div></td>' +
+        '<td class="emp-role">'+esc(r.puesto)+'</td>' +
+        DIAS.map(function(_,i){ return '<td class="day-cell'+(i===todayIdx?' is-today':'')+'">'+renderShiftCell(r.clave,i)+'</td>'; }).join("") +
+        '<td class="rest-count" data-restfor="'+r.clave+'">'+restCount+'</td>' +
+        '<td class="notas-col">'+notasCell+'</td>' +
+        '</tr>';
+      return rowHtml;
+    }).join("");
+
+    var legend = '<div class="legend">' + LEGEND.map(function(l){
+      var cc = codeClass(l[0]);
+      var dot = cc ? '<span class="legend-dot '+cc+'"></span>' : '';
+      return '<span>'+dot+'<b>'+l[0]+'</b> — '+l[1]+'</span>';
+    }).join("") + '</div>';
+
+    var hint = (dataState==="error")
+      ? '<div class="empty-week-hint">Sin conexión con el servidor ahora mismo'+(editableNow?' — lo que captures aquí no se va a guardar.':'.')+'</div>'
+      : (dataState==="loading" && editableNow)
+        ? '<div class="empty-week-hint">Conectando… si capturas algo en este momento, se guarda solo en cuanto termine de conectar (unos segundos).</div>'
+        : (docs.length===0 ? '<div class="empty-week-hint">'+(editableNow ? 'Esta es la primera semana de '+esc(d.name)+'. En cuanto captures un horario, queda guardada como historial automáticamente.' : 'Aún no hay horario capturado para '+esc(d.name)+' esta semana.')+'</div>' : "");
+
+    var leaderOrMeta;
+    if (editableNow){
+      leaderOrMeta = '<div class="ro-meta">Editando como '+esc((SESSION && SESSION.nombre) || "")+'</div>';
+    } else {
+      var curDoc = scheduleCache.get(docId(state.slug, state.weekStart));
+      if (curDoc && curDoc.updatedAt){
+        var dt = new Date(curDoc.updatedAt);
+        var when = isNaN(dt.getTime()) ? "" : (dt.getDate()+" "+MESES[dt.getMonth()]+", "+String(dt.getHours()).padStart(2,"0")+":"+String(dt.getMinutes()).padStart(2,"0"));
+        leaderOrMeta = '<div class="ro-meta">Actualizado por '+esc(curDoc.updatedBy || "un líder")+(when?" · "+when:"")+'</div>';
+      } else {
+        leaderOrMeta = '';
+      }
+    }
+
+    var authHtml = READONLY
+      ? '<span class="ro-pill">Solo lectura</span>'
+      : (SESSION
+          ? '<span class="ro-pill">'+esc(SESSION.nombre)+'</span><button type="button" class="home-link" data-logout="1">Salir</button>'
+          : '<button type="button" class="gate-open-btn" data-open-gate="1">Iniciar sesión</button>');
+
+    return '' +
+      '<div class="topbar">' +
+        '<button class="home-link" data-todos="1">← Todos los horarios</button>' +
+        '<span id="saveIndicatorWrap" style="display:flex;align-items:center;gap:10px;">' + (editableNow
+          ? '<span class="save-indicator" id="saveIndicator"><span class="dot"></span>Sin cambios</span>'
+          : '<span class="save-indicator ro"><span class="dot"></span>Solo lectura</span>') + authHtml + '</span>' +
+      '</div>' +
+      '<div class="dept-header">' +
+        '<div class="dept-header-top">' +
+          '<div class="dept-title"><span class="dept-swatch" style="background:'+d.color+'"></span><h2>'+esc(d.name)+'</h2></div>' +
+        '</div>' +
+        '<div class="week-nav">' +
+          '<button class="arrow" data-week-delta="-1" aria-label="Semana anterior">‹</button>' +
+          '<span class="week-range">'+fmtRange(state.weekStart)+'</span>' +
+          '<button class="arrow" data-week-delta="1" aria-label="Semana siguiente">›</button>' +
+          (isCurrentWeek ? '' : '<button class="today-btn" data-goto-today="1">Ir a hoy</button>') +
+          (showCopyPrev ? '<button class="copy-prev-btn" data-copy-prev="1">Copiar semana anterior</button>' : '') +
+        '</div>' +
+        leaderOrMeta +
+        '<div class="history-rail">'+chips+'</div>' +
+      '</div>' +
+      '<div class="table-card">' +
+        '<div class="table-scroll"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>' +
+        legend +
+        hint +
+      '</div>';
+  }
+
+  function renderShiftCell(clave, dayIdx){
+    var val = (editBuffer.shifts[clave] || [])[dayIdx] || "";
+    if (!isEditableHere()){
+      var roCls = "shift-ro" + (codeClass(val) ? " "+codeClass(val) : "");
+      return val ? '<span class="'+roCls+'">'+esc(val)+'</span>' : '<span class="shift-ro empty">—</span>';
+    }
+    var key = clave+":"+dayIdx;
+    var forceCustom = customEditing.has(key);
+    var isPreset = !forceCustom && (SHIFT_PRESETS.indexOf(val) !== -1 || val === "");
+    if (isPreset){
+      var opts = '<option value="">—</option>' + SHIFT_PRESETS.map(function(p){
+        return '<option value="'+esc(p)+'" '+(p===val?"selected":"")+'>'+esc(p)+'</option>';
+      }).join("") + '<option value="__custom__">Escribir horario…</option>';
+      var selCls = "shift-select" + (codeClass(val) ? " "+codeClass(val) : "");
+      return '<select class="'+selCls+'" data-clave="'+clave+'" data-day="'+dayIdx+'">'+opts+'</select>';
+    }
+    return '<span class="shift-custom-wrap">' +
+      '<input class="shift-input" type="text" data-clave="'+clave+'" data-day="'+dayIdx+'" value="'+esc(val)+'" placeholder="ej. 08:00 - 16:00">' +
+      '<button type="button" class="shift-back" data-back-clave="'+clave+'" data-back-day="'+dayIdx+'" title="Volver a la lista">↺</button>' +
+      '</span>';
+  }
+
+  function setShift(clave, day, val){
+    if (!editBuffer.shifts[clave]) editBuffer.shifts[clave] = ["","","","","","",""];
+    editBuffer.shifts[clave][day] = val;
+  }
+
+  function updateRestCount(clave){
+    var el = document.querySelector('[data-restfor="'+clave+'"]');
+    if (!el) return;
+    var arr = editBuffer.shifts[clave] || [];
+    el.textContent = arr.filter(function(v){ return v==="DESCANSO"; }).length;
+  }
+
+  /* ================= events ================= */
+  function bindEvents(){
+    var app = document.getElementById("app");
+
+    app.addEventListener("click", function(e){
+      if (e.target.closest("[data-gate-continue]")){ gateContinue(); return; }
+      if (e.target.closest("[data-gate-submit]")){ gatePinSubmit(); return; }
+      if (e.target.closest("[data-gate-back]")){ gateStep = 1; gatePending = null; render(); return; }
+      if (e.target.closest("[data-logout]")){ logout(); return; }
+      if (e.target.closest("[data-open-gate]")){ openGate(); return; }
+      if (e.target.closest("[data-todos]") || e.target.closest("[data-view-todos]")){ goTodos(); return; }
+      if (e.target.closest("[data-view-home]")){ goHome(); return; }
+
+      var dayTab = e.target.closest("[data-todos-day]");
+      if (dayTab){ state.todosDay = parseInt(dayTab.getAttribute("data-todos-day"),10); render(); return; }
+
+      var openBtn = e.target.closest("[data-open]");
+      if (openBtn){ openDept(openBtn.getAttribute("data-open")); return; }
+
+      if (e.target.closest("[data-home]")){ goHome(); return; }
+
+      var wd = e.target.closest("[data-week-delta]");
+      if (wd){ shiftWeek(parseInt(wd.getAttribute("data-week-delta"),10)); return; }
+
+      if (e.target.closest("[data-goto-today]")){ state.weekStart = currentWeekStart(); hydrateEditBuffer(); render(); return; }
+
+      var chip = e.target.closest("[data-week]");
+      if (chip){ jumpToWeek(chip.getAttribute("data-week")); return; }
+
+      if (!isEditableHere()) return;
+
+      if (e.target.closest("[data-copy-prev]")){
+        var prevWs = isoDate(addDays(parseISO(state.weekStart), -7));
+        var prevDoc = scheduleCache.get(docId(state.slug, prevWs));
+        if (prevDoc){
+          editBuffer.shifts = JSON.parse(JSON.stringify(prevDoc.shifts || {}));
+          customEditing.clear();
+          render();
+          Object.keys(editBuffer.shifts).forEach(updateRestCount);
+          scheduleSave();
+        }
+        return;
+      }
+
+      var back = e.target.closest("[data-back-clave]");
+      if (back){
+        var bc = back.getAttribute("data-back-clave"), bd = parseInt(back.getAttribute("data-back-day"),10);
+        customEditing.delete(bc+":"+bd);
+        setShift(bc, bd, "");
+        updateRestCount(bc);
+        render();
+        scheduleSave();
+        return;
+      }
+    }, false);
+
+    app.addEventListener("change", function(e){
+      if (!isEditableHere()) return;
+      if (e.target.matches(".shift-select")){
+        var clave = e.target.getAttribute("data-clave"), day = parseInt(e.target.getAttribute("data-day"),10);
+        if (e.target.value === "__custom__"){
+          customEditing.add(clave+":"+day);
+          render();
+          requestAnimationFrame(function(){
+            var inp = document.querySelector('.shift-input[data-clave="'+clave+'"][data-day="'+day+'"]');
+            if (inp) inp.focus();
+          });
+        } else {
+          setShift(clave, day, e.target.value);
+          updateRestCount(clave);
+          // Pinta la celda al instante (sin esperar el próximo render completo)
+          // según el código elegido — Descanso, Vacaciones, Incapacidad, etc.
+          e.target.className = "shift-select" + (codeClass(e.target.value) ? " "+codeClass(e.target.value) : "");
+          scheduleSave();
+        }
+      }
+    }, false);
+
+    app.addEventListener("keydown", function(e){
+      if (e.key !== "Enter") return;
+      if (e.target.id === "gatePin" || e.target.id === "gatePin2") gatePinSubmit();
+    }, false);
+
+    app.addEventListener("input", function(e){
+      if (!isEditableHere()) return;
+      if (e.target.matches(".shift-input")){
+        var clave = e.target.getAttribute("data-clave"), day = parseInt(e.target.getAttribute("data-day"),10);
+        setShift(clave, day, e.target.value);
+        updateRestCount(clave);
+        scheduleSave();
+      }
+      if (e.target.matches(".notas-input")){
+        var nclave = e.target.getAttribute("data-notas");
+        editBuffer.notes[nclave] = e.target.value;
+        scheduleSave();
+      }
+    }, false);
+
+    // catch up on anything we skipped while a field had focus
+    app.addEventListener("focusout", function(){
+      if (!isEditableHere()) return;
+      setTimeout(function(){ if (!isEditingFocus()) render(); }, 50);
+    }, false);
+  }
+
+  /* ================= boot ================= */
+  if (SESSION){
+    if (SESSION.scope === "all"){ state.view = "home"; }
+    else { state.view = "dept"; state.slug = SESSION.scope; state.weekStart = currentWeekStart(); hydrateEditBuffer(); }
+  }
+  render();
+  bindEvents();
+  initData();
 })();
 </script>
-</body>
-</html>
+
+</body></html>
