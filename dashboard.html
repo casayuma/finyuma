@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ocupación Casa Yuma</title>
+<style>
+  :root{
+    --bg:#f6f4ef;
+    --surface:#ffffff;
+    --surface-2:#faf8f3;
+    --border:#e6e0d4;
+    --text:#2a241c;
+    --text-dim:#7a7263;
+    --accent:#b5622f;
+    --accent-2:#2f6b5e;
+    --bar-track:#efe9db;
+    --bar-fill:#b5622f;
+    --good:#2f6b5e;
+    --warn:#b5622f;
+    --shadow: 0 1px 2px rgba(40,30,10,.06), 0 8px 24px rgba(40,30,10,.05);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1b1712;
+      --surface:#242019;
+      --surface-2:#2a2520;
+      --border:#3a3327;
+      --text:#f1ece0;
+      --text-dim:#a89d87;
+      --accent:#e08a52;
+      --accent-2:#5fae99;
+      --bar-track:#3a3327;
+      --bar-fill:#e08a52;
+      --good:#5fae99;
+      --warn:#e08a52;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1b1712;
+    --surface:#242019;
+    --surface-2:#2a2520;
+    --border:#3a3327;
+    --text:#f1ece0;
+    --text-dim:#a89d87;
+    --accent:#e08a52;
+    --accent-2:#5fae99;
+    --bar-track:#3a3327;
+    --bar-fill:#e08a52;
+    --good:#5fae99;
+    --warn:#e08a52;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap{ max-width: 900px; margin: 0 auto; }
+
+  header{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+    flex-wrap:wrap;
+    margin-bottom: 20px;
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-dim); margin:0 0 4px;
+  }
+  h1{ margin:0; font-size: clamp(22px, 4vw, 30px); font-weight:700; text-wrap:balance; }
+  .subtitle{ color:var(--text-dim); font-size:14px; margin-top:4px; }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:18px; flex-wrap:wrap;
+  }
+  .nav-week{
+    display:flex; align-items:center; gap:10px;
+  }
+  .nav-btn{
+    appearance:none; border:1px solid var(--border); background:var(--surface-2);
+    color:var(--text); width:34px; height:34px; border-radius:10px;
+    font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .nav-btn:disabled{ opacity:.35; cursor:default; }
+  .nav-btn:not(:disabled):hover{ border-color:var(--accent); color:var(--accent); }
+  select#weekSelect{
+    appearance:none; border:1px solid var(--border); background:var(--surface-2);
+    color:var(--text); padding:8px 12px; border-radius:10px; font-size:14px;
+    font-family:inherit; cursor:pointer; max-width: 60vw;
+  }
+  .week-tag{
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+    padding:3px 8px; border-radius:999px; font-weight:700;
+  }
+
+  .avg{ text-align:right; }
+  .avg .num{ font-size:28px; font-weight:800; font-variant-numeric: tabular-nums; }
+  .avg .lbl{ font-size:12px; color:var(--text-dim); }
+
+  .grid{
+    display:grid; grid-template-columns: repeat(7, 1fr); gap:10px;
+    align-items:end;
+  }
+  .day{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .day-name{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; }
+  .day-name.today{ color:var(--accent); }
+  .day-date{ font-size:11px; color:var(--text-dim); margin-top:-6px; }
+  .bar-track{
+    width:100%; max-width:44px; height:120px; background:var(--bar-track);
+    border-radius:8px; display:flex; align-items:flex-end; overflow:hidden;
+    position:relative;
+  }
+  .bar-track.today{ box-shadow: inset 0 0 0 2px var(--accent); }
+  .bar-fill{ width:100%; background:var(--bar-fill); border-radius:8px; transition: height .4s ease; }
+  .pct{ font-weight:700; font-variant-numeric: tabular-nums; font-size:14px; }
+  .pct.empty{ color:var(--text-dim); font-weight:500; }
+  .inout{ font-size:11px; color:var(--text-dim); font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .inout .in{ color:var(--good); }
+  .inout .out{ color:var(--warn); }
+
+  .foot{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+    gap:8px; margin-top:18px; padding-top:14px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--text-dim);
+  }
+  .legend{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot.in{ background:var(--good); }
+  .dot.out{ background:var(--warn); }
+
+  .empty-state{ text-align:center; padding: 40px 16px; color:var(--text-dim); font-size:14px; }
+  .meta{ margin-top:14px; font-size:12px; color:var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Casa Yuma · Hospedaje</p>
+      <h1>Ocupación del hotel</h1>
+      <p class="subtitle">Datos en vivo desde Cloudbeds — se sincroniza solo cada 5 minutos.</p>
+    </div>
+  </header>
+
+  <div class="card" id="cardRoot">
+    <div class="empty-state" id="loading">Cargando…</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var DIA_NOMBRES = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  var cardRoot = document.getElementById("cardRoot");
+  var state = { data: null, weekKeys: [], currentIndex: 0 };
+
+  function fmtDayDate(weekStartIso, i){
+    var d = new Date(weekStartIso + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + i);
+    return d.getUTCDate() + "/" + (d.getUTCMonth()+1);
+  }
+
+  function todayMexicoIso(){
+    var now = new Date();
+    var mx = new Date(now.getTime() - 6*60*60*1000);
+    return mx.toISOString().slice(0,10);
+  }
+
+  function mondayOf(iso){
+    var d = new Date(iso + "T00:00:00Z");
+    var dow = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dow);
+    return d.toISOString().slice(0,10);
+  }
+
+  function render(){
+    var weekKeys = state.weekKeys;
+    if (!weekKeys.length){
+      cardRoot.innerHTML = '<div class="empty-state">Todavía no hay datos de ocupación sincronizados.<br>Corre la función <code>syncOcupacion</code> una vez desde el editor de Apps Script (▶ Ejecutar), o espera a que dispare el trigger programado.</div>';
+      return;
+    }
+    var idx = state.currentIndex;
+    var weekStart = weekKeys[idx];
+    var wk = state.data.weeks[weekStart];
+    var totalRooms = state.data.totalRooms || 25;
+    var todayIso = todayMexicoIso();
+    var isCurrentWeek = mondayOf(todayIso) === weekStart;
+
+    var validPct = wk.pct.filter(function(p){ return typeof p === "number" && !isNaN(p); });
+    var avg = validPct.length ? Math.round(validPct.reduce(function(a,b){return a+b;},0) / validPct.length) : null;
+
+    var todayOffset = Math.round((new Date(todayIso+"T00:00:00Z") - new Date(mondayOf(todayIso)+"T00:00:00Z")) / 86400000);
+
+    var daysHtml = "";
+    for (var i = 0; i < 7; i++){
+      var p = wk.pct[i];
+      var hasP = typeof p === "number" && !isNaN(p);
+      var arr = wk.arrivals ? wk.arrivals[i] : null;
+      var dep = wk.departures ? wk.departures[i] : null;
+      var dateStr = fmtDayDate(weekStart, i);
+      var isToday = isCurrentWeek && i === todayOffset;
+
+      daysHtml += ''
+        + '<div class="day">'
+        +   '<div class="day-name' + (isToday ? ' today' : '') + '">' + DIA_NOMBRES[i] + '</div>'
+        +   '<div class="day-date">' + dateStr + '</div>'
+        +   '<div class="bar-track' + (isToday ? ' today' : '') + '"><div class="bar-fill" style="height:' + (hasP ? Math.max(p,3) : 0) + '%"></div></div>'
+        +   '<div class="pct' + (hasP ? '' : ' empty') + '">' + (hasP ? p + '%' : '—') + '</div>'
+        +   '<div class="inout">' + (arr != null && dep != null ? '<span class="in">↑' + arr + '</span> <span class="out">↓' + dep + '</span>' : '&nbsp;') + '</div>'
+        + '</div>';
+    }
+
+    var selectHtml = '<select id="weekSelect">' + weekKeys.slice().reverse().map(function(wk2){
+      var lbl = wk2 + (wk2 === weekKeys[weekKeys.length-1] && mondayOf(todayIso) === wk2 ? " (semana actual)" : "");
+      return '<option value="' + wk2 + '"' + (wk2 === weekStart ? ' selected' : '') + '>' + lbl + '</option>';
+    }).join('') + '</select>';
+
+    cardRoot.innerHTML = ''
+      + '<div class="nav">'
+      +   '<div class="nav-week">'
+      +     '<button class="nav-btn" id="prevBtn" ' + (idx <= 0 ? 'disabled' : '') + ' aria-label="Semana anterior">‹</button>'
+      +     selectHtml
+      +     '<button class="nav-btn" id="nextBtn" ' + (idx >= weekKeys.length - 1 ? 'disabled' : '') + ' aria-label="Semana siguiente">›</button>'
+      +     (isCurrentWeek ? '<span class="week-tag">Semana actual</span>' : '')
+      +   '</div>'
+      +   '<div class="avg">'
+      +     '<div class="num">' + (avg != null ? avg + '%' : '—') + '</div>'
+      +     '<div class="lbl">promedio semanal</div>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="grid">' + daysHtml + '</div>'
+      + '<div class="foot">'
+      +   '<div class="legend"><span><i class="dot in"></i> llegadas</span><span><i class="dot out"></i> salidas</span></div>'
+      +   '<div>' + totalRooms + ' cuartos · ' + (wk.reservationsConsidered != null ? wk.reservationsConsidered + ' reservaciones' : '') + '</div>'
+      + '</div>'
+      + '<div class="meta">Última actualización: ' + formatUpdatedAt(wk.updatedAt) + '</div>';
+
+    document.getElementById("prevBtn").onclick = function(){
+      if (state.currentIndex > 0){ state.currentIndex--; render(); }
+    };
+    document.getElementById("nextBtn").onclick = function(){
+      if (state.currentIndex < weekKeys.length - 1){ state.currentIndex++; render(); }
+    };
+    document.getElementById("weekSelect").onchange = function(e){
+      var i = weekKeys.indexOf(e.target.value);
+      if (i >= 0){ state.currentIndex = i; render(); }
+    };
+  }
+
+  function formatUpdatedAt(iso){
+    if (!iso) return "—";
+    try{
+      var d = new Date(iso);
+      return d.toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Mexico_City" }) + " (hora CDMX)";
+    }catch(e){ return iso; }
+  }
+
+  function onData(json){
+    state.data = json;
+    state.weekKeys = Object.keys(json.weeks || {}).sort();
+    state.currentIndex = state.weekKeys.length - 1;
+    render();
+  }
+
+  function onError(err){
+    cardRoot.innerHTML = '<div class="empty-state">No se pudo cargar la información.<br><small>' + (err && err.message ? err.message : err) + '</small></div>';
+  }
+
+  if (window.google && google.script && google.script.run) {
+    google.script.run.withSuccessHandler(onData).withFailureHandler(onError).getOccupancyData();
+  } else {
+    onError("Esta página debe abrirse desde su URL de Apps Script (Deploy → Web app), no como archivo local.");
+  }
+})();
+</script>
+</body>
+</html>
