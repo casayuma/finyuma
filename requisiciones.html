@@ -63,6 +63,13 @@ details.cat-acordeon>summary::-webkit-details-marker{display:none}
 details.cat-acordeon>summary::before{content:'▸';font-size:10px;transition:transform .15s}
 details.cat-acordeon[open]>summary::before{transform:rotate(90deg)}
 details.cat-acordeon>*:not(summary){padding:0 12px 12px}
+details.fecha-acordeon{margin:8px 12px 0;border:1px solid var(--line);border-radius:4px;background:#fff}
+details.fecha-acordeon:first-of-type{margin-top:10px}
+details.fecha-acordeon>summary{list-style:none;cursor:pointer;padding:8px 12px;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:6px}
+details.fecha-acordeon>summary::-webkit-details-marker{display:none}
+details.fecha-acordeon>summary::before{content:'▸';font-size:9px;color:var(--cactus);transition:transform .15s}
+details.fecha-acordeon[open]>summary::before{transform:rotate(90deg)}
+details.fecha-acordeon>*:not(summary){padding:0 10px 10px}
 .acordeon-count{font-weight:400;text-transform:none;letter-spacing:0;opacity:.75}
 .ctl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
 .ctl label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cactus)}
@@ -751,6 +758,20 @@ function agruparPorPedido(filas){
   });
   return orden.map(clave=>map[clave]);
 }
+// Agrupa por Fecha de solicitud (más reciente primero — las fechas vienen en formato ISO
+// aaaa-mm-dd, así que ordenan bien como texto) y, dentro de cada fecha, por pedido. Se usa en
+// "Pedidos acumulados" para que, dentro de un departamento o categoría, los pedidos de distintos
+// días queden separados en su propia franja plegable y no se puedan confundir entre sí.
+function agruparPorFechaYPedido(filas){
+  const porFecha={}; const orden=[];
+  filas.forEach(r=>{
+    const fecha=r[2];
+    if(!porFecha[fecha]){ porFecha[fecha]=[]; orden.push(fecha); }
+    porFecha[fecha].push(r);
+  });
+  orden.sort((a,b)=>String(b).localeCompare(String(a)));
+  return orden.map(fecha=>({fecha, grupos:agruparPorPedido(porFecha[fecha])}));
+}
 function renderGrupoPendiente(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="7">
@@ -843,7 +864,7 @@ async function cargarAcumulados(){
     const bloques=agruparPorDepartamentoYPedido(filas);
     const totalPedidos=bloques.reduce((s,b)=>s+totalGruposBloque(b),0);
     el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${totalPedidos} pedido(s) · $${money(total)})</div>
-      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina, además, viene desglosado por categoría.</div>
+      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina y Restaurante, además, viene desglosado por categoría. Dentro de cada departamento (y de cada categoría) los pedidos se separan por fecha, con los más recientes primero.</div>
       <div class="bulk-bar" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="chkTodosComprar" onchange="toggleSeleccionarTodosAcum('comprar',this.checked)"> Todos los aprobados
@@ -862,29 +883,29 @@ async function cargarAcumulados(){
           <summary><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento} <span class="acordeon-count">(${totalArticulosBloque(b)} artículo(s))</span></summary>
           ${b.categorias ? b.categorias.map(c=>`
             <details class="cat-acordeon">
-              <summary>${escapeHtml(c.categoria)} <span class="acordeon-count">(${c.grupos.reduce((s,g)=>s+g.items.length,0)})</span></summary>
-              <div style="overflow-x:auto"><table class="aud"><thead><tr>
-                <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
-              </tr></thead><tbody>${c.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+              <summary>${escapeHtml(c.categoria)} <span class="acordeon-count">(${gruposDeFechas(c.fechas).reduce((s,g)=>s+g.items.length,0)})</span></summary>
+              ${c.fechas.map(f=>renderFechaAcordeon(f)).join('')}
             </details>
-          `).join('') : `
-          <div style="overflow-x:auto"><table class="aud"><thead><tr>
-            <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
-          </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
-          `}
+          `).join('') : b.fechas.map(f=>renderFechaAcordeon(f)).join('')}
         </details>
       `).join('')}`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
-function totalGruposBloque(b){ return b.grupos ? b.grupos.length : b.categorias.reduce((s,c)=>s+c.grupos.length,0); }
+function gruposDeFechas(fechas){ return fechas.reduce((arr,f)=>arr.concat(f.grupos),[]); }
+function totalGruposBloque(b){
+  if(b.categorias) return b.categorias.reduce((s,c)=>s+gruposDeFechas(c.fechas).length,0);
+  return gruposDeFechas(b.fechas).length;
+}
 function totalArticulosBloque(b){
-  const grupos = b.grupos ? b.grupos : b.categorias.reduce((arr,c)=>arr.concat(c.grupos),[]);
+  const grupos = b.categorias ? b.categorias.reduce((arr,c)=>arr.concat(gruposDeFechas(c.fechas)),[]) : gruposDeFechas(b.fechas);
   return grupos.reduce((s,g)=>s+g.items.length,0);
 }
 // Cocina y Restaurante (ver DEPTOS_CON_CATEGORIA) se desglosan un nivel más, por Categoría (las
 // mismas 7 categorías de insumos — ver CATEGORIAS_INSUMOS) — así Compras puede comprar por
 // proveedor/categoría igual que hacía en su Excel, en vez de ver todos los artículos revueltos.
-// El resto de departamentos sigue igual (por pedido, sin categoría).
+// El resto de departamentos sigue igual (sin ese nivel extra). En ambos casos, dentro de cada
+// departamento/categoría los pedidos además se separan por Fecha de solicitud (ver
+// agruparPorFechaYPedido) para que nunca se mezclen pedidos de días distintos en una sola vista.
 function agruparPorDepartamentoYPedido(filas){
   const porDepto={}; const orden=[];
   filas.forEach(r=>{
@@ -896,7 +917,7 @@ function agruparPorDepartamentoYPedido(filas){
     if(DEPTOS_CON_CATEGORIA.includes(depto)){
       return {departamento:depto, categorias:agruparPorCategoriaYPedido(porDepto[depto])};
     }
-    return {departamento:depto, grupos:agruparPorPedido(porDepto[depto])};
+    return {departamento:depto, fechas:agruparPorFechaYPedido(porDepto[depto])};
   });
 }
 // Resuelve la categoría de un renglón de Requisiciones cruzando su CatalogoID (o, si no lo
@@ -922,12 +943,26 @@ function agruparPorCategoriaYPedido(filas){
     const ia=CATEGORIAS_INSUMOS.indexOf(a), ib=CATEGORIAS_INSUMOS.indexOf(b);
     return (ia===-1?999:ia)-(ib===-1?999:ib);
   });
-  return orden.map(cat=>({categoria:cat, grupos:agruparPorPedido(porCat[cat])}));
+  return orden.map(cat=>({categoria:cat, fechas:agruparPorFechaYPedido(porCat[cat])}));
+}
+// Franja plegable por Fecha de solicitud, usada dentro de cada departamento (y, si aplica,
+// dentro de cada categoría) en "Pedidos acumulados" — así los pedidos de días distintos nunca
+// se ven revueltos en una sola tabla.
+function renderFechaAcordeon(f){
+  const n=f.grupos.reduce((s,g)=>s+g.items.length,0);
+  return `<details class="fecha-acordeon">
+    <summary><span class="pedido-fecha">${escapeHtml(f.fecha)}</span> <span class="acordeon-count">(${n} artículo(s))</span></summary>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr>
+      <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
+    </tr></thead><tbody>${f.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+  </details>`;
 }
 function renderGrupoAcumulado(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
+  // La fecha ya se muestra en el encabezado de la franja de Fecha que envuelve este pedido
+  // (ver renderFechaAcordeon) — no hace falta repetirla aquí.
   const cabecera=`<tr class="pedido-head"><td colspan="6">
-    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · ${g.solicitanteNombre} ${badge}
+    Pedido ${g.pedidoId} · ${g.solicitanteNombre} ${badge}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
 }
