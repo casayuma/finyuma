@@ -49,6 +49,7 @@ nav.tabs button.active{color:#fff;border-bottom-color:var(--gold)}
 main{max-width:1100px;margin:0 auto;padding:26px 18px 80px}
 .view{display:none}.view.active{display:block}
 .section-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cactus);margin:26px 0 10px}
+.cat-subhead{font-size:11.5px;font-weight:700;color:var(--cactus);margin:14px 0 6px;padding-left:2px;border-left:3px solid var(--line)}
 .ctl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
 .ctl label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cactus)}
 select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:2px;outline:none}
@@ -816,8 +817,9 @@ async function cargarAcumulados(){
     if(!filas.length){el.innerHTML='<div class="empty">No hay pedidos en curso por ahora.</div>';return;}
     const total=filas.reduce((s,r)=>s+num(r[11]),0);
     const bloques=agruparPorDepartamentoYPedido(filas);
-    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${bloques.reduce((s,b)=>s+b.grupos.length,0)} pedido(s) · $${money(total)})</div>
-      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista.</div>
+    const totalPedidos=bloques.reduce((s,b)=>s+totalGruposBloque(b),0);
+    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${totalPedidos} pedido(s) · $${money(total)})</div>
+      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina, además, viene desglosado por categoría.</div>
       <div class="bulk-bar" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="chkTodosComprar" onchange="toggleSeleccionarTodosAcum('comprar',this.checked)"> Todos los aprobados
@@ -833,12 +835,24 @@ async function cargarAcumulados(){
       </div>
       ${bloques.map(b=>`
         <div class="section-eyebrow" style="margin-top:18px"><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento}</div>
+        ${b.categorias ? b.categorias.map(c=>`
+          <div class="cat-subhead">${escapeHtml(c.categoria)}</div>
+          <div style="overflow-x:auto"><table class="aud"><thead><tr>
+            <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
+          </tr></thead><tbody>${c.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+        `).join('') : `
         <div style="overflow-x:auto"><table class="aud"><thead><tr>
           <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
         </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+        `}
       `).join('')}`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
+function totalGruposBloque(b){ return b.grupos ? b.grupos.length : b.categorias.reduce((s,c)=>s+c.grupos.length,0); }
+// Cocina se desglosa un nivel más, por Categoría (las mismas 7 de su catálogo — ver
+// CATEGORIAS_COCINA) — así Compras puede comprar por proveedor/categoría igual que hacía en
+// su Excel, en vez de ver todos los artículos de Cocina revueltos. El resto de departamentos
+// sigue igual (por pedido, sin categoría).
 function agruparPorDepartamentoYPedido(filas){
   const porDepto={}; const orden=[];
   filas.forEach(r=>{
@@ -846,7 +860,37 @@ function agruparPorDepartamentoYPedido(filas){
     if(!porDepto[depto]){ porDepto[depto]=[]; orden.push(depto); }
     porDepto[depto].push(r);
   });
-  return orden.map(depto=>({departamento:depto, grupos:agruparPorPedido(porDepto[depto])}));
+  return orden.map(depto=>{
+    if(depto===DEPTO_SIN_VENTANA){
+      return {departamento:depto, categorias:agruparPorCategoriaYPedido(porDepto[depto])};
+    }
+    return {departamento:depto, grupos:agruparPorPedido(porDepto[depto])};
+  });
+}
+// Resuelve la categoría de un renglón de Requisiciones cruzando su CatalogoID (o, si no lo
+// tiene, el nombre del artículo) contra el CATALOGO ya cargado en memoria.
+function categoriaDeItem(r){
+  const catalogoId=r[7], articulo=r[6];
+  if(catalogoId){
+    const c=CATALOGO.find(x=>String(x[0])===String(catalogoId));
+    if(c && c[7]) return c[7];
+  }
+  const porNombre=CATALOGO.find(x=>normaliza(x[1])===normaliza(articulo));
+  if(porNombre && porNombre[7]) return porNombre[7];
+  return 'Sin categoría';
+}
+function agruparPorCategoriaYPedido(filas){
+  const porCat={}; const orden=[];
+  filas.forEach(r=>{
+    const cat=categoriaDeItem(r);
+    if(!porCat[cat]){ porCat[cat]=[]; orden.push(cat); }
+    porCat[cat].push(r);
+  });
+  orden.sort((a,b)=>{
+    const ia=CATEGORIAS_COCINA.indexOf(a), ib=CATEGORIAS_COCINA.indexOf(b);
+    return (ia===-1?999:ia)-(ib===-1?999:ib);
+  });
+  return orden.map(cat=>({categoria:cat, grupos:agruparPorPedido(porCat[cat])}));
 }
 function renderGrupoAcumulado(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
