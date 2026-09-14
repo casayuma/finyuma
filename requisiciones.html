@@ -50,6 +50,20 @@ main{max-width:1100px;margin:0 auto;padding:26px 18px 80px}
 .view{display:none}.view.active{display:block}
 .section-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cactus);margin:26px 0 10px}
 .cat-subhead{font-size:11.5px;font-weight:700;color:var(--cactus);margin:14px 0 6px;padding-left:2px;border-left:3px solid var(--line)}
+.pedido-fecha{font-weight:700;color:var(--cactus)}
+details.depto-acordeon{margin-top:14px;border:1px solid var(--line);border-radius:6px;background:#fff;overflow:hidden}
+details.depto-acordeon>summary{list-style:none;cursor:pointer;padding:12px 14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cactus);font-weight:700;display:flex;align-items:center;gap:8px}
+details.depto-acordeon>summary::-webkit-details-marker{display:none}
+details.depto-acordeon>summary::before{content:'▸';font-size:11px;transition:transform .15s}
+details.depto-acordeon[open]>summary::before{transform:rotate(90deg)}
+details.depto-acordeon>*:not(summary){padding:0 14px 14px}
+details.cat-acordeon{margin:10px 14px 0;border:1px solid var(--line);border-radius:4px;background:var(--wool)}
+details.cat-acordeon>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:11.5px;font-weight:700;color:var(--cactus);display:flex;align-items:center;gap:6px}
+details.cat-acordeon>summary::-webkit-details-marker{display:none}
+details.cat-acordeon>summary::before{content:'▸';font-size:10px;transition:transform .15s}
+details.cat-acordeon[open]>summary::before{transform:rotate(90deg)}
+details.cat-acordeon>*:not(summary){padding:0 12px 12px}
+.acordeon-count{font-weight:400;text-transform:none;letter-spacing:0;opacity:.75}
 .ctl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
 .ctl label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cactus)}
 select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:2px;outline:none}
@@ -234,7 +248,11 @@ const DEPARTAMENTOS=[
 const URGENCIAS=['Baja','Media','Alta','Urgente'];
 // Categorías fijas del catálogo de Cocina (columna Categoria en la pestaña Catalogo) — permiten
 // navegar "Nueva requisición" por pestañas en vez de un solo buscador, dado lo grande que es su lista.
-const CATEGORIAS_COCINA=['Limpieza','Pescados y Mariscos','Carnes','Fruta y Verdura','Lácteos','Abarrote','Comida de personal'];
+// Categorías fijas de insumos — hoy las comparten Cocina y Restaurante (misma taxonomía,
+// para que compartan catálogo/proveedores de comida). Si algún día un departamento necesita
+// categorías propias distintas, aquí es donde se separarían por departamento.
+const CATEGORIAS_INSUMOS=['Limpieza','Pescados y Mariscos','Carnes','Fruta y Verdura','Lácteos','Abarrote','Comida de personal'];
+const DEPTOS_CON_CATEGORIA=['Cocina','Restaurante'];
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
@@ -247,6 +265,11 @@ function esAprobador(){ return SESSION && (SESSION.nivel==='full' || SESSION.niv
 function esLiderCompras(){ return SESSION && SESSION.nivel==='lider' && SESSION.rolEspecial==='compras'; }
 function esLiderNormal(){ return SESSION && SESSION.nivel==='lider' && !esLiderCompras(); }
 function verTodosDeptos(){ return esAprobador() || esLiderCompras(); }
+// Recibir/Entregar (cerrar el ciclo de compra) es exclusivo del departamento que lo pidió
+// (o Full/Superfull como respaldo) — Compras NUNCA puede marcarlo, ni aunque su propio
+// departamento "de nómina" coincida por casualidad con el del pedido: su trabajo es comprar,
+// no recibir.
+function puedeRecibirDepto(depto){ return esAprobador() || (esLiderNormal() && SESSION.departamento===depto); }
 function administraCatalogo(){ return esAprobador() || esLiderCompras(); } // superfull, full y líder compras
 function rolLabel(){
   if(esSuperfull())return 'Superfull';
@@ -433,7 +456,7 @@ function renderNueva(){
           <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Departamento (opcional)</label><select id="naDepto" onchange="actualizarNaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
-          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('')}</select></div>
+          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('')}</select></div>
           <div class="row-actions">
             <button class="cap-btn" style="padding:9px 16px" onclick="guardarNuevoArticulo()">Guardar y usar</button>
             <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
@@ -474,7 +497,7 @@ function departamentoActual(){
 function actualizarCatTabs(){
   const wrap=document.getElementById('catTabsWrap');
   if(!wrap) return;
-  if(departamentoActual()===DEPTO_SIN_VENTANA){ // 'Cocina'
+  if(DEPTOS_CON_CATEGORIA.includes(departamentoActual())){
     wrap.classList.remove('hidden');
     renderCatTabsBotones();
     renderListaCategoria();
@@ -488,7 +511,7 @@ function actualizarCatTabs(){
 function renderCatTabsBotones(){
   const cont=document.getElementById('catTabs');
   if(!cont) return;
-  cont.innerHTML=CATEGORIAS_COCINA.map(cat=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria('${cat.replace(/'/g,"\\'")}')">${escapeHtml(cat)}</button>`).join('');
+  cont.innerHTML=CATEGORIAS_INSUMOS.map(cat=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria('${cat.replace(/'/g,"\\'")}')">${escapeHtml(cat)}</button>`).join('');
 }
 function elegirCategoria(cat){
   CATEGORIA_ACTIVA = (CATEGORIA_ACTIVA===cat) ? '' : cat;
@@ -499,7 +522,7 @@ function renderListaCategoria(){
   const cont=document.getElementById('catListaBody');
   if(!cont) return;
   if(!CATEGORIA_ACTIVA){ cont.innerHTML=''; ITEMS_CATEGORIA_ACTUAL=[]; return; }
-  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===DEPTO_SIN_VENTANA && (c[7]||'')===CATEGORIA_ACTIVA)
+  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===departamentoActual() && (c[7]||'')===CATEGORIA_ACTIVA)
     .sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'es'));
   if(!ITEMS_CATEGORIA_ACTUAL.length){
     cont.innerHTML='<div class="note">Todavía no hay artículos capturados en "'+escapeHtml(CATEGORIA_ACTIVA)+'".</div>';
@@ -584,12 +607,13 @@ function mostrarNuevoArticulo(){
   document.getElementById('nuevoArtBox').classList.remove('hidden');
   document.getElementById('naNombre').focus();
 }
-// El campo Categoría solo tiene sentido para Cocina — se oculta para el resto de departamentos.
+// El campo Categoría solo tiene sentido para los departamentos con categoría (Cocina, Restaurante)
+// — se oculta para el resto.
 function actualizarNaCategoriaVisible(){
   const wrap=document.getElementById('naCategoriaWrap');
   const depto=document.getElementById('naDepto').value;
   if(!wrap) return;
-  wrap.style.display = (depto===DEPTO_SIN_VENTANA) ? '' : 'none';
+  wrap.style.display = DEPTOS_CON_CATEGORIA.includes(depto) ? '' : 'none';
 }
 function cancelarNuevoArticulo(){ document.getElementById('nuevoArtBox').classList.add('hidden'); }
 async function guardarNuevoArticulo(){
@@ -598,7 +622,7 @@ async function guardarNuevoArticulo(){
   const unidad=document.getElementById('naUnidad').value.trim();
   const precioUnitario=num(document.getElementById('naPrecio').value)||0;
   const departamento=document.getElementById('naDepto').value;
-  const categoria = (departamento===DEPTO_SIN_VENTANA) ? document.getElementById('naCategoria').value : '';
+  const categoria = DEPTOS_CON_CATEGORIA.includes(departamento) ? document.getElementById('naCategoria').value : '';
   try{
     const j=await apiPost({accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,articulo:nombre,unidad,precioUnitario,departamento,categoria});
     if(!j.ok){ alert(j.error); return; }
@@ -730,7 +754,7 @@ function agruparPorPedido(filas){
 function renderGrupoPendiente(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="7">
-    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} · requerido ${g.fechaRequerida||'–'} ${badge}
+    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · requerido ${g.fechaRequerida||'–'} ${badge}
     ${g.justificacion?('<div style="font-weight:400;font-size:11.5px;color:var(--cactus);margin-top:3px">'+g.justificacion+'</div>'):''}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemPendiente(r)).join('');
@@ -834,25 +858,33 @@ async function cargarAcumulados(){
         </div>
       </div>
       ${bloques.map(b=>`
-        <div class="section-eyebrow" style="margin-top:18px"><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento}</div>
-        ${b.categorias ? b.categorias.map(c=>`
-          <div class="cat-subhead">${escapeHtml(c.categoria)}</div>
+        <details class="depto-acordeon">
+          <summary><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento} <span class="acordeon-count">(${totalArticulosBloque(b)} artículo(s))</span></summary>
+          ${b.categorias ? b.categorias.map(c=>`
+            <details class="cat-acordeon">
+              <summary>${escapeHtml(c.categoria)} <span class="acordeon-count">(${c.grupos.reduce((s,g)=>s+g.items.length,0)})</span></summary>
+              <div style="overflow-x:auto"><table class="aud"><thead><tr>
+                <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
+              </tr></thead><tbody>${c.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+            </details>
+          `).join('') : `
           <div style="overflow-x:auto"><table class="aud"><thead><tr>
             <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
-          </tr></thead><tbody>${c.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
-        `).join('') : `
-        <div style="overflow-x:auto"><table class="aud"><thead><tr>
-          <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
-        </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
-        `}
+          </tr></thead><tbody>${b.grupos.map(g=>renderGrupoAcumulado(g)).join('')}</tbody></table></div>
+          `}
+        </details>
       `).join('')}`;
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
 function totalGruposBloque(b){ return b.grupos ? b.grupos.length : b.categorias.reduce((s,c)=>s+c.grupos.length,0); }
-// Cocina se desglosa un nivel más, por Categoría (las mismas 7 de su catálogo — ver
-// CATEGORIAS_COCINA) — así Compras puede comprar por proveedor/categoría igual que hacía en
-// su Excel, en vez de ver todos los artículos de Cocina revueltos. El resto de departamentos
-// sigue igual (por pedido, sin categoría).
+function totalArticulosBloque(b){
+  const grupos = b.grupos ? b.grupos : b.categorias.reduce((arr,c)=>arr.concat(c.grupos),[]);
+  return grupos.reduce((s,g)=>s+g.items.length,0);
+}
+// Cocina y Restaurante (ver DEPTOS_CON_CATEGORIA) se desglosan un nivel más, por Categoría (las
+// mismas 7 categorías de insumos — ver CATEGORIAS_INSUMOS) — así Compras puede comprar por
+// proveedor/categoría igual que hacía en su Excel, en vez de ver todos los artículos revueltos.
+// El resto de departamentos sigue igual (por pedido, sin categoría).
 function agruparPorDepartamentoYPedido(filas){
   const porDepto={}; const orden=[];
   filas.forEach(r=>{
@@ -861,7 +893,7 @@ function agruparPorDepartamentoYPedido(filas){
     porDepto[depto].push(r);
   });
   return orden.map(depto=>{
-    if(depto===DEPTO_SIN_VENTANA){
+    if(DEPTOS_CON_CATEGORIA.includes(depto)){
       return {departamento:depto, categorias:agruparPorCategoriaYPedido(porDepto[depto])};
     }
     return {departamento:depto, grupos:agruparPorPedido(porDepto[depto])};
@@ -887,7 +919,7 @@ function agruparPorCategoriaYPedido(filas){
     porCat[cat].push(r);
   });
   orden.sort((a,b)=>{
-    const ia=CATEGORIAS_COCINA.indexOf(a), ib=CATEGORIAS_COCINA.indexOf(b);
+    const ia=CATEGORIAS_INSUMOS.indexOf(a), ib=CATEGORIAS_INSUMOS.indexOf(b);
     return (ia===-1?999:ia)-(ib===-1?999:ib);
   });
   return orden.map(cat=>({categoria:cat, grupos:agruparPorPedido(porCat[cat])}));
@@ -895,7 +927,7 @@ function agruparPorCategoriaYPedido(filas){
 function renderGrupoAcumulado(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="6">
-    Pedido ${g.pedidoId} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
+    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · ${g.solicitanteNombre} ${badge}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
 }
@@ -914,7 +946,7 @@ function renderItemAcumulado(r){
       acciones.push(`<button class="mini-btn bad" onclick="borrarItemAcumulado('${id}')">Borrar</button>`);
     }
   } else if(estatus==='Comprada'){
-    if(esAprobador() || (SESSION.departamento && SESSION.departamento===depto)){
+    if(puedeRecibirDepto(depto)){
       checkbox=`<input type="checkbox" class="acum-check-recibir" value="${id}" onchange="actualizarSeleccionAcumulados()">`;
       acciones.push(`<button class="mini-btn ok" onclick="marcarEstadoAcumulado('${id}','marcarRecibida')">Recibida</button>`);
     }
@@ -1073,7 +1105,7 @@ function renderItemCompraLinea(r){
   let acciones='';
   if(esSuperfull() && estatus==='Pendiente'){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button>`;
-  } else if(estatus==='Comprada' && (esAprobador() || (SESSION.departamento && SESSION.departamento===depto))){
+  } else if(estatus==='Comprada' && (puedeRecibirDepto(depto))){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEntregada('${id}')">Marcar entregada</button>`;
   }
   return `<div class="cart-item" style="flex-direction:column;align-items:flex-start;gap:4px">
@@ -1130,7 +1162,7 @@ async function cargarHistorial(){
 function renderGrupoHistorial(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="6">
-    Pedido ${g.pedidoId} · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · ${g.fecha} ${badge}
+    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} ${badge}
   </td></tr>`;
   return cabecera + g.items.map(r=>renderItemHistorial(r,g.pedidoId)).join('');
 }
@@ -1144,7 +1176,7 @@ function renderItemHistorial(r,pedidoId){
   if(esAprobador() && estatus==='Aprobado'){
     acciones.push(`<button class="mini-btn purp" onclick="generarPago('${escapeHtml(articulo)}',${subtotal||0},'${pedidoId}')">Generar pago</button>`);
   }
-  if(estatus==='Comprada' && (esAprobador() || (SESSION.departamento && SESSION.departamento===depto))){
+  if(estatus==='Comprada' && (puedeRecibirDepto(depto))){
     acciones.push(`<button class="mini-btn ok" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`);
   }
   if(esSuperfull()){
@@ -1285,7 +1317,7 @@ async function cargarCatalogoAdmin(){
     const j=await apiGet({accion:'catalogo_list_todo',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
     CATALOGO_ADMIN_FILAS=j.filas||[];
-    const categoriaOpts='<option value="">Todas las categorías</option>'+CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('');
+    const categoriaOpts='<option value="">Todas las categorías</option>'+CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('');
     el.innerHTML=`
       <div class="section-eyebrow">Agregar artículo al catálogo</div>
       <div class="cap-form" style="margin-bottom:26px">
@@ -1294,7 +1326,7 @@ async function cargarCatalogoAdmin(){
           <div class="fld"><label>Unidad</label><input id="caUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario</label><input id="caPrecio" type="number" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Departamento (opcional)</label><select id="caDepto" onchange="actualizarCaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
-          <div class="fld" id="caCategoriaWrap" style="display:none"><label>Categoría</label><select id="caCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('')}</select></div>
+          <div class="fld" id="caCategoriaWrap" style="display:none"><label>Categoría</label><select id="caCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('')}</select></div>
         </div>
         <button class="cap-btn" onclick="agregarArticuloCatalogo()">Agregar al catálogo</button>
         <div id="catalogoMsg"></div>
@@ -1328,7 +1360,7 @@ function filtrarCatalogoAdmin(){
 function renderFilaCatalogoAdmin(f){
   const [id,articulo,unidad,precio,departamento,activo,categoria]=f;
   const deptoOpts='<option value="">Cualquier departamento</option>'+DEPARTAMENTOS.map(d=>`<option ${d.nombre===departamento?'selected':''}>${d.nombre}</option>`).join('');
-  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_COCINA.map(c=>`<option ${c===categoria?'selected':''}>${c}</option>`).join('');
+  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_INSUMOS.map(c=>`<option ${c===categoria?'selected':''}>${c}</option>`).join('');
   return `<tr>
     <td>${id}</td>
     <td><input class="cat-inp" id="cArt_${id}" value="${escapeHtml(articulo)}"></td>
@@ -1344,14 +1376,14 @@ function actualizarCaCategoriaVisible(){
   const wrap=document.getElementById('caCategoriaWrap');
   const depto=document.getElementById('caDepto').value;
   if(!wrap) return;
-  wrap.style.display = (depto===DEPTO_SIN_VENTANA) ? '' : 'none';
+  wrap.style.display = DEPTOS_CON_CATEGORIA.includes(depto) ? '' : 'none';
 }
 async function agregarArticuloCatalogo(){
   const articulo=document.getElementById('caNombre').value.trim();
   const msg=document.getElementById('catalogoMsg');
   if(!articulo){msg.innerHTML='<div class="errbox">Escribe el nombre del artículo.</div>';return;}
   const departamento=document.getElementById('caDepto').value;
-  const categoria = (departamento===DEPTO_SIN_VENTANA) ? document.getElementById('caCategoria').value : '';
+  const categoria = DEPTOS_CON_CATEGORIA.includes(departamento) ? document.getElementById('caCategoria').value : '';
   const body={accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,
     articulo, unidad:document.getElementById('caUnidad').value.trim(),
     precioUnitario:num(document.getElementById('caPrecio').value)||0,
