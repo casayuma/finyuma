@@ -1,4 +1,4 @@
-<!doctype html><html><head><base target="_top"><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Bitácora de Turnos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -269,6 +269,8 @@
   }
   .table-scroll{overflow-x:auto;}
   table{border-collapse:collapse; width:100%; min-width:920px;}
+  .cell-label{display:none;}
+  .cell-value{display:contents;}
   thead th{
     font-family:var(--font-mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
     color:var(--ink-soft); text-align:left; padding:12px 10px; background:var(--surface-alt);
@@ -395,6 +397,49 @@
     body{padding-inline:14px;}
     .dept-header{padding:16px 16px;}
     .dept-grid{grid-template-columns:1fr 1fr;}
+
+    /* ---- tabla de horarios -> tarjetas apiladas, una por colaborador ---- */
+    .table-scroll{overflow-x:visible;}
+    table{min-width:0;}
+    thead{display:none;}
+    tbody tr{display:block;}
+    tbody tr.group-row{padding:8px 16px;}
+    tbody tr:not(.group-row){
+      display:block; padding:12px 16px 14px; border-bottom:1px solid var(--border);
+    }
+    tbody tr:not(.group-row) td{
+      display:block; border-bottom:none; padding:5px 0;
+    }
+    tbody tr:not(.group-row) td.day-cell,
+    tbody tr:not(.group-row) td.rest-count,
+    tbody tr:not(.group-row) td.notas-col{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      text-align:left; min-width:0;
+    }
+    td.day-cell.is-today{background:none;}
+    tbody tr:not(.group-row) td.day-cell.is-today{background:color-mix(in srgb, var(--accent) 8%, transparent); border-radius:8px; margin:0 -8px; padding:5px 8px;}
+    .cell-label{
+      display:block; font-family:var(--font-mono); font-size:.68rem; text-transform:uppercase;
+      letter-spacing:.04em; color:var(--ink-faint); flex:none;
+    }
+    .cell-value{
+      display:flex; justify-content:flex-end; align-items:center; flex:1; min-width:0;
+    }
+    .cell-value .shift-select, .cell-value .shift-custom-wrap, .cell-value .notas-input{
+      max-width:190px;
+    }
+    .rest-count .cell-value{ font-size:1rem; }
+    td.notas-col .notas-input{ text-align:right; }
+    td.notas-col .notas-ro{ text-align:right; }
+
+    /* ---- franja de ocupación: dos filas de columnas en vez de siete apretadas ---- */
+    .week-strip-cols{flex-wrap:wrap;}
+    .week-day-col{flex:1 1 22%; min-width:68px;}
+
+    /* ---- topbar: que no se apriete con nombre + botones en una sola línea ---- */
+    .topbar{flex-wrap:wrap; row-gap:10px;}
+    #saveIndicatorWrap{flex-wrap:wrap; row-gap:8px;}
+    .ro-pill{max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   }
   @media (max-width:420px){
     .dept-grid{grid-template-columns:1fr;}
@@ -403,7 +448,61 @@
 
 <div class="wrap" id="app"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getFirestore, doc, collection, onSnapshot, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-functions.js";
+
+/* ================= Firebase (Firestore + Cloud Functions) =================
+ * Config pública a propósito — igual que en cualquier app de Firebase, la
+ * protección real vive en las reglas de Firestore (firestore.rules) y en
+ * las Cloud Functions (functions/index.js), nunca en ocultar esto.
+ * Sácala de: Firebase Console → ⚙️ Configuración del proyecto → tus apps →
+ * "SDK setup and configuration". */
+var firebaseConfig = {
+  apiKey: "AIzaSyCgq_mr3XN-CkF_j81LON4DB8MvShhul18",
+  authDomain: "casa-yuma.firebaseapp.com",
+  projectId: "casa-yuma",
+  storageBucket: "casa-yuma.firebasestorage.app",
+  messagingSenderId: "939297040370",
+  appId: "1:939297040370:web:ec7413c53eb22031022d6b"
+};
+
+var fbApp = initializeApp(firebaseConfig);
+var db = getFirestore(fbApp);
+var fns = getFunctions(fbApp);
+
+// En localhost, habla con los emuladores en vez del proyecto real —así se
+// puede probar sin tocar datos de verdad. No afecta nada en producción.
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1"){
+  try {
+    connectFirestoreEmulator(db, "localhost", 8080);
+    connectFunctionsEmulator(fns, "localhost", 5001);
+  } catch(e){}
+}
+
+var _callLoginStart = httpsCallable(fns, "loginStart");
+var _callLoginSubmit = httpsCallable(fns, "loginSubmit");
+var _callSaveSchedule = httpsCallable(fns, "saveSchedule");
+
+window.__fbCall = {
+  loginStart: function(payload){ return _callLoginStart(payload).then(function(r){ return r.data; }); },
+  loginSubmit: function(payload){ return _callLoginSubmit(payload).then(function(r){ return r.data; }); },
+  saveSchedule: function(payload){ return _callSaveSchedule(payload).then(function(r){ return r.data; }); }
+};
+
+window.__fbListen = {
+  departments: function(onData, onErr){
+    return onSnapshot(doc(db, "config", "departments"), function(snap){ onData(snap.exists() ? snap.data() : {}); }, onErr);
+  },
+  schedules: function(onData, onErr){
+    return onSnapshot(collection(db, "schedules"), onData, onErr);
+  },
+  occupancy: function(onData, onErr){
+    return onSnapshot(collection(db, "occupancy"), onData, onErr);
+  }
+};
+
 (function(){
   "use strict";
 
@@ -413,22 +512,24 @@
   var READONLY = false;
   try { READONLY = new URLSearchParams(window.location.search).get("ro") === "1"; } catch(e){}
 
-  /* ================= puente con Apps Script ================= */
+  /* ================= puente con el backend (Cloud Functions) ================= */
+  // Mismo nombre/forma que antes (gsRun) para no tocar el resto del
+  // cliente — solo cambia CÓMO habla con el servidor: ya no es
+  // google.script.run, son Cloud Functions llamadas via httpsCallable
+  // (ver window.__fbCall, definido arriba).
   function gsRun(fnName){
     var args = Array.prototype.slice.call(arguments, 1);
-    return new Promise(function(resolve, reject){
-      if (!(window.google && google.script && google.script.run)){
-        reject(new Error("Esta página debe abrirse desde su URL de Apps Script (Deploy → Web app)."));
-        return;
-      }
-      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
-      runner[fnName].apply(runner, args);
-    });
+    if (fnName === "loginStart") return window.__fbCall.loginStart({ clave: args[0] });
+    if (fnName === "loginSubmit") return window.__fbCall.loginSubmit({ clave: args[0], pin: args[1], pin2: args[2] });
+    if (fnName === "saveSchedule") return window.__fbCall.saveSchedule({ clave: args[0], slug: args[1], weekStart: args[2], shifts: args[3], notes: args[4] });
+    return Promise.reject(new Error("Función desconocida: "+fnName));
   }
 
-  /* ================= data (llega del servidor, ver Api.gs) ================= */
-  var DEPARTMENTS = {};   // se llena con la respuesta de getAppData()
+  /* ================= data (Firestore, tiempo real) ================= */
+  var DEPARTMENTS = {};   // se llena leyendo config/departments
   var ALL_USERS = [];     // idem — solo líderes/admins, sin PIN nunca
+  var ADMIN_CLAVES = ["CY001","CY064"];
+  var LEADER_CLAVES = ["CY071","CY007","CY062","CY025","CY029","CY035"];
   var SLUGS = ["administracion","restaurante","cocina","mantenimiento","amadellaves","recepcion"];
   var DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
   var MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
@@ -440,19 +541,40 @@
   };
   function codeClass(val){ return CODE_CLASS[val] || ""; }
 
+  // Nota: cada colaborador llega de Firestore como {clave,nombre,puesto} —
+  // no como tupla [clave,nombre,puesto] — porque Firestore no permite
+  // arrays anidados dentro de un documento.
   function deptRows(slug){
     var d = DEPARTMENTS[slug];
     if (!d) return [];
     if (d.groups) {
       var out = [];
       d.groups.forEach(function(g){
-        g[1].forEach(function(e){ out.push({clave:e[0], nombre:e[1], puesto:e[2], group:g[0]}); });
+        (g.employees||[]).forEach(function(e){ out.push({clave:e.clave, nombre:e.nombre, puesto:e.puesto, group:g.label}); });
       });
       return out;
     }
-    return (d.employees||[]).map(function(e){ return {clave:e[0], nombre:e[1], puesto:e[2], group:null}; });
+    return (d.employees||[]).map(function(e){ return {clave:e.clave, nombre:e.nombre, puesto:e.puesto, group:null}; });
   }
   function deptCount(slug){ return deptRows(slug).length; }
+
+  // Misma lógica que computeLoginUsers en functions/departments.js — se
+  // duplica aquí a propósito: es solo clave+nombre+scope (nunca el PIN),
+  // ya era público antes en el desplegable de "Colaborador" del login.
+  function computeLoginUsersClient(){
+    var users = [];
+    SLUGS.forEach(function(slug){
+      deptRows(slug).forEach(function(r){
+        if (r.clave.indexOf("VAC-") === 0) return;
+        var isAdmin = ADMIN_CLAVES.indexOf(r.clave) !== -1;
+        var isLeader = LEADER_CLAVES.indexOf(r.clave) !== -1;
+        if (!isAdmin && !isLeader) return;
+        users.push({ clave:r.clave, nombre:r.nombre, scope: isAdmin ? "all" : slug });
+      });
+    });
+    users.sort(function(a,b){ return a.nombre.localeCompare(b.nombre,"es"); });
+    return users;
+  }
 
   /* ================= date helpers ================= */
   function mondayOf(d){ var day=(d.getDay()+6)%7; var m=new Date(d.getFullYear(),d.getMonth(),d.getDate()-day); return m; }
@@ -488,7 +610,7 @@
   // En modo ?ro=1 no hay sesión — es la vista informativa pública.
   var SESSION = null;
   if (!READONLY){
-    try { var rawSess = sessionStorage.getItem("byt_session"); if (rawSess) SESSION = JSON.parse(rawSess); } catch(e){}
+    try { var rawSess = localStorage.getItem("byt_session"); if (rawSess) SESSION = JSON.parse(rawSess); } catch(e){}
   }
   var gateStep = 1;      // 1: elegir colaborador · 2: PIN
   var gatePending = null; // {clave,nombre,scope,tienePin}
@@ -505,14 +627,14 @@
 
   function enterAppFor(session){
     SESSION = session;
-    try { sessionStorage.setItem("byt_session", JSON.stringify(SESSION)); } catch(e){}
+    try { localStorage.setItem("byt_session", JSON.stringify(SESSION)); } catch(e){}
     if (SESSION.scope === "all"){ state.view = "home"; state.slug = null; }
     else { state.view = "dept"; state.slug = SESSION.scope; state.weekStart = currentWeekStart(); hydrateEditBuffer(); }
     render();
   }
 
   function logout(){
-    try { sessionStorage.removeItem("byt_session"); } catch(e){}
+    try { localStorage.removeItem("byt_session"); } catch(e){}
     SESSION = null; gateStep = 1; gatePending = null;
     state = { view:"todos", slug:null, weekStart:null, todosDay: state.todosDay };
     render();
@@ -627,34 +749,40 @@
     el.innerHTML = '<span class="dot"></span>' + label;
   }
 
-  /* ================= datos del servidor (reemplaza el onSnapshot de antes) ================= */
-  var POLL_INTERVAL_MS = 20000; // sin push en tiempo real como antes — se
-                                 // refresca sola cada 20s (ver README).
-  var pollTimer = null;
+  /* ================= datos del servidor (Firestore, tiempo real — como siempre) ================= */
+  // Tres listeners en vivo (onSnapshot, igual que la versión original):
+  // departamentos, horarios, ocupación. Cualquier cambio en Firestore —el
+  // tuyo o el de alguien más— se refleja al instante, sin refrescar nada.
 
-  function applyAppData(json){
-    DEPARTMENTS = json.departments || {};
-    ALL_USERS = (json.loginUsers || []).slice().sort(function(a,b){ return a.nombre.localeCompare(b.nombre,"es"); });
-    scheduleCache.clear();
-    Object.keys(json.schedules || {}).forEach(function(id){ scheduleCache.set(id, json.schedules[id]); });
-    occupancyCache.clear();
-    var weeks = (json.occupancy && json.occupancy.weeks) || {};
-    Object.keys(weeks).forEach(function(ws){ occupancyCache.set(ws, weeks[ws]); });
+  function markReady(){
     dataState = "ready";
     if (pendingRetry){ pendingRetry = false; doSave(); }
     if (!isEditingFocus()) render();
   }
 
-  function refreshData(){
-    gsRun("getAppData").then(applyAppData).catch(function(err){
-      console.error("getAppData error", err);
-      if (dataState !== "ready"){ dataState = "error"; if (!isEditingFocus()) render(); }
-    });
+  function onDataError(err){
+    console.error("Firestore error", err);
+    if (dataState !== "ready"){ dataState = "error"; if (!isEditingFocus()) render(); }
   }
 
   function initData(){
-    refreshData();
-    pollTimer = setInterval(refreshData, POLL_INTERVAL_MS);
+    window.__fbListen.departments(function(data){
+      DEPARTMENTS = data || {};
+      ALL_USERS = computeLoginUsersClient();
+      markReady();
+    }, onDataError);
+
+    window.__fbListen.schedules(function(snap){
+      scheduleCache.clear();
+      snap.forEach(function(d){ scheduleCache.set(d.id, d.data()); });
+      markReady();
+    }, onDataError);
+
+    window.__fbListen.occupancy(function(snap){
+      occupancyCache.clear();
+      snap.forEach(function(d){ var v = d.data(); occupancyCache.set(v.weekStart, v); });
+      markReady();
+    }, onDataError);
   }
 
   function isEditingFocus(){
@@ -890,9 +1018,9 @@
       rowHtml += '<tr>' +
         '<td><div class="emp-name">'+esc(r.nombre)+'</div><div class="emp-clave">'+esc(r.clave)+'</div></td>' +
         '<td class="emp-role">'+esc(r.puesto)+'</td>' +
-        DIAS.map(function(_,i){ return '<td class="day-cell'+(i===todayIdx?' is-today':'')+'">'+renderShiftCell(r.clave,i)+'</td>'; }).join("") +
-        '<td class="rest-count" data-restfor="'+r.clave+'">'+restCount+'</td>' +
-        '<td class="notas-col">'+notasCell+'</td>' +
+        DIAS.map(function(dia,i){ return '<td class="day-cell'+(i===todayIdx?' is-today':'')+'"><span class="cell-label">'+dia+'</span><span class="cell-value">'+renderShiftCell(r.clave,i)+'</span></td>'; }).join("") +
+        '<td class="rest-count" data-restfor="'+r.clave+'"><span class="cell-label">Descanso</span><span class="cell-value">'+restCount+'</span></td>' +
+        '<td class="notas-col"><span class="cell-label">Notas</span><span class="cell-value">'+notasCell+'</span></td>' +
         '</tr>';
       return rowHtml;
     }).join("");
@@ -985,7 +1113,7 @@
   }
 
   function updateRestCount(clave){
-    var el = document.querySelector('[data-restfor="'+clave+'"]');
+    var el = document.querySelector('[data-restfor="'+clave+'"] .cell-value');
     if (!el) return;
     var arr = editBuffer.shifts[clave] || [];
     el.textContent = arr.filter(function(v){ return v==="DESCANSO"; }).length;
