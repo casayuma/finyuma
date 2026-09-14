@@ -45,6 +45,7 @@ header.top{background:var(--cactus);color:#fff;padding:14px 22px;display:flex;al
 nav.tabs{background:var(--cactus);border-top:1px solid rgba(255,255,255,.15);padding:0 12px;display:flex;gap:2px;overflow-x:auto}
 nav.tabs button{background:transparent;border:none;color:rgba(255,255,255,.75);padding:12px 18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;border-bottom:3px solid transparent;white-space:nowrap}
 nav.tabs button.active{color:#fff;border-bottom-color:var(--gold)}
+.tab-badge{display:inline-block;background:var(--gold);color:#2a2618;font-weight:700;border-radius:999px;padding:1px 7px;font-size:11px;letter-spacing:0;text-transform:none;margin-left:4px}
 main{max-width:1100px;margin:0 auto;padding:26px 18px 80px}
 .view{display:none}.view.active{display:block}
 .section-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cactus);margin:26px 0 10px}
@@ -84,6 +85,18 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .nuevo-art-box .fld{margin-bottom:0}
 .nuevo-art-box .cap-full{grid-column:1/-1}
 .nuevo-art-box .row-actions{grid-column:1/-1;margin-top:2px}
+.cat-tabs-wrap{margin-bottom:8px}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.cat-tab-btn{background:#fff;border:1px solid var(--line);color:var(--cactus);padding:8px 12px;font-size:11.5px;letter-spacing:.03em;border-radius:20px;cursor:pointer}
+.cat-tab-btn:hover{background:var(--wool)}
+.cat-tab-btn.active{background:var(--cactus);color:#fff;border-color:var(--cactus)}
+.cat-lista{border:1px solid var(--line);border-radius:2px;max-height:340px;overflow-y:auto;background:#fff}
+.cat-lista-row{display:grid;grid-template-columns:1fr 80px auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.cat-lista-row:last-child{border-bottom:none}
+.cat-lista-nombre{font-size:12.5px}
+.cat-lista-unidad{color:var(--cactus);font-size:11px}
+.cat-qty{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:2px;font-family:inherit;font-size:12px}
+@media(max-width:560px){.cat-lista-row{grid-template-columns:1fr 60px auto;gap:6px}}
 .cart-box{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px;position:sticky;top:16px}
 .cart-box h3{font-size:15px;color:var(--cactus);margin-bottom:12px}
 .cart-empty{font-size:12.5px;color:var(--cactus);font-style:italic;padding:14px 0}
@@ -218,10 +231,13 @@ const DEPARTAMENTOS=[
   {nombre:'Recepción',      color:'#008300'},
 ];
 const URGENCIAS=['Baja','Media','Alta','Urgente'];
+// Categorías fijas del catálogo de Cocina (columna Categoria en la pestaña Catalogo) — permiten
+// navegar "Nueva requisición" por pestañas en vez de un solo buscador, dado lo grande que es su lista.
+const CATEGORIAS_COCINA=['Limpieza','Pescados y Mariscos','Carnes','Fruta y Verdura','Lácteos','Abarrote','Comida de personal'];
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
-let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[],ITEM_SELECCIONADO=null,RESULTADOS_BUSQUEDA=[];
+let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[],ITEM_SELECCIONADO=null,RESULTADOS_BUSQUEDA=[],CATEGORIA_ACTIVA='',ITEMS_CATEGORIA_ACTUAL=[];
 function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 const NIVELES_VALIDOS=['superfull','full','lider'];
@@ -311,6 +327,7 @@ function entrarApp(){
   buildTabs();
   cargarCatalogo().then(renderNueva);
   if(esAprobador())cargarPendientes();
+  actualizarBadgeComprasLinea();
   // Fija/oculta el filtro de depto según el rol (líder normal solo ve el suyo)
   const wrap=document.getElementById('hDeptoWrap');
   if(esLiderNormal()){wrap.classList.add('hidden');}
@@ -372,6 +389,7 @@ async function cargarCatalogo(){
 // ————— Nueva requisición (carrito) —————
 function renderNueva(){
   CARRITO=[];
+  CATEGORIA_ACTIVA='';
   const hoy=new Date().toISOString().slice(0,10);
   const deptoOpts = esLiderNormal()
     ? `<option>${SESSION.departamento}</option>`
@@ -382,12 +400,18 @@ function renderNueva(){
     <div class="grid2">
       <div class="cap-form">
         <div class="cap-grid">
-          <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito()">${deptoOpts}</select></div>
+          <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito();actualizarCatTabs()">${deptoOpts}</select></div>
           <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
           <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
         </div>
 
-        <div class="section-eyebrow" style="margin-top:6px">Agregar artículo</div>
+        <div id="catTabsWrap" class="cat-tabs-wrap hidden">
+          <div class="section-eyebrow" style="margin-top:6px">Categorías de Cocina</div>
+          <div class="cat-tabs" id="catTabs"></div>
+          <div id="catListaBody"></div>
+        </div>
+
+        <div class="section-eyebrow" style="margin-top:6px">Agregar artículo (búsqueda libre)</div>
         <div class="item-row">
           <div class="fld search-wrap"><label>Artículo</label>
             <input id="iBuscar" type="text" placeholder="Busca por nombre…" autocomplete="off"
@@ -407,7 +431,8 @@ function renderNueva(){
           <div class="fld"><label>Nombre del artículo nuevo</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
           <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
-          <div class="fld"><label>Departamento (opcional)</label><select id="naDepto"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+          <div class="fld"><label>Departamento (opcional)</label><select id="naDepto" onchange="actualizarNaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('')}</select></div>
           <div class="row-actions">
             <button class="cap-btn" style="padding:9px 16px" onclick="guardarNuevoArticulo()">Guardar y usar</button>
             <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
@@ -426,6 +451,96 @@ function renderNueva(){
       </div>
     </div>`;
   renderCarrito();
+  actualizarCatTabs();
+}
+// ¿Ya está este artículo en el carrito? (por catalogoId o por nombre normalizado)
+function yaEnCarrito(catalogoId, articulo){
+  return CARRITO.some(it => (catalogoId && it.catalogoId===catalogoId) || normaliza(it.articulo)===normaliza(articulo));
+}
+// Agrega un renglón directo al carrito (usado tanto por la búsqueda libre como por las
+// pestañas de categoría). Devuelve true si se agregó, false si ya estaba repetido.
+function agregarItemCarrito({articulo, catalogoId, cantidad, unidad, precioUnitario}){
+  if(!articulo || !cantidad) return false;
+  if(yaEnCarrito(catalogoId, articulo)) return false;
+  CARRITO.push({articulo, catalogoId:catalogoId||'', cantidad, unidad:unidad||'', precioUnitario:precioUnitario||0, subtotal:Math.round(cantidad*(precioUnitario||0)*100)/100});
+  return true;
+}
+// ————— Pestañas de categoría (Cocina) —————
+function departamentoActual(){
+  const sel=document.getElementById('rDepto');
+  return sel ? sel.value : (SESSION.departamento||'');
+}
+function actualizarCatTabs(){
+  const wrap=document.getElementById('catTabsWrap');
+  if(!wrap) return;
+  if(departamentoActual()===DEPTO_SIN_VENTANA){ // 'Cocina'
+    wrap.classList.remove('hidden');
+    renderCatTabsBotones();
+    renderListaCategoria();
+  } else {
+    wrap.classList.add('hidden');
+    CATEGORIA_ACTIVA='';
+    const cont=document.getElementById('catListaBody');
+    if(cont) cont.innerHTML='';
+  }
+}
+function renderCatTabsBotones(){
+  const cont=document.getElementById('catTabs');
+  if(!cont) return;
+  cont.innerHTML=CATEGORIAS_COCINA.map(cat=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria('${cat.replace(/'/g,"\\'")}')">${escapeHtml(cat)}</button>`).join('');
+}
+function elegirCategoria(cat){
+  CATEGORIA_ACTIVA = (CATEGORIA_ACTIVA===cat) ? '' : cat;
+  renderCatTabsBotones();
+  renderListaCategoria();
+}
+function renderListaCategoria(){
+  const cont=document.getElementById('catListaBody');
+  if(!cont) return;
+  if(!CATEGORIA_ACTIVA){ cont.innerHTML=''; ITEMS_CATEGORIA_ACTUAL=[]; return; }
+  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===DEPTO_SIN_VENTANA && (c[7]||'')===CATEGORIA_ACTIVA)
+    .sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'es'));
+  if(!ITEMS_CATEGORIA_ACTUAL.length){
+    cont.innerHTML='<div class="note">Todavía no hay artículos capturados en "'+escapeHtml(CATEGORIA_ACTIVA)+'".</div>';
+    return;
+  }
+  cont.innerHTML=`<div class="cat-lista">`+ITEMS_CATEGORIA_ACTUAL.map((c,i)=>`
+      <div class="cat-lista-row">
+        <span class="cat-lista-nombre">${escapeHtml(c[1])}${c[2]?(' <span class="cat-lista-unidad">('+escapeHtml(c[2])+')</span>'):''}</span>
+        <input type="number" step="1" min="0" placeholder="Cant." class="cat-qty" id="catq_${i}">
+        <button type="button" class="mini-btn ok" onclick="agregarDeCategoria(${i})">+ Agregar</button>
+      </div>`).join('')+`</div>
+    <button class="cap-btn ghost2" style="margin-top:10px" onclick="agregarTodosDeCategoria()">+ Agregar todos los que tengan cantidad</button>
+    <div class="note" id="catListaMsg"></div>`;
+}
+function agregarDeCategoria(i){
+  const c=ITEMS_CATEGORIA_ACTUAL[i];
+  if(!c) return;
+  const qtyEl=document.getElementById('catq_'+i);
+  const cantidad=num(qtyEl.value)||0;
+  if(!cantidad){ alert('Pon una cantidad mayor a 0.'); return; }
+  const agregado=agregarItemCarrito({articulo:c[1], catalogoId:c[0], cantidad, unidad:c[2]||'', precioUnitario:Number(c[3])||0});
+  if(!agregado){ alert('Ese artículo ya está en tu lista.'); return; }
+  qtyEl.value='';
+  renderCarrito();
+}
+function agregarTodosDeCategoria(){
+  let agregados=0, repetidos=0;
+  ITEMS_CATEGORIA_ACTUAL.forEach((c,i)=>{
+    const qtyEl=document.getElementById('catq_'+i);
+    const cantidad=qtyEl?(num(qtyEl.value)||0):0;
+    if(cantidad>0){
+      if(agregarItemCarrito({articulo:c[1], catalogoId:c[0], cantidad, unidad:c[2]||'', precioUnitario:Number(c[3])||0})){
+        qtyEl.value='';
+        agregados++;
+      } else { repetidos++; }
+    }
+  });
+  const msg=document.getElementById('catListaMsg');
+  if(agregados) renderCarrito();
+  if(msg) msg.textContent = agregados
+    ? `Se agregaron ${agregados} artículo(s) a la lista.` + (repetidos?` (${repetidos} ya estaban en la lista).`:'')
+    : 'Pon cantidad en al menos un artículo.';
 }
 function buscarCatalogo(){
   const q=document.getElementById('iBuscar').value.trim();
@@ -463,8 +578,17 @@ function mostrarNuevoArticulo(){
   document.getElementById('naPrecio').value='';
   const deptoSel=document.getElementById('rDepto');
   document.getElementById('naDepto').value = deptoSel ? deptoSel.value : '';
+  document.getElementById('naCategoria').value = CATEGORIA_ACTIVA || '';
+  actualizarNaCategoriaVisible();
   document.getElementById('nuevoArtBox').classList.remove('hidden');
   document.getElementById('naNombre').focus();
+}
+// El campo Categoría solo tiene sentido para Cocina — se oculta para el resto de departamentos.
+function actualizarNaCategoriaVisible(){
+  const wrap=document.getElementById('naCategoriaWrap');
+  const depto=document.getElementById('naDepto').value;
+  if(!wrap) return;
+  wrap.style.display = (depto===DEPTO_SIN_VENTANA) ? '' : 'none';
 }
 function cancelarNuevoArticulo(){ document.getElementById('nuevoArtBox').classList.add('hidden'); }
 async function guardarNuevoArticulo(){
@@ -473,16 +597,18 @@ async function guardarNuevoArticulo(){
   const unidad=document.getElementById('naUnidad').value.trim();
   const precioUnitario=num(document.getElementById('naPrecio').value)||0;
   const departamento=document.getElementById('naDepto').value;
+  const categoria = (departamento===DEPTO_SIN_VENTANA) ? document.getElementById('naCategoria').value : '';
   try{
-    const j=await apiPost({accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,articulo:nombre,unidad,precioUnitario,departamento});
+    const j=await apiPost({accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,articulo:nombre,unidad,precioUnitario,departamento,categoria});
     if(!j.ok){ alert(j.error); return; }
-    CATALOGO.push([j.id, nombre, unidad, precioUnitario, departamento]);
+    CATALOGO.push([j.id, nombre, unidad, precioUnitario, departamento, '', '', categoria]);
     document.getElementById('iBuscar').value=nombre;
     document.getElementById('iUnidad').value=unidad;
     document.getElementById('iPrecio').value=precioUnitario||'';
     ITEM_SELECCIONADO={catalogoId:j.id, articulo:nombre};
     document.getElementById('nuevoArtBox').classList.add('hidden');
     actualizarPrevisualizacion();
+    if(categoria && categoria===CATEGORIA_ACTIVA) renderListaCategoria();
   }catch(e){ alert('No se pudo guardar el artículo nuevo.'); }
 }
 function actualizarPrevisualizacion(){
@@ -497,9 +623,8 @@ function agregarAlCarrito(){
   const unidad = document.getElementById('iUnidad').value.trim();
   const precioUnitario = num(document.getElementById('iPrecio').value)||0;
   if(!articulo){ alert('Escribe o elige un artículo.'); return; }
-  const yaEnCarrito = CARRITO.some(it => (catalogoId && it.catalogoId===catalogoId) || normaliza(it.articulo)===normaliza(articulo));
-  if(yaEnCarrito){ alert('Ese artículo ya está en tu lista. Si necesitas más cantidad, quítalo de la lista y agrégalo de nuevo con la cantidad correcta.'); return; }
-  CARRITO.push({articulo, catalogoId, cantidad, unidad, precioUnitario, subtotal:Math.round(cantidad*precioUnitario*100)/100});
+  const agregado=agregarItemCarrito({articulo, catalogoId, cantidad, unidad, precioUnitario});
+  if(!agregado){ alert('Ese artículo ya está en tu lista. Si necesitas más cantidad, quítalo de la lista y agrégalo de nuevo con la cantidad correcta.'); return; }
   document.getElementById('iBuscar').value='';
   document.getElementById('iResultados').classList.add('hidden');
   document.getElementById('iCantidad').value='1';
@@ -591,10 +716,15 @@ function agruparPorPedido(filas){
   const map={}; const orden=[];
   filas.forEach(r=>{
     const pedidoId=r[1];
-    if(!map[pedidoId]){ map[pedidoId]={pedidoId, fecha:r[2], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], items:[]}; orden.push(pedidoId); }
-    map[pedidoId].items.push(r);
+    // Clave compuesta (PedidoID + SolicitanteID + Fecha), no solo PedidoID: es un respaldo
+    // por si algún pedido viejo quedó con un PedidoID repetido (bug ya corregido en el
+    // backend — ver siguientePedidoId() en Codigo.gs) para que nunca se mezclen los
+    // artículos de distintas personas bajo un mismo encabezado.
+    const clave=pedidoId+'|'+r[3]+'|'+r[2];
+    if(!map[clave]){ map[clave]={pedidoId, fecha:r[2], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], items:[]}; orden.push(clave); }
+    map[clave].items.push(r);
   });
-  return orden.map(id=>map[id]);
+  return orden.map(clave=>map[clave]);
 }
 function renderGrupoPendiente(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
@@ -807,6 +937,23 @@ async function borrarItemAcumulado(id){
 // ————— Compras en línea (link, sin catálogo) — solo le llega a quien tiene la tarjeta —————
 // No pasa por la ventana de días/horario ni por Pendientes: es su propio flujo simple,
 // Pendiente → Comprada, y solo Superfull puede marcarla Comprada (es quien tiene la tarjeta).
+// Aviso visual en la pestaña "Compras en línea" (aparte del correo que ya se manda al
+// crearla) — para Superfull, cuántas hay Pendientes de comprar; para el resto, cuántas de
+// las suyas/su departamento ya están Compradas y les toca marcarlas como Entregadas.
+async function actualizarBadgeComprasLinea(){
+  const btn=document.querySelector('nav.tabs button[data-view="compraslinea"]');
+  if(!btn) return;
+  const base='Compras en línea';
+  try{
+    const j=await apiGet({accion:'compras_linea_list',id:SESSION.id,pin:SESSION.pin});
+    if(!j.ok){ btn.textContent=base; return; }
+    const filas=j.filas||[];
+    const n = esSuperfull()
+      ? filas.filter(r=>r[12]==='Pendiente').length
+      : filas.filter(r=>r[12]==='Comprada').length;
+    btn.innerHTML = n>0 ? (base+' <span class="tab-badge">'+n+'</span>') : base;
+  }catch(e){ btn.textContent=base; }
+}
 function renderCompraLinea(){
   const deptoOpts = esLiderNormal()
     ? `<option>${SESSION.departamento}</option>`
@@ -815,7 +962,7 @@ function renderCompraLinea(){
   const hoy=new Date().toISOString().slice(0,10);
   document.getElementById('compraslineaBody').innerHTML=`
     <div class="section-eyebrow">Compras en línea</div>
-    <div class="note" style="margin-top:0;margin-bottom:14px">Para artículos que se compran con tarjeta por internet (Amazon, etc.) — pega el link del producto. No pasa por aprobación de Pendientes: se manda directo a Manuel, que es quien tiene la tarjeta.</div>
+    <div class="note" style="margin-top:0;margin-bottom:14px">Pedidos en línea que facturen y estén justificados. Pega el link del producto, no pasa por aprobación de pendientes, lo debe aprobar Dirección General.</div>
     <div class="grid2">
       <div class="cap-form">
         <div class="cap-grid">
@@ -828,7 +975,7 @@ function renderCompraLinea(){
           <div class="fld"><label>Fecha requerida</label><input id="clFecha" type="date" value="${hoy}"></div>
           <div class="fld cap-full"><label>Notas (opcional)</label><input id="clNotas" placeholder="Talla, color, alguna especificación…"></div>
         </div>
-        <button class="cap-btn" style="margin-top:14px" onclick="enviarCompraLinea()">Enviar a Manuel</button>
+        <button class="cap-btn" style="margin-top:14px" onclick="enviarCompraLinea()">Enviar solicitud</button>
         <div id="clMsg"></div>
       </div>
       <div class="cart-box">
@@ -854,13 +1001,14 @@ async function enviarCompraLinea(){
   try{
     const j=await apiPost({accion:'compras_linea_crear',id:SESSION.id,pin:SESSION.pin,descripcion,link,cantidad,precioEstimado,departamento,urgencia,fechaRequerida,notas});
     if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
-    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Manuel la va a revisar.</div>`;
+    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Dirección General la va a revisar.</div>`;
     document.getElementById('clDescripcion').value='';
     document.getElementById('clLink').value='';
     document.getElementById('clCantidad').value='1';
     document.getElementById('clPrecio').value='';
     document.getElementById('clNotas').value='';
     cargarComprasLinea();
+    actualizarBadgeComprasLinea();
   }catch(e){ msg.innerHTML='<div class="errbox">No se pudo enviar.</div>'; }
 }
 async function cargarComprasLinea(){
@@ -876,11 +1024,13 @@ async function cargarComprasLinea(){
   }catch(e){ el.innerHTML=`<div class="errbox">${e.message}</div>`; }
 }
 function renderItemCompraLinea(r){
-  const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra]=r;
-  const pillClass = estatus==='Comprada' ? 'p-comprada' : 'p-pend';
+  const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado]=r;
+  const pillClass = estatus==='Entregada' ? 'p-recibida' : (estatus==='Comprada' ? 'p-comprada' : 'p-pend');
   let acciones='';
   if(esSuperfull() && estatus==='Pendiente'){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button>`;
+  } else if(estatus==='Comprada' && (esAprobador() || (SESSION.departamento && SESSION.departamento===depto))){
+    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEntregada('${id}')">Marcar entregada</button>`;
   }
   return `<div class="cart-item" style="flex-direction:column;align-items:flex-start;gap:4px">
     <div style="display:flex;justify-content:space-between;width:100%;gap:8px">
@@ -900,6 +1050,16 @@ async function marcarCompraLineaComprada(idCompra){
     const j=await apiPost({accion:'compras_linea_actualizar',id:SESSION.id,pin:SESSION.pin,idCompra,notaCompra});
     if(!j.ok){ alert(j.error); return; }
     cargarComprasLinea();
+    actualizarBadgeComprasLinea();
+  }catch(e){ alert('No se pudo procesar.'); }
+}
+async function marcarCompraLineaEntregada(idCompra){
+  if(!confirm('¿Marcar esta compra como entregada?')) return;
+  try{
+    const j=await apiPost({accion:'compras_linea_marcar_entregada',id:SESSION.id,pin:SESSION.pin,idCompra});
+    if(!j.ok){ alert(j.error); return; }
+    cargarComprasLinea();
+    actualizarBadgeComprasLinea();
   }catch(e){ alert('No se pudo procesar.'); }
 }
 
@@ -1073,13 +1233,15 @@ function renderGastoLider(el,filas,mes){
 }
 
 // ————— Catálogo (administración — Superfull / Líder Compras) —————
+let CATALOGO_ADMIN_FILAS=[];
 async function cargarCatalogoAdmin(){
   const el=document.getElementById('catalogoBody');
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'catalogo_list_todo',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
-    const filas=j.filas||[];
+    CATALOGO_ADMIN_FILAS=j.filas||[];
+    const categoriaOpts='<option value="">Todas las categorías</option>'+CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('');
     el.innerHTML=`
       <div class="section-eyebrow">Agregar artículo al catálogo</div>
       <div class="cap-form" style="margin-bottom:26px">
@@ -1087,38 +1249,69 @@ async function cargarCatalogoAdmin(){
           <div class="fld"><label>Nombre del artículo</label><input id="caNombre" placeholder="Ej. Servilletas de tela"></div>
           <div class="fld"><label>Unidad</label><input id="caUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario</label><input id="caPrecio" type="number" step="0.01" placeholder="0.00"></div>
-          <div class="fld"><label>Departamento (opcional)</label><select id="caDepto"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+          <div class="fld"><label>Departamento (opcional)</label><select id="caDepto" onchange="actualizarCaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+          <div class="fld" id="caCategoriaWrap" style="display:none"><label>Categoría</label><select id="caCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_COCINA.map(c=>`<option>${c}</option>`).join('')}</select></div>
         </div>
         <button class="cap-btn" onclick="agregarArticuloCatalogo()">Agregar al catálogo</button>
         <div id="catalogoMsg"></div>
       </div>
-      <div class="section-eyebrow">Catálogo completo (${filas.length})</div>
+      <div class="section-eyebrow">Catálogo completo (${CATALOGO_ADMIN_FILAS.length})</div>
+      <div class="cap-grid" style="margin-bottom:12px">
+        <div class="fld"><label>Buscar por nombre</label><input id="catAdminBuscar" placeholder="Escribe para filtrar…" oninput="filtrarCatalogoAdmin()"></div>
+        <div class="fld"><label>Departamento</label><select id="catAdminDepto" onchange="filtrarCatalogoAdmin()"><option value="">Todos</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
+        <div class="fld"><label>Categoría</label><select id="catAdminCategoria" onchange="filtrarCatalogoAdmin()">${categoriaOpts}</select></div>
+      </div>
       <div style="overflow-x:auto"><table class="aud"><thead><tr>
-        <th>ID</th><th>Artículo</th><th>Unidad</th><th>Precio</th><th>Departamento</th><th>Activo</th><th>Acción</th>
-      </tr></thead><tbody>${filas.map(f=>renderFilaCatalogoAdmin(f)).join('')||'<tr><td colspan="7" class="empty">Aún no hay artículos en el catálogo.</td></tr>'}</tbody></table></div>`;
+        <th>ID</th><th>Artículo</th><th>Unidad</th><th>Precio</th><th>Departamento</th><th>Categoría</th><th>Activo</th><th>Acción</th>
+      </tr></thead><tbody id="catAdminTbody"></tbody></table></div>`;
+    filtrarCatalogoAdmin();
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
+function filtrarCatalogoAdmin(){
+  const tbody=document.getElementById('catAdminTbody');
+  if(!tbody) return;
+  const qn=normaliza(document.getElementById('catAdminBuscar').value.trim());
+  const depto=document.getElementById('catAdminDepto').value;
+  const categoria=document.getElementById('catAdminCategoria').value;
+  const filas=CATALOGO_ADMIN_FILAS.filter(f=>{
+    if(qn && normaliza(f[1]).indexOf(qn)===-1) return false;
+    if(depto && f[4]!==depto) return false;
+    if(categoria && (f[6]||'')!==categoria) return false;
+    return true;
+  });
+  tbody.innerHTML=filas.map(f=>renderFilaCatalogoAdmin(f)).join('')||'<tr><td colspan="8" class="empty">Sin artículos que coincidan.</td></tr>';
+}
 function renderFilaCatalogoAdmin(f){
-  const [id,articulo,unidad,precio,departamento,activo]=f;
+  const [id,articulo,unidad,precio,departamento,activo,categoria]=f;
   const deptoOpts='<option value="">Cualquier departamento</option>'+DEPARTAMENTOS.map(d=>`<option ${d.nombre===departamento?'selected':''}>${d.nombre}</option>`).join('');
+  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_COCINA.map(c=>`<option ${c===categoria?'selected':''}>${c}</option>`).join('');
   return `<tr>
     <td>${id}</td>
     <td><input class="cat-inp" id="cArt_${id}" value="${escapeHtml(articulo)}"></td>
     <td><input class="cat-inp" id="cUni_${id}" value="${escapeHtml(unidad||'')}"></td>
     <td><input class="cat-inp" id="cPre_${id}" type="number" step="0.01" value="${precio||0}"></td>
     <td><select class="cat-inp" id="cDep_${id}">${deptoOpts}</select></td>
+    <td><select class="cat-inp" id="cCat_${id}">${categoriaOpts}</select></td>
     <td><select class="cat-inp" id="cAct_${id}"><option value="SI" ${activo==='SI'?'selected':''}>SI</option><option value="NO" ${activo==='NO'?'selected':''}>NO</option></select></td>
     <td><button class="mini-btn info" onclick="guardarFilaCatalogo('${id}')">Guardar</button></td>
   </tr>`;
+}
+function actualizarCaCategoriaVisible(){
+  const wrap=document.getElementById('caCategoriaWrap');
+  const depto=document.getElementById('caDepto').value;
+  if(!wrap) return;
+  wrap.style.display = (depto===DEPTO_SIN_VENTANA) ? '' : 'none';
 }
 async function agregarArticuloCatalogo(){
   const articulo=document.getElementById('caNombre').value.trim();
   const msg=document.getElementById('catalogoMsg');
   if(!articulo){msg.innerHTML='<div class="errbox">Escribe el nombre del artículo.</div>';return;}
+  const departamento=document.getElementById('caDepto').value;
+  const categoria = (departamento===DEPTO_SIN_VENTANA) ? document.getElementById('caCategoria').value : '';
   const body={accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,
     articulo, unidad:document.getElementById('caUnidad').value.trim(),
     precioUnitario:num(document.getElementById('caPrecio').value)||0,
-    departamento:document.getElementById('caDepto').value};
+    departamento, categoria};
   msg.innerHTML='<div class="okmsg">Guardando…</div>';
   try{const j=await apiPost(body);if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}cargarCatalogoAdmin();}catch(e){msg.innerHTML='<div class="errbox">No se pudo guardar.</div>';}
 }
@@ -1129,6 +1322,7 @@ async function guardarFilaCatalogo(id){
     unidad:document.getElementById('cUni_'+id).value.trim(),
     precioUnitario:num(document.getElementById('cPre_'+id).value)||0,
     departamento:document.getElementById('cDep_'+id).value,
+    categoria:document.getElementById('cCat_'+id).value,
     activo:document.getElementById('cAct_'+id).value};
   try{const j=await apiPost(body);if(!j.ok){alert(j.error);return;}await cargarCatalogo();cargarCatalogoAdmin();}catch(e){alert('No se pudo guardar.');}
 }
