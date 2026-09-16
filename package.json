@@ -1,0 +1,16 @@
+{
+  "name": "casayuma-bitacora-functions",
+  "description": "Login por PIN, guardado de horarios, y sincronización de nómina/ocupación para la Bitácora de Turnos de Casa Yuma.",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions,firestore",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  },
+  "private": true
+}
