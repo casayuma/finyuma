@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Lectura pública de lo que ya era público en la vista "Todos" y en
+// Departamentos (departamentos, horarios, ocupación) — igual que antes.
+// NINGÚN escrito directo del cliente: todo escrito pasa por las Cloud
+// Functions (loginStart/loginSubmit/saveSchedule), que son las únicas que
+// usan el Admin SDK y por eso sí pueden escribir (el Admin SDK no pasa por
+// estas reglas).
+//
+// La colección "users" (que guarda el hash del PIN de cada quien) NUNCA es
+// legible directamente por el cliente — ni de lectura ni de escritura. Solo
+// las Cloud Functions la tocan.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /schedules/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /occupancy/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /users/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}
