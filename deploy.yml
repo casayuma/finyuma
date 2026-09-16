@@ -1,0 +1,59 @@
+name: Publicar Bitácora
+
+# Se dispara solo con "git push" a main — nadie necesita correr nada a mano.
+# Publica las Cloud Functions y las reglas de Firestore, usando la cuenta de
+# servicio y los secretos guardados en Settings → Secrets and variables →
+# Actions de este repo. El sitio (dashboard.html) NO se publica desde aquí:
+# ya vive en este mismo repo y GitHub Pages lo sirve solo en cada push.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # también se puede disparar a mano desde la pestaña "Actions"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias de las Cloud Functions
+        working-directory: functions
+        run: npm install
+
+      - name: Guardar la credencial de servicio
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Escribir variables no sensibles para las funciones
+        run: |
+          {
+            echo "CLOUDBEDS_PROPERTY_ID=$CLOUDBEDS_PROPERTY_ID"
+            echo "TOTAL_ROOMS=$TOTAL_ROOMS"
+            echo "NOMINA_CSV_URL=$NOMINA_CSV_URL"
+          } > functions/.env
+        env:
+          CLOUDBEDS_PROPERTY_ID: ${{ secrets.CLOUDBEDS_PROPERTY_ID }}
+          TOTAL_ROOMS: ${{ secrets.TOTAL_ROOMS }}
+          NOMINA_CSV_URL: ${{ secrets.NOMINA_CSV_URL }}
+
+      - name: Guardar el token de Cloudbeds como Secret (Secret Manager)
+        run: |
+          printf '%s' "$CLOUDBEDS_TOKEN" | npx firebase-tools@15 functions:secrets:set CLOUDBEDS_TOKEN \
+            --project "$FIREBASE_PROJECT_ID" --data-file - --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          CLOUDBEDS_TOKEN: ${{ secrets.CLOUDBEDS_TOKEN }}
+
+      - name: Publicar (functions + reglas de Firestore)
+        run: |
+          npx firebase-tools@15 deploy --only functions,firestore:rules \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
