@@ -1,14 +1,17 @@
 name: Publicar Bitácora
 
 # Se dispara solo con "git push" a main — nadie necesita correr nada a mano.
-# Publica las Cloud Functions y las reglas de Firestore, usando la cuenta de
-# servicio y los secretos guardados en Settings → Secrets and variables →
-# Actions de este repo. El sitio (dashboard.html) NO se publica desde aquí:
-# ya vive en este mismo repo y GitHub Pages lo sirve solo en cada push.
+# Publica las Cloud Functions y las reglas de Firestore. Se autentica con
+# Google Cloud vía Workload Identity Federation — sin ninguna llave
+# descargada. El sitio (dashboard.html) ya lo publica GitHub Pages solo.
 on:
   push:
     branches: [main]
-  workflow_dispatch: {} # también se puede disparar a mano desde la pestaña "Actions"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   deploy:
@@ -24,10 +27,11 @@ jobs:
         working-directory: functions
         run: npm install
 
-      - name: Guardar la credencial de servicio
-        run: echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Autenticar con Google Cloud (sin llave)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Escribir variables no sensibles para las funciones
         run: |
@@ -46,7 +50,6 @@ jobs:
           printf '%s' "$CLOUDBEDS_TOKEN" | npx firebase-tools@15 functions:secrets:set CLOUDBEDS_TOKEN \
             --project "$FIREBASE_PROJECT_ID" --data-file - --force
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           CLOUDBEDS_TOKEN: ${{ secrets.CLOUDBEDS_TOKEN }}
 
@@ -55,5 +58,4 @@ jobs:
           npx firebase-tools@15 deploy --only functions,firestore:rules \
             --project "$FIREBASE_PROJECT_ID" --non-interactive --force
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
