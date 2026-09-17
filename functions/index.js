@@ -159,7 +159,10 @@ exports.syncOcupacion = onSchedule(
   // sobra sin acercarse a los 5 minutos entre corridas.
   { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN], timeoutSeconds: 240 },
   async () => {
-    
+    const token = CLOUDBEDS_TOKEN.value();
+    const propertyId = CLOUDBEDS_PROPERTY_ID.value();
+    if (!token || !propertyId) { logger.info("Faltan credenciales de Cloudbeds — se omite."); return; }
+
     const todayIso = mxTodayISO();
     const firstWeekStart = mondayOfISO(todayIso);
     const totalWeeks = OCC_WEEKS_AHEAD + 1;
@@ -178,24 +181,29 @@ exports.syncOcupacion = onSchedule(
     }
 
     const updatedAt = new Date().toISOString();
-    const writes = [];
-    for (let w = 0; w < totalWeeks; w++) {
-      const weekStart = addDaysISO(firstWeekStart, w * 7);
-      const start = w * 7, end = start + 7;
-      writes.push(db.collection("occupancy").doc(weekStart).set({
-        weekStart,
-        pct: m.pct.slice(start, end),
-        arrivals: m.arrivals.slice(start, end),
-        departures: m.departures.slice(start, end),
-        // reservationsConsidered es del horizonte completo (no por semana
-        // individual) — solo es un dato de diagnóstico, no se muestra en
-        // el dashboard.
-        reservationsConsidered: m.considered,
-        totalRooms: m.totalRooms,
-        updatedAt,
-      }));
+    try {
+      const writes = [];
+      for (let w = 0; w < totalWeeks; w++) {
+        const weekStart = addDaysISO(firstWeekStart, w * 7);
+        const start = w * 7, end = start + 7;
+        writes.push(db.collection("occupancy").doc(weekStart).set({
+          weekStart,
+          pct: m.pct.slice(start, end),
+          arrivals: m.arrivals.slice(start, end),
+          departures: m.departures.slice(start, end),
+          // reservationsConsidered es del horizonte completo (no por semana
+          // individual) — solo es un dato de diagnóstico, no se muestra en
+          // el dashboard.
+          reservationsConsidered: m.considered,
+          totalRooms: m.totalRooms,
+          updatedAt,
+        }));
+      }
+      await Promise.all(writes);
+    } catch (err) {
+      logger.error("Error guardando ocupación en Firestore: " + err);
+      return;
     }
-    await Promise.all(writes);
     logger.info("Ocupación actualizada — " + totalWeeks + " semanas desde " + firstWeekStart + " — semana actual pct=[" + m.pct.slice(0,7).join(",") + "]");
   }
 );
