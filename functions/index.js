@@ -146,6 +146,12 @@ exports.syncNomina = onSchedule(
 const CLOUDBEDS_TOKEN = defineSecret("CLOUDBEDS_TOKEN");
 const CLOUDBEDS_PROPERTY_ID = defineString("CLOUDBEDS_PROPERTY_ID", { default: "" });
 
+// Cuántas semanas COMPLETAS además de la actual se calculan cada corrida —
+// para que un líder pueda ver la ocupación esperada al armar el horario de
+// semanas que todavía no llegan (antes solo existía el dato de "esta
+// semana", y navegar a futuro se quedaba sin nada). 8 = ~2 meses de margen.
+const OCC_WEEKS_AHEAD = 8;
+
 exports.syncOcupacion = onSchedule(
   { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN] },
   async () => {
@@ -154,23 +160,41 @@ exports.syncOcupacion = onSchedule(
     if (!token || !propertyId) { logger.info("Faltan credenciales de Cloudbeds — se omite."); return; }
 
     const todayIso = mxTodayISO();
-    const weekStart = mondayOfISO(todayIso);
-    const rangeEnd = addDaysISO(weekStart, 7);
+    const firstWeekStart = mondayOfISO(todayIso);
+    const totalWeeks = OCC_WEEKS_AHEAD + 1;
+    const totalDays = totalWeeks * 7;
+    const rangeEnd = addDaysISO(firstWeekStart, totalDays);
     const days = [];
-    for (let i = 0; i < 7; i++) days.push(addDaysISO(weekStart, i));
+    for (let i = 0; i < totalDays; i++) days.push(addDaysISO(firstWeekStart, i));
 
     let m;
     try {
-      const reservations = await fetchReservations(token, propertyId, weekStart, rangeEnd);
-      m = await computeOccupancyMetrics(token, propertyId, reservations, days, weekStart, rangeEnd);
+      const reservations = await fetchReservations(token, propertyId, firstWeekStart, rangeEnd);
+      m = await computeOccupancyMetrics(token, propertyId, reservations, days, firstWeekStart, rangeEnd);
     } catch (err) {
       logger.error("Error consultando Cloudbeds, no se modificó el historial: " + err);
       return;
     }
-    await db.collection("occupancy").doc(weekStart).set({
-      weekStart, pct: m.pct, arrivals: m.arrivals, departures: m.departures,
-      reservationsConsidered: m.considered, totalRooms: m.totalRooms, updatedAt: new Date().toISOString(),
-    });
-    logger.info("Ocupación actualizada — semana " + weekStart + ": pct=[" + m.pct.join(",") + "]");
+
+    const updatedAt = new Date().toISOString();
+    const writes = [];
+    for (let w = 0; w < totalWeeks; w++) {
+      const weekStart = addDaysISO(firstWeekStart, w * 7);
+      const start = w * 7, end = start + 7;
+      writes.push(db.collection("occupancy").doc(weekStart).set({
+        weekStart,
+        pct: m.pct.slice(start, end),
+        arrivals: m.arrivals.slice(start, end),
+        departures: m.departures.slice(start, end),
+        // reservationsConsidered es del horizonte completo (no por semana
+        // individual) — solo es un dato de diagnóstico, no se muestra en
+        // el dashboard.
+        reservationsConsidered: m.considered,
+        totalRooms: m.totalRooms,
+        updatedAt,
+      }));
+    }
+    await Promise.all(writes);
+    logger.info("Ocupación actualizada — " + totalWeeks + " semanas desde " + firstWeekStart + " — semana actual pct=[" + m.pct.slice(0,7).join(",") + "]");
   }
 );
