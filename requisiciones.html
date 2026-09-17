@@ -138,6 +138,9 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .aud tr:hover td{background:#efe9d8}
 .aud td.num{text-align:right}
 .pedido-head td{background:var(--wool);font-weight:600;border-top:2px solid var(--cactus);font-size:12px;letter-spacing:.03em}
+.pedido-comentario td{background:#fbfaf6;padding:8px 10px}
+.coment-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.coment-input{flex:1;min-width:160px;padding:7px 9px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;font-family:inherit}
 .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600}
 .p-pend{background:#f2e6cf;color:var(--warn)}
 .p-aprob{background:#dce7ea;color:var(--blue)}
@@ -253,13 +256,29 @@ const DEPARTAMENTOS=[
   {nombre:'Recepción',      color:'#008300'},
 ];
 const URGENCIAS=['Baja','Media','Alta','Urgente'];
-// Categorías fijas del catálogo de Cocina (columna Categoria en la pestaña Catalogo) — permiten
-// navegar "Nueva requisición" por pestañas en vez de un solo buscador, dado lo grande que es su lista.
-// Categorías fijas de insumos — hoy las comparten Cocina y Restaurante (misma taxonomía,
-// para que compartan catálogo/proveedores de comida). Si algún día un departamento necesita
-// categorías propias distintas, aquí es donde se separarían por departamento.
+// Categorías fijas de insumos (columna Categoria en la pestaña Catalogo) — permiten navegar
+// "Nueva requisición" por pestañas en vez de un solo buscador, dado lo grande que es la lista.
+// Hoy las comparten Cocina y Restaurante (misma taxonomía, para que compartan catálogo/
+// proveedores de comida). Si algún día un departamento necesita categorías propias distintas,
+// aquí es donde se separarían por departamento.
 const CATEGORIAS_INSUMOS=['Limpieza','Pescados y Mariscos','Carnes','Fruta y Verdura','Lácteos','Abarrote','Comida de personal'];
 const DEPTOS_CON_CATEGORIA=['Cocina','Restaurante'];
+// Nombre completo + ejemplos de artículos de cada categoría, solo para mostrarse como ayuda
+// (tooltip) al elegir/asignar una categoría — el valor que se guarda en el Catálogo sigue siendo
+// el nombre corto de CATEGORIAS_INSUMOS, para no romper lo que ya está categorizado.
+const CATEGORIAS_INFO={
+  'Limpieza':{nombre:'Insumos y productos de limpieza e higiene', ejemplos:'Bolsas, Cloro, Desincrustantes, Fibras, Guantes, Sanitas, Papel, Trapeadores, etc.'},
+  'Pescados y Mariscos':{nombre:'Mariscos y pescados', ejemplos:'Almejas, Callo de Almeja, Camarones, Filete/Lonja de Vela, Pulpo, Tichinda, etc.'},
+  'Carnes':{nombre:'Carnes y productos cárnicos', ejemplos:'Arrachera, Brisket, Molida 80/20, Chorizo, Chuleta, Costilla, Pork Belly, Queso Mozzarella, etc.'},
+  'Fruta y Verdura':{nombre:'Frutas y verduras', ejemplos:'Aguacate, Ajo, Albahaca, Apio, Arúgula, Betabel, Brócoli, Chapulines, Chile, Huevo, etc.'},
+  'Lácteos':{nombre:'Lácteos y cremas', ejemplos:'Quesillo, Manchego, Yogurt, Mantequilla, Philadelphia, Mascarpone, etc.'},
+  'Abarrote':{nombre:'Abarrotes', ejemplos:'Aceites, harinas y condimentos.'},
+  'Comida de personal':{nombre:'Comida de personal', ejemplos:'Insumos destinados a la preparación de alimentos para colaboradores.'}
+};
+function tituloCategoria(cat){
+  const info=CATEGORIAS_INFO[cat];
+  return info ? (info.nombre+' — '+info.ejemplos) : '';
+}
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
@@ -434,10 +453,12 @@ function renderNueva(){
           <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito();actualizarCatTabs()">${deptoOpts}</select></div>
           <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
           <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
+          <div class="fld"><label>Proveedor sugerido (opcional)</label><input id="rProveedor" placeholder="Si no sabes, déjalo vacío — Compras busca uno"></div>
         </div>
 
         <div id="catTabsWrap" class="cat-tabs-wrap hidden">
-          <div class="section-eyebrow" style="margin-top:6px">Categorías de Cocina</div>
+          <div class="section-eyebrow" style="margin-top:6px">Categorías</div>
+          <div class="note" style="margin-top:0">Pasa el mouse sobre cada categoría para ver qué incluye.</div>
           <div class="cat-tabs" id="catTabs"></div>
           <div id="catListaBody"></div>
         </div>
@@ -463,7 +484,7 @@ function renderNueva(){
           <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Departamento (opcional)</label><select id="naDepto" onchange="actualizarNaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
-          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}">${c}</option>`).join('')}</select></div>
           <div class="row-actions">
             <button class="cap-btn" style="padding:9px 16px" onclick="guardarNuevoArticulo()">Guardar y usar</button>
             <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
@@ -518,7 +539,7 @@ function actualizarCatTabs(){
 function renderCatTabsBotones(){
   const cont=document.getElementById('catTabs');
   if(!cont) return;
-  cont.innerHTML=CATEGORIAS_INSUMOS.map(cat=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria('${cat.replace(/'/g,"\\'")}')">${escapeHtml(cat)}</button>`).join('');
+  cont.innerHTML=CATEGORIAS_INSUMOS.map(cat=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" title="${escapeHtml(tituloCategoria(cat))}" onclick="elegirCategoria('${cat.replace(/'/g,"\\'")}')">${escapeHtml(cat)}</button>`).join('');
 }
 function elegirCategoria(cat){
   CATEGORIA_ACTIVA = (CATEGORIA_ACTIVA===cat) ? '' : cat;
@@ -707,6 +728,7 @@ async function enviarPedido(){
     departamento,
     urgencia:document.getElementById('rUrgencia').value,
     fechaRequerida:document.getElementById('rFecha').value,
+    proveedorSugerido:(document.getElementById('rProveedor').value||'').trim(),
     items:CARRITO};
   msg.innerHTML='<div class="okmsg">Enviando…</div>';
   try{
@@ -753,10 +775,53 @@ function agruparPorPedido(filas){
     // backend — ver siguientePedidoId() en Codigo.gs) para que nunca se mezclen los
     // artículos de distintas personas bajo un mismo encabezado.
     const clave=pedidoId+'|'+r[3]+'|'+r[2];
-    if(!map[clave]){ map[clave]={pedidoId, fecha:r[2], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], items:[]}; orden.push(clave); }
+    if(!map[clave]){ map[clave]={pedidoId, fecha:r[2], solicitanteId:r[3], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], proveedorSugerido:r[22]||'', comentario:r[23]||'', items:[]}; orden.push(clave); }
     map[clave].items.push(r);
   });
   return orden.map(clave=>map[clave]);
+}
+// Línea "Proveedor sugerido" para el encabezado de un pedido (Pendientes/Acumulados/Historial) —
+// se captura una sola vez al enviar el pedido (ver enviarPedido → rProveedor) y ya no se edita.
+function badgeProveedorSugerido(g){
+  return g.proveedorSugerido ? (' · <span class="pedido-fecha">Proveedor sugerido: '+escapeHtml(g.proveedorSugerido)+'</span>') : '';
+}
+// Llave segura para usar en un id de elemento del DOM, a partir de PedidoID+SolicitanteID+Fecha
+// (la misma llave compuesta de agruparPorPedido) — así cada pedido tiene su propio campo de
+// comentario aunque, por el bug viejo ya corregido, comparta PedidoID con otro. Se le agrega un
+// prefijo por vista (pend/acum/hist) porque las tres pestañas pueden mostrar el MISMO pedido a
+// la vez (aunque solo una esté visible, las otras se quedan armadas en el DOM) — sin ese prefijo,
+// dos <input> con el mismo id chocan y getElementById puede devolver el de la pestaña equivocada.
+function claveComentario(g, scope){
+  return (scope+'_'+g.pedidoId+'_'+(g.solicitanteId||'')+'_'+g.fecha).replace(/[^a-zA-Z0-9_-]/g,'_');
+}
+// Fila de comentario al final de un pedido, compartida entre Pendientes, Pedidos acumulados e
+// Historial — cualquiera con acceso a esa vista lo puede escribir o editar. No dispara una
+// recarga de toda la lista al guardar (solo una confirmación visual), para no perder el scroll
+// ni las franjas abiertas — ver el mismo cuidado en cargarAcumulados().
+function renderComentarioPedido(g, colspan, scope){
+  const key=claveComentario(g, scope);
+  return `<tr class="pedido-comentario"><td colspan="${colspan}">
+    <div class="coment-row">
+      <input type="text" class="coment-input" id="coment_${key}" placeholder="Agregar un comentario sobre este pedido…" value="${escapeHtml(g.comentario||'')}">
+      <button class="mini-btn info" id="comentBtn_${key}" onclick="guardarComentarioPedido('${escapeHtml(g.pedidoId)}','${escapeHtml(g.solicitanteId||'')}','${escapeHtml(g.fecha)}','${key}')">Guardar comentario</button>
+    </div>
+  </td></tr>`;
+}
+async function guardarComentarioPedido(pedidoId, solicitanteId, fecha, key){
+  const input=document.getElementById('coment_'+key);
+  const btn=document.getElementById('comentBtn_'+key);
+  if(!input) return;
+  const comentario=input.value.trim();
+  const textoOriginal=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try{
+    const j=await apiPost({accion:'requisiciones_comentar_pedido',id:SESSION.id,pin:SESSION.pin,pedidoId,solicitanteId,fecha,comentario});
+    if(!j.ok){ alert(j.error); if(btn){btn.disabled=false; btn.textContent=textoOriginal;} return; }
+    if(btn){ btn.textContent='Guardado ✓'; setTimeout(()=>{btn.disabled=false; btn.textContent=textoOriginal;},1200); }
+  }catch(e){
+    alert('No se pudo guardar el comentario.');
+    if(btn){btn.disabled=false; btn.textContent=textoOriginal;}
+  }
 }
 // Agrupa por Fecha de solicitud (más reciente primero — las fechas vienen en formato ISO
 // aaaa-mm-dd, así que ordenan bien como texto) y, dentro de cada fecha, por pedido. Se usa en
@@ -775,10 +840,10 @@ function agruparPorFechaYPedido(filas){
 function renderGrupoPendiente(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario — revisar Gerencia General</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="7">
-    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · requerido ${g.fechaRequerida||'–'} ${badge}
+    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} · requerido ${g.fechaRequerida||'–'}${badgeProveedorSugerido(g)} ${badge}
     ${g.justificacion?('<div style="font-weight:400;font-size:11.5px;color:var(--cactus);margin-top:3px">'+g.justificacion+'</div>'):''}
   </td></tr>`;
-  return cabecera + g.items.map(r=>renderItemPendiente(r)).join('');
+  return cabecera + g.items.map(r=>renderItemPendiente(r)).join('') + renderComentarioPedido(g,7,'pend');
 }
 function renderItemPendiente(r){
   const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal,justificacion,urgencia]=r;
@@ -854,6 +919,12 @@ const SEL_ACUM_RECIBIR=new Set(); // artículos Comprada seleccionados para marc
 async function cargarAcumulados(){
   SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
   const el=document.getElementById('acumuladosBody');
+  // Antes de reconstruir la lista, guardamos qué franjas (departamento/categoría/fecha) estaban
+  // abiertas y en qué parte de la página estabas, para restaurarlo después de recargar — así
+  // marcar Comprada/Recibida en un artículo no te "regresa al inicio" ni te obliga a volver a
+  // abrir todo para seguir con el siguiente.
+  const abiertosPrevios=new Set(Array.from(el.querySelectorAll('details[open][data-key]')).map(d=>d.dataset.key));
+  const scrollYPrevio=window.scrollY;
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin});
@@ -878,17 +949,26 @@ async function cargarAcumulados(){
           <button class="mini-btn ok" id="btnRecibidosSel" disabled onclick="marcarRecibidosSeleccionados()">Marcar recibidos</button>
         </div>
       </div>
-      ${bloques.map(b=>`
-        <details class="depto-acordeon">
+      ${bloques.map(b=>{
+        const keyDepto=b.departamento;
+        return `
+        <details class="depto-acordeon" data-key="${escapeHtml(keyDepto)}">
           <summary><span class="dept-dot" style="background:${deptoColor(b.departamento)}"></span> ${b.departamento} <span class="acordeon-count">(${totalArticulosBloque(b)} artículo(s))</span></summary>
-          ${b.categorias ? b.categorias.map(c=>`
-            <details class="cat-acordeon">
+          ${b.categorias ? b.categorias.map(c=>{
+            const keyCat=keyDepto+'|'+c.categoria;
+            return `
+            <details class="cat-acordeon" data-key="${escapeHtml(keyCat)}">
               <summary>${escapeHtml(c.categoria)} <span class="acordeon-count">(${gruposDeFechas(c.fechas).reduce((s,g)=>s+g.items.length,0)})</span></summary>
-              ${c.fechas.map(f=>renderFechaAcordeon(f)).join('')}
+              ${c.fechas.map(f=>renderFechaAcordeon(f,keyCat)).join('')}
             </details>
-          `).join('') : b.fechas.map(f=>renderFechaAcordeon(f)).join('')}
+          `;}).join('') : b.fechas.map(f=>renderFechaAcordeon(f,keyDepto)).join('')}
         </details>
-      `).join('')}`;
+      `;}).join('')}`;
+    // Reabrimos las franjas que ya estaban abiertas (por su data-key) y regresamos el scroll a
+    // donde estabas. En la primera carga de la pestaña no había nada abierto, así que este mismo
+    // paso no hace nada y se queda con todo cerrado como antes.
+    el.querySelectorAll('details[data-key]').forEach(d=>{ if(abiertosPrevios.has(d.dataset.key)) d.open=true; });
+    requestAnimationFrame(()=>window.scrollTo(0,scrollYPrevio));
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
 function gruposDeFechas(fechas){ return fechas.reduce((arr,f)=>arr.concat(f.grupos),[]); }
@@ -948,9 +1028,10 @@ function agruparPorCategoriaYPedido(filas){
 // Franja plegable por Fecha de solicitud, usada dentro de cada departamento (y, si aplica,
 // dentro de cada categoría) en "Pedidos acumulados" — así los pedidos de días distintos nunca
 // se ven revueltos en una sola tabla.
-function renderFechaAcordeon(f){
+function renderFechaAcordeon(f,keyPrefix){
   const n=f.grupos.reduce((s,g)=>s+g.items.length,0);
-  return `<details class="fecha-acordeon">
+  const key=keyPrefix+'|'+f.fecha;
+  return `<details class="fecha-acordeon" data-key="${escapeHtml(key)}">
     <summary><span class="pedido-fecha">${escapeHtml(f.fecha)}</span> <span class="acordeon-count">(${n} artículo(s))</span></summary>
     <div style="overflow-x:auto"><table class="aud"><thead><tr>
       <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Subtotal</th><th>Estatus</th><th>Acción</th>
@@ -962,9 +1043,9 @@ function renderGrupoAcumulado(g){
   // La fecha ya se muestra en el encabezado de la franja de Fecha que envuelve este pedido
   // (ver renderFechaAcordeon) — no hace falta repetirla aquí.
   const cabecera=`<tr class="pedido-head"><td colspan="6">
-    Pedido ${g.pedidoId} · ${g.solicitanteNombre} ${badge}
+    Pedido ${g.pedidoId} · ${g.solicitanteNombre}${badgeProveedorSugerido(g)} ${badge}
   </td></tr>`;
-  return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('');
+  return cabecera + g.items.map(r=>renderItemAcumulado(r)).join('') + renderComentarioPedido(g,6,'acum');
 }
 function renderItemAcumulado(r){
   const [id,,,,,depto,articulo,,cantidad,unidad,,subtotal,,,,,estatus]=r;
@@ -975,7 +1056,7 @@ function renderItemAcumulado(r){
     // (Compras no puede borrar artículos del pedido, solo marcarlos Comprada).
     if(esAprobador() || esLiderCompras()){
       checkbox=`<input type="checkbox" class="acum-check-comprar" value="${id}" onchange="actualizarSeleccionAcumulados()">`;
-      acciones.push(`<button class="mini-btn info" onclick="marcarEstadoAcumulado('${id}','marcarComprada')">Comprada</button>`);
+      acciones.push(`<button class="mini-btn info" onclick="marcarEstadoAcumulado('${id}','marcarComprada',this)">Comprada</button>`);
     }
     if(esAprobador()){
       acciones.push(`<button class="mini-btn bad" onclick="borrarItemAcumulado('${id}')">Borrar</button>`);
@@ -983,7 +1064,7 @@ function renderItemAcumulado(r){
   } else if(estatus==='Comprada'){
     if(puedeRecibirDepto(depto)){
       checkbox=`<input type="checkbox" class="acum-check-recibir" value="${id}" onchange="actualizarSeleccionAcumulados()">`;
-      acciones.push(`<button class="mini-btn ok" onclick="marcarEstadoAcumulado('${id}','marcarRecibida')">Recibida</button>`);
+      acciones.push(`<button class="mini-btn ok" onclick="marcarEstadoAcumulado('${id}','marcarRecibida',this)">Recibida</button>`);
     }
   }
   const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
@@ -1037,8 +1118,18 @@ async function marcarRecibidosSeleccionados(){
     cargarAcumulados();
   }catch(e){alert('No se pudo procesar.');cargarAcumulados();}
 }
-async function marcarEstadoAcumulado(id,estado){
-  try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});if(!j.ok){alert(j.error);return;}cargarAcumulados();}catch(e){alert('No se pudo procesar.');}
+async function marcarEstadoAcumulado(id,estado,btn){
+  // Deshabilitamos el botón al instante para que un doble clic (o un clic mientras la
+  // petición anterior todavía está en camino) no dispare la misma acción dos veces.
+  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.textContent='...'; }
+  try{
+    const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});
+    if(!j.ok){alert(j.error); if(btn){btn.disabled=false; btn.textContent=estado==='marcarComprada'?'Comprada':'Recibida';} return;}
+    cargarAcumulados();
+  }catch(e){
+    alert('No se pudo procesar.');
+    if(btn){btn.disabled=false; btn.textContent=estado==='marcarComprada'?'Comprada':'Recibida';}
+  }
 }
 async function borrarItemAcumulado(id){
   if(!confirm('¿Borrar este artículo ya aprobado? Esta acción no se puede deshacer.'))return;
@@ -1197,9 +1288,9 @@ async function cargarHistorial(){
 function renderGrupoHistorial(g){
   const badge = g.fueraDeHorario==='SI' ? '<span class="pill p-horario">⚠ Fuera de horario</span>' : '';
   const cabecera=`<tr class="pedido-head"><td colspan="6">
-    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre} ${badge}
+    Pedido ${g.pedidoId} · <span class="pedido-fecha">${g.fecha}</span> · <span class="dept-dot" style="background:${deptoColor(g.departamento)}"></span>${g.departamento} · ${g.solicitanteNombre}${badgeProveedorSugerido(g)} ${badge}
   </td></tr>`;
-  return cabecera + g.items.map(r=>renderItemHistorial(r,g.pedidoId)).join('');
+  return cabecera + g.items.map(r=>renderItemHistorial(r,g.pedidoId)).join('') + renderComentarioPedido(g,6,'hist');
 }
 function renderItemHistorial(r,pedidoId){
   const [id,,,,,depto,articulo,,cantidad,unidad,precioUnitario,subtotal,,,,,estatus,aprobadoPor,,motivoRech]=r;
@@ -1352,7 +1443,7 @@ async function cargarCatalogoAdmin(){
     const j=await apiGet({accion:'catalogo_list_todo',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
     CATALOGO_ADMIN_FILAS=j.filas||[];
-    const categoriaOpts='<option value="">Todas las categorías</option>'+CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('');
+    const categoriaOpts='<option value="">Todas las categorías</option>'+CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}">${c}</option>`).join('');
     el.innerHTML=`
       <div class="section-eyebrow">Agregar artículo al catálogo</div>
       <div class="cap-form" style="margin-bottom:26px">
@@ -1361,7 +1452,7 @@ async function cargarCatalogoAdmin(){
           <div class="fld"><label>Unidad</label><input id="caUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario</label><input id="caPrecio" type="number" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Departamento (opcional)</label><select id="caDepto" onchange="actualizarCaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
-          <div class="fld" id="caCategoriaWrap" style="display:none"><label>Categoría</label><select id="caCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+          <div class="fld" id="caCategoriaWrap" style="display:none"><label>Categoría</label><select id="caCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}">${c}</option>`).join('')}</select></div>
         </div>
         <button class="cap-btn" onclick="agregarArticuloCatalogo()">Agregar al catálogo</button>
         <div id="catalogoMsg"></div>
@@ -1395,7 +1486,7 @@ function filtrarCatalogoAdmin(){
 function renderFilaCatalogoAdmin(f){
   const [id,articulo,unidad,precio,departamento,activo,categoria]=f;
   const deptoOpts='<option value="">Cualquier departamento</option>'+DEPARTAMENTOS.map(d=>`<option ${d.nombre===departamento?'selected':''}>${d.nombre}</option>`).join('');
-  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_INSUMOS.map(c=>`<option ${c===categoria?'selected':''}>${c}</option>`).join('');
+  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}" ${c===categoria?'selected':''}>${c}</option>`).join('');
   return `<tr>
     <td>${id}</td>
     <td><input class="cat-inp" id="cArt_${id}" value="${escapeHtml(articulo)}"></td>
