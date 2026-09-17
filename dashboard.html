@@ -808,13 +808,54 @@ window.__fbListen = {
     hydrateEditBuffer(); render();
   }
 
+  /* ================= franja de % de ocupación / llegadas / salidas =================
+   * Compartida entre la vista Todos y la vista de un departamento (mientras
+   * arman su horario) — mismo dato de Cloudbeds, mismo widget, para que el
+   * líder de cada equipo vea la ocupación sin tener que salirse a la otra
+   * pestaña. selectedDay es opcional: en Todos resalta el día que se está
+   * viendo abajo; en la vista de departamento no aplica (se pasa -1). */
+  function renderOccStrip(weekStart, selectedDay){
+    var occDoc = occupancyCache.get(weekStart);
+    var occPct = occDoc && occDoc.pct ? occDoc.pct : null;
+    var occArr = occDoc && occDoc.arrivals ? occDoc.arrivals : null;
+    var occDep = occDoc && occDoc.departures ? occDoc.departures : null;
+
+    var weekCols = DIAS.map(function(dn,i){
+      var isSel = i === selectedDay;
+      var isToday = weekStart === currentWeekStart() && i === todayDiaIndex();
+      var pct = occPct ? occPct[i] : null;
+      var barPx = pct==null ? 4 : Math.max(4, Math.round(pct/100*56));
+      var inout = (occArr && occDep) ?
+        '<span class="week-day-inout"><span class="in">↑'+occArr[i]+'</span><span class="out">↓'+occDep[i]+'</span></span>' : "";
+      return '' +
+        '<button type="button" class="week-day-col'+(isSel?' on':'')+(isToday?' is-today':'')+'" data-todos-day="'+i+'">' +
+          '<span class="week-day-num">'+(pct==null?"—":pct+"%")+'</span>' +
+          '<span class="week-day-bar-wrap"><span class="week-day-bar" style="height:'+barPx+'px"></span></span>' +
+          '<span class="week-day-name">'+dn.slice(0,3)+'</span>' +
+          inout +
+        '</button>';
+    }).join("");
+
+    var occUpdated = "";
+    if (occDoc && occDoc.updatedAt){
+      var odt = new Date(occDoc.updatedAt);
+      if (!isNaN(odt.getTime())) occUpdated = " · actualizado " + String(odt.getHours()).padStart(2,"0")+":"+String(odt.getMinutes()).padStart(2,"0");
+    }
+    var occNote = occPct ? "" : '<div class="week-strip-empty">Aún no hay datos de Cloudbeds para esta semana — se sincronizan solos cada 5 minutos.</div>';
+    var inoutKey = (occArr && occDep) ? '<span class="week-strip-key"><span class="in">↑ llegadas</span><span class="out">↓ salidas</span></span>' : "";
+
+    return '' +
+      '<div class="week-strip">' +
+        '<div class="week-strip-head"><span class="week-strip-title">% de ocupación del hotel · '+fmtRange(weekStart)+esc(occUpdated)+'</span>'+inoutKey+'</div>' +
+        '<div class="week-strip-cols">'+weekCols+'</div>' +
+        occNote +
+      '</div>';
+  }
+
   /* ================= render: vista Todos (pública, informativa) ================= */
   function renderTodos(){
     var weekStart = currentWeekStart();
     var dayIdx = state.todosDay;
-
-    var occDoc = occupancyCache.get(weekStart);
-    var occPct = occDoc && occDoc.pct ? occDoc.pct : null;
 
     var sections = SLUGS.map(function(slug){
       var d = DEPARTMENTS[slug];
@@ -846,40 +887,9 @@ window.__fbListen = {
         '</div>';
     }).join("");
 
-    var occArr = occDoc && occDoc.arrivals ? occDoc.arrivals : null;
-    var occDep = occDoc && occDoc.departures ? occDoc.departures : null;
-
-    var weekCols = DIAS.map(function(dn,i){
-      var isSel = i === dayIdx;
-      var isToday = i === todayDiaIndex();
-      var pct = occPct ? occPct[i] : null;
-      var barPx = pct==null ? 4 : Math.max(4, Math.round(pct/100*56));
-      var inout = (occArr && occDep) ?
-        '<span class="week-day-inout"><span class="in">↑'+occArr[i]+'</span><span class="out">↓'+occDep[i]+'</span></span>' : "";
-      return '' +
-        '<button type="button" class="week-day-col'+(isSel?' on':'')+(isToday?' is-today':'')+'" data-todos-day="'+i+'">' +
-          '<span class="week-day-num">'+(pct==null?"—":pct+"%")+'</span>' +
-          '<span class="week-day-bar-wrap"><span class="week-day-bar" style="height:'+barPx+'px"></span></span>' +
-          '<span class="week-day-name">'+dn.slice(0,3)+'</span>' +
-          inout +
-        '</button>';
-    }).join("");
-
-    var occUpdated = "";
-    if (occDoc && occDoc.updatedAt){
-      var odt = new Date(occDoc.updatedAt);
-      if (!isNaN(odt.getTime())) occUpdated = " · actualizado " + String(odt.getHours()).padStart(2,"0")+":"+String(odt.getMinutes()).padStart(2,"0");
-    }
-    var occNote = occPct ? "" : '<div class="week-strip-empty">Aún no hay datos de Cloudbeds — se sincronizan solos cada 5 minutos.</div>';
-    var inoutKey = (occArr && occDep) ? '<span class="week-strip-key"><span class="in">↑ llegadas</span><span class="out">↓ salidas</span></span>' : "";
-
     return '' + topbarHtml("todos") +
       '<div class="home-head"><h1>¿Quién está de turno?</h1><p>El horario de toda Casa Yuma, todos los departamentos juntos. Cualquiera puede consultarlo — solo el líder de cada equipo puede editar el suyo.</p></div>' +
-      '<div class="week-strip">' +
-        '<div class="week-strip-head"><span class="week-strip-title">% de ocupación del hotel · '+fmtRange(weekStart)+esc(occUpdated)+'</span>'+inoutKey+'</div>' +
-        '<div class="week-strip-cols">'+weekCols+'</div>' +
-        occNote +
-      '</div>' +
+      renderOccStrip(weekStart, dayIdx) +
       '<div class="todos-list">'+sections+'</div>';
   }
 
@@ -1078,6 +1088,7 @@ window.__fbListen = {
         leaderOrMeta +
         '<div class="history-rail">'+chips+'</div>' +
       '</div>' +
+      renderOccStrip(state.weekStart, -1) +
       '<div class="table-card">' +
         '<div class="table-scroll"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>' +
         legend +
