@@ -102,6 +102,7 @@ async function computeOccupancyMetrics(token, propertyId, reservations, days, ra
       if (e === d) departures[i]++;
     }
   });
+  module.exports = { fetchReservations, computeOccupancyMetrics };
 
   const { pct, totalRooms } = await fetchOccupancyByDay(token, propertyId, rangeStart, rangeEnd, days);
   return { pct, arrivals, departures, considered, totalRooms };
