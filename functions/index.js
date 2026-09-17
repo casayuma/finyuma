@@ -145,14 +145,12 @@ exports.syncNomina = onSchedule(
 
 const CLOUDBEDS_TOKEN = defineSecret("CLOUDBEDS_TOKEN");
 const CLOUDBEDS_PROPERTY_ID = defineString("CLOUDBEDS_PROPERTY_ID", { default: "" });
-const TOTAL_ROOMS = defineString("TOTAL_ROOMS", { default: "25" });
 
 exports.syncOcupacion = onSchedule(
   { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN] },
   async () => {
     const token = CLOUDBEDS_TOKEN.value();
     const propertyId = CLOUDBEDS_PROPERTY_ID.value();
-    const totalRooms = Number(TOTAL_ROOMS.value() || 25);
     if (!token || !propertyId) { logger.info("Faltan credenciales de Cloudbeds — se omite."); return; }
 
     const todayIso = mxTodayISO();
@@ -161,17 +159,17 @@ exports.syncOcupacion = onSchedule(
     const days = [];
     for (let i = 0; i < 7; i++) days.push(addDaysISO(weekStart, i));
 
-    let reservations;
+    let m;
     try {
-      reservations = await fetchReservations(token, propertyId, weekStart, rangeEnd);
+      const reservations = await fetchReservations(token, propertyId, weekStart, rangeEnd);
+      m = await computeOccupancyMetrics(token, propertyId, reservations, days, weekStart, rangeEnd);
     } catch (err) {
       logger.error("Error consultando Cloudbeds, no se modificó el historial: " + err);
       return;
     }
-    const m = computeOccupancyMetrics(reservations, days, totalRooms);
     await db.collection("occupancy").doc(weekStart).set({
       weekStart, pct: m.pct, arrivals: m.arrivals, departures: m.departures,
-      reservationsConsidered: m.considered, totalRooms, updatedAt: new Date().toISOString(),
+      reservationsConsidered: m.considered, totalRooms: m.totalRooms, updatedAt: new Date().toISOString(),
     });
     logger.info("Ocupación actualizada — semana " + weekStart + ": pct=[" + m.pct.join(",") + "]");
   }
