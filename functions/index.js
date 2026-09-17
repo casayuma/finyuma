@@ -153,12 +153,13 @@ const CLOUDBEDS_PROPERTY_ID = defineString("CLOUDBEDS_PROPERTY_ID", { default: "
 const OCC_WEEKS_AHEAD = 8;
 
 exports.syncOcupacion = onSchedule(
-  { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN] },
+  // Con 9 semanas de por medio (en vez de 1) la consulta a Cloudbeds y la
+  // escritura a Firestore tardan más — timeoutSeconds default (60s) se
+  // quedaba corto y la función se cortaba a la mitad. 240s da margen de
+  // sobra sin acercarse a los 5 minutos entre corridas.
+  { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN], timeoutSeconds: 240 },
   async () => {
-    const token = CLOUDBEDS_TOKEN.value();
-    const propertyId = CLOUDBEDS_PROPERTY_ID.value();
-    if (!token || !propertyId) { logger.info("Faltan credenciales de Cloudbeds — se omite."); return; }
-
+    
     const todayIso = mxTodayISO();
     const firstWeekStart = mondayOfISO(todayIso);
     const totalWeeks = OCC_WEEKS_AHEAD + 1;
