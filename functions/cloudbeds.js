@@ -55,12 +55,7 @@ async function fetchReservations(token, propertyId, weekStart, rangeEnd) {
 async function fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days) {
   const roomTypes = (await cbFetch(token, "/getRoomTypes?propertyID=" + encodeURIComponent(propertyId))).data || [];
   const capacityByType = {};
-  let totalRooms = 0;
-  roomTypes.forEach((rt) => {
-    const units = rt.roomTypeUnits || 0;
-    capacityByType[rt.roomTypeName] = units;
-    totalRooms += units;
-  });
+  roomTypes.forEach((rt) => { capacityByType[rt.roomTypeName] = rt.roomTypeUnits || 0; });
 
   const plans = (await cbFetch(
     token,
@@ -70,10 +65,14 @@ async function fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days)
 
   const soldByDay = {}; // "YYYY-MM-DD" -> cuartos vendidos, sumado sobre todos los tipos
   const seenType = {};  // varias tarifas pueden ser del mismo tipo — contarlo una sola vez
+  let totalRooms = 0;   // solo tipos que SÍ aparecen en getRatePlans — así "Day Pass" (o
+                        // cualquier producto que no sea un cuarto de noche real) queda
+                        // afuera solo, sin tener que excluirlo a mano por nombre.
   plans.forEach((p) => {
     if (seenType[p.roomTypeID]) return;
     seenType[p.roomTypeID] = true;
     const cap = capacityByType[p.roomTypeName] || 0;
+    totalRooms += cap;
     (p.roomRateDetailed || []).forEach((day) => {
       const sold = Math.max(0, cap - (day.roomsAvailable || 0));
       soldByDay[day.date] = (soldByDay[day.date] || 0) + sold;
@@ -83,7 +82,6 @@ async function fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days)
   const pct = days.map((d) => Math.min(100, Math.round(((soldByDay[d] || 0) / totalRooms) * 100)));
   return { pct, totalRooms };
 }
-
 async function computeOccupancyMetrics(token, propertyId, reservations, days, weekStart, rangeEnd) {
   const arrivals = [0, 0, 0, 0, 0, 0, 0];
   const departures = [0, 0, 0, 0, 0, 0, 0];
