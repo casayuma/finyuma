@@ -1,8 +1,30 @@
-// Ocupación / llegadas / salidas desde Cloudbeds — mismo algoritmo que las
-// versiones anteriores: UNA sola llamada (con paginación) a
-// getReservations, sin pedir el detalle de cada reservación por separado.
+// Ocupación / llegadas / salidas desde Cloudbeds.
+//
+// La ocupación NO se reconstruye a mano contando reservaciones ni cuartos
+// asignados — eso es justo lo que causaba discrepancias contra lo que
+// Cloudbeds muestra. En vez de eso se usa la disponibilidad real que
+// Cloudbeds ya calcula: getRoomTypes (capacidad por tipo de cuarto) +
+// getRatePlans?detailedRates=true (cuartos disponibles por día y por tipo).
+// Vendidas = capacidad − disponibles, sumado sobre todos los tipos. Este es
+// el mismo cálculo, ya validado, que usa el dashboard de "Ocupación en
+// tiempo real" (48%=12/25 y 28%=7/25 exactos contra Cloudbeds en vivo).
+//
+// Llegadas y salidas sí necesitan el detalle de cada reservación
+// (startDate/endDate), así que esas dos siguen viniendo de getReservations.
 const OCCUPIED_STATUSES = { confirmed: true, checked_in: true, checked_out: true };
-// NO cuentan: not_confirmed, canceled, no_show.
+// NO cuentan: not_confirmed, canceled, no_show. (Aplica solo a llegadas/salidas.)
+
+async function cbFetch(token, path) {
+  const url = "https://api.cloudbeds.com/api/v1.3" + path;
+  const resp = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+  if (resp.status !== 200) {
+    const text = await resp.text().catch(() => "");
+    throw new Error("Cloudbeds " + path + " HTTP " + resp.status + ": " + text.slice(0, 300));
+  }
+  const body = await resp.json();
+  if (!body.success) throw new Error("Cloudbeds " + path + " success=false");
+  return body;
+}
 
 async function fetchReservations(token, propertyId, weekStart, rangeEnd) {
   let reservations = [];
@@ -12,20 +34,13 @@ async function fetchReservations(token, propertyId, weekStart, rangeEnd) {
     // por traslape, no por contención — checkInTo/checkOutFrom (no
     // checkInFrom/checkOutTo), para no perder huéspedes que ya estaban
     // hospedados desde antes del lunes, o que siguen hospedados después del
-    // domingo. computeOccupancyMetrics ya filtra día por día con precisión;
-    // aquí solo hace falta no dejar fuera reservaciones que sí aplican.
-    const url = "https://api.cloudbeds.com/api/v1.3/getReservations"
+    // domingo.
+    const path = "/getReservations"
       + "?propertyID=" + encodeURIComponent(propertyId)
       + "&checkInTo=" + rangeEnd
       + "&checkOutFrom=" + weekStart
       + "&pageSize=100&pageNumber=" + page;
-    const resp = await fetch(url, { headers: { Authorization: "Bearer " + token } });
-    if (resp.status !== 200) {
-      const text = await resp.text().catch(() => "");
-      throw new Error("getReservations HTTP " + resp.status + ": " + text.slice(0, 300));
-    }
-    const body = await resp.json();
-    if (!body.success) throw new Error("getReservations success=false");
+    const body = await cbFetch(token, path);
     const data = body.data || [];
     reservations = reservations.concat(data);
     const total = typeof body.total === "number" ? body.total : reservations.length;
@@ -35,8 +50,41 @@ async function fetchReservations(token, propertyId, weekStart, rangeEnd) {
   return reservations;
 }
 
-function computeOccupancyMetrics(reservations, days, totalRooms) {
-  const occupied = [0, 0, 0, 0, 0, 0, 0];
+// Capacidad total y cuartos vendidos por día, directo de la disponibilidad
+// real de Cloudbeds — sin tocar status de reservaciones ni contarlas a mano.
+async function fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days) {
+  const roomTypes = (await cbFetch(token, "/getRoomTypes?propertyID=" + encodeURIComponent(propertyId))).data || [];
+  const capacityByType = {};
+  let totalRooms = 0;
+  roomTypes.forEach((rt) => {
+    const units = rt.roomTypeUnits || 0;
+    capacityByType[rt.roomTypeName] = units;
+    totalRooms += units;
+  });
+
+  const plans = (await cbFetch(
+    token,
+    "/getRatePlans?propertyID=" + encodeURIComponent(propertyId)
+      + "&startDate=" + weekStart + "&endDate=" + rangeEnd + "&detailedRates=true"
+  )).data || [];
+
+  const soldByDay = {}; // "YYYY-MM-DD" -> cuartos vendidos, sumado sobre todos los tipos
+  const seenType = {};  // varias tarifas pueden ser del mismo tipo — contarlo una sola vez
+  plans.forEach((p) => {
+    if (seenType[p.roomTypeID]) return;
+    seenType[p.roomTypeID] = true;
+    const cap = capacityByType[p.roomTypeName] || 0;
+    (p.roomRateDetailed || []).forEach((day) => {
+      const sold = Math.max(0, cap - (day.roomsAvailable || 0));
+      soldByDay[day.date] = (soldByDay[day.date] || 0) + sold;
+    });
+  });
+
+  const pct = days.map((d) => Math.min(100, Math.round(((soldByDay[d] || 0) / totalRooms) * 100)));
+  return { pct, totalRooms };
+}
+
+async function computeOccupancyMetrics(token, propertyId, reservations, days, weekStart, rangeEnd) {
   const arrivals = [0, 0, 0, 0, 0, 0, 0];
   const departures = [0, 0, 0, 0, 0, 0, 0];
   let considered = 0;
@@ -48,14 +96,13 @@ function computeOccupancyMetrics(reservations, days, totalRooms) {
     if (!s || !e) return;
     for (let i = 0; i < 7; i++) {
       const d = days[i];
-      if (s <= d && d < e) occupied[i]++;
       if (s === d) arrivals[i]++;
       if (e === d) departures[i]++;
     }
   });
 
-  const pct = occupied.map((o) => Math.min(100, Math.round((o / totalRooms) * 100)));
-  return { pct, arrivals, departures, considered };
+  const { pct, totalRooms } = await fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days);
+  return { pct, arrivals, departures, considered, totalRooms };
 }
 
 module.exports = { fetchReservations, computeOccupancyMetrics };
