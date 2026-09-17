@@ -82,6 +82,7 @@ async function fetchOccupancyByDay(token, propertyId, weekStart, rangeEnd, days)
   const pct = days.map((d) => Math.min(100, Math.round(((soldByDay[d] || 0) / totalRooms) * 100)));
   return { pct, totalRooms };
 }
+
 // "days" puede cubrir varias semanas seguidas (no solo 7 días) — quien
 // llama (syncOcupacion) es quien decide el horizonte y luego reparte estos
 // arreglos en documentos semanales.
@@ -102,8 +103,9 @@ async function computeOccupancyMetrics(token, propertyId, reservations, days, ra
       if (e === d) departures[i]++;
     }
   });
-  module.exports = { fetchReservations, computeOccupancyMetrics };
 
   const { pct, totalRooms } = await fetchOccupancyByDay(token, propertyId, rangeStart, rangeEnd, days);
   return { pct, arrivals, departures, considered, totalRooms };
 }
+
+module.exports = { fetchReservations, computeOccupancyMetrics };
