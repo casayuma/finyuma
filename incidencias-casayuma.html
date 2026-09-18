@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incidencias Casa Yuma</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --teal:#2C6E73; --gold:#E1D082; --wool:#EAE3CD; --cactus:#72785E; --purple:#88285C;
+  --ink:#20302f; --danger:#a3372f; --border:#d7cfb8;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'PT Mono','Courier New',monospace;background:var(--wool);color:var(--ink);}
+header{background:var(--teal);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+header h1{font-size:16px;margin:0;letter-spacing:.03em}
+header .who{font-size:12px;opacity:.9}
+button{font-family:inherit;cursor:pointer;border:1px solid var(--teal);background:#fff;color:var(--teal);padding:6px 12px;border-radius:4px;font-size:12px}
+button.primary{background:var(--teal);color:#fff}
+button.warn{background:var(--danger);color:#fff;border-color:var(--danger)}
+button.gold{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+button:disabled{opacity:.4;cursor:not-allowed}
+#loginScreen{max-width:380px;margin:80px auto;background:#fff;padding:28px;border:1px solid var(--border);border-radius:8px;text-align:center}
+#loginScreen p{font-size:12px;color:var(--cactus)}
+nav{display:flex;gap:6px;background:#fff;padding:8px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+nav button.active{background:var(--teal);color:#fff}
+main{padding:16px;max-width:1400px;margin:0 auto}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;background:#fff;padding:10px;border:1px solid var(--border);border-radius:6px}
+.bar label{font-size:11px;color:var(--cactus);display:flex;flex-direction:column;gap:2px}
+select,input[type=text],input[type=number],input[type=date]{font-family:inherit;padding:5px;border:1px solid var(--border);border-radius:4px;font-size:12px}
+table{border-collapse:collapse;width:100%;background:#fff;font-size:11px}
+th,td{border:1px solid var(--border);padding:4px 5px;text-align:right;white-space:nowrap}
+th{background:var(--teal);color:#fff;position:sticky;top:0;font-weight:normal}
+td.name{text-align:left;max-width:160px;white-space:normal}
+td input{width:56px;text-align:right;padding:2px}
+td.calc{background:#f6f4ea;color:var(--cactus)}
+tr.total td{font-weight:bold;background:var(--wool)}
+.badge{display:inline-block;padding:2px 6px;border-radius:10px;font-size:10px;color:#fff}
+.badge.capturado{background:#a08b3d}
+.badge.verificado{background:var(--cactus)}
+.badge.correccion{background:var(--danger)}
+.small{font-size:11px;color:var(--cactus)}
+.hist-entry{border-left:3px solid var(--teal);padding:6px 10px;margin-bottom:6px;background:#fff;font-size:11px}
+.flagbox{background:#fff3e0;border:1px solid #e0b060;padding:8px 10px;border-radius:6px;font-size:11px;margin-bottom:10px}
+[hidden]{display:none!important}
+.msg{font-size:11px;color:var(--danger)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>INCIDENCIAS · CASA YUMA</h1>
+  <div class="who" id="whoBox"></div>
+</header>
+
+<div id="loginScreen">
+  <p>Acceso restringido — solo colaboradores autorizados.</p>
+  <button class="primary" id="btnLogin">Iniciar sesión con Google</button>
+  <p id="loginMsg" class="msg"></p>
+</div>
+
+<div id="app" hidden>
+  <nav>
+    <button data-view="captura" class="active">Captura / Verificación</button>
+    <button data-view="historial">Historial</button>
+    <button data-view="config" id="navConfig" hidden>Configuración</button>
+  </nav>
+
+  <main>
+
+    <section id="viewCaptura">
+      <div class="bar">
+        <label>Año
+          <select id="selAnio"></select>
+        </label>
+        <label>Mes
+          <select id="selMes"></select>
+        </label>
+        <label>Quincena
+          <select id="selQ"><option value="Q1">1Q</option><option value="Q2">2Q</option></select>
+        </label>
+        <button id="btnCargarPeriodo">Cargar periodo</button>
+        <button id="btnCrearPeriodo" hidden>+ Crear este periodo</button>
+        <label>Departamento
+          <select id="selDepto"></select>
+        </label>
+        <span id="periodoEstado" class="small"></span>
+        <span style="flex:1"></span>
+        <button id="btnExportCsv" hidden>Exportar CSV</button>
+        <button id="btnCerrarPeriodo" class="warn" hidden>Cerrar periodo</button>
+      </div>
+      <div id="capturaMsg" class="msg"></div>
+      <div style="overflow:auto;max-height:70vh">
+        <table id="tablaCaptura"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+      </div>
+    </section>
+
+    <section id="viewHistorial" hidden>
+      <div class="bar">
+        <label>Colaborador
+          <select id="histColaborador"></select>
+        </label>
+        <label>Periodo
+          <select id="histPeriodo"></select>
+        </label>
+        <button id="btnVerHistorial">Ver historial</button>
+      </div>
+      <div id="histResultados"></div>
+    </section>
+
+    <section id="viewConfig" hidden>
+      <div class="flagbox">
+        <b>Pendientes de confirmar antes de usar en producción:</b>
+        <ul>
+          <li>Aida Carrillo (aid4ka@icloud.com) — confirmar que ese correo tenga una Cuenta de Google vinculada; si no, "Iniciar sesión con Google" le va a fallar y necesita un Gmail.</li>
+          <li>Depto SPA no tiene líder asignado todavía — agrégalo en USUARIOS_INICIALES dentro del HTML y usa "Sembrar usuarios" de nuevo.</li>
+        </ul>
+      </div>
+      <p><button id="btnSyncRoster" class="primary">Sincronizar colaboradores desde CSV</button> <span id="syncMsg" class="small"></span></p>
+      <p><button id="btnSeedUsuarios" class="primary">Sembrar usuarios iniciales</button> <span id="seedMsg" class="small"></span></p>
+      <p class="small">"Sincronizar colaboradores" jala el roster (clave, nombre, puesto, departamento, correo) desde el Google Sheet publicado. "Sembrar usuarios" da de alta en el sistema de acceso a los correos definidos en USUARIOS_INICIALES (edítalos en el HTML antes de sembrar, y vuelve a correrlo si agregas a alguien — es seguro repetirlo).</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ======================= CONFIGURACIÓN — edita aquí ======================= */
+
+// 1) Pega aquí la config de tu proyecto Firebase (Firebase console → Configuración del proyecto → tus apps → SDK setup and configuration)
+const firebaseConfig = {
+  apiKey: "TODO",
+  authDomain: "TODO.firebaseapp.com",
+  projectId: "TODO",
+  storageBucket: "TODO.appspot.com",
+  messagingSenderId: "TODO",
+  appId: "TODO"
+};
+
+// 2) CSV publicado del roster de colaboradores (Google Sheets → Archivo → Compartir → Publicar en la web → CSV)
+const ROSTER_CSV_URL = "https://docs.google.com/spreadsheets/d/1Hlutf0UPAb56Yhh1hCyEkkO7KFEzQR6GQrgXsgq9D3c/export?format=csv&gid=2092789761";
+
+// 3) Departamentos internos (coinciden con los bloques del Excel de Incidencias)
+const DEPARTAMENTOS = [
+  {id:'ADMINISTRACION', nombre:'Administración'},
+  {id:'FB',              nombre:'F&B'},
+  {id:'COCINA',           nombre:'Cocina'},
+  {id:'MANTENIMIENTO',    nombre:'Mantenimiento'},
+  {id:'AMA_LLAVES',       nombre:'Ama de Llaves'},
+  {id:'RECEPCION',        nombre:'Recepción'},
+  {id:'SPA',              nombre:'Spa'}
+];
+
+// 4) Cómo se llama cada depto en la columna CODE del CSV del roster -> id interno de arriba
+//    "Seguridad" se agrupa dentro de Mantenimiento (así está en el Excel original — ajusta si no es correcto)
+const DEPT_MAP_CSV = {
+  'Administración':'ADMINISTRACION',
+  'Restaurante':'FB',
+  'Cocina':'COCINA',
+  'Mantenimiento':'MANTENIMIENTO',
+  'Seguridad':'MANTENIMIENTO',
+  'Ama de llaves':'AMA_LLAVES',
+  'Recepción':'RECEPCION',
+  'SPA':'SPA'
+};
+
+// 5) Usuarios con acceso (líderes ven SOLO su depto; admin ve y captura TODO).
+//    Para dar de alta a alguien: agrégalo aquí y corre "Sembrar usuarios" en Configuración.
+//    Para quitarlo: pon activo:false y vuelve a sembrar (o edítalo directo en Firestore).
+const USUARIOS_INICIALES = [
+  {email:'manuel.otazo@casayuma.com',      nombre:'Manuel Otazo',   rol:'admin', departamento:null, activo:true},
+  {email:'gm@casayuma.com',                nombre:'Jorge Guillén',  rol:'admin', departamento:null, activo:true},
+  {email:'administracion@casayuma.com',    nombre:'América Arróniz',rol:'admin', departamento:null, activo:true},
+  {email:'ayb@casayuma.com',               nombre:'José de Jesús Segoviano Farjas', rol:'lider', departamento:'FB', activo:true},
+  {email:'chef@casayuma.com',              nombre:'Lizette Lopez Lopez',            rol:'lider', departamento:'COCINA', activo:true},
+  {email:'egbertcg@gmail.com',             nombre:'Egbert Cruz García',             rol:'lider', departamento:'MANTENIMIENTO', activo:true},
+  {email:'contreraspacheco0112@gmail.com', nombre:'Neri Angelina Contreras Pacheco',rol:'lider', departamento:'AMA_LLAVES', activo:true},
+  {email:'frontdeskmanager@casayuma.com',  nombre:'Aida Carrillo Patiño',           rol:'lider', departamento:'RECEPCION', activo:true}
+  // SPA: sin colaboradores confirmados en el roster por ahora (ver nota en instrucciones-instalacion.md
+  // sobre CY050) — agrega un líder aquí si/cuando haya personal de Spa dado de alta:
+  // {email:'correo@ejemplo.com', nombre:'Nombre', rol:'lider', departamento:'SPA', activo:true}
+];
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+/* ======================= FIN CONFIGURACIÓN ======================= */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;      // {email, nombre, rol, departamento}
+let currentColaboradores = []; // roster completo (colaboradores/*)
+let currentPeriodoId = null;
+let currentPeriodoDoc = null;
+let currentIncidencias = {}; // clave -> doc data (para el periodo/depto cargado)
+
+/* ---------- Auth ---------- */
+document.getElementById('btnLogin').addEventListener('click', ()=>{
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>{
+    document.getElementById('loginMsg').textContent = 'Error: '+e.message;
+  });
+});
+
+auth.onAuthStateChanged(async (user)=>{
+  if(!user){ showLogin(); return; }
+  const email = (user.email||'').toLowerCase();
+  const snap = await db.collection('usuarios').doc(email).get();
+  if(!snap.exists || snap.data().activo === false){
+    document.getElementById('loginMsg').textContent = 'Tu cuenta ('+email+') no tiene acceso a esta herramienta. Pide que te den de alta.';
+    auth.signOut();
+    return;
+  }
+  currentUser = Object.assign({email}, snap.data());
+  document.getElementById('whoBox').textContent = currentUser.nombre+' · '+(currentUser.rol==='admin'?'Acceso total':('Líder — '+deptoNombre(currentUser.departamento)));
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('app').hidden = false;
+  if(currentUser.rol==='admin') document.getElementById('navConfig').hidden = false;
+  await cargarColaboradores();
+  initFiltros();
+  showView('captura');
+});
+
+function showLogin(){
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('app').hidden = true;
+}
+
+/* ---------- Navegación ---------- */
+document.querySelectorAll('nav button[data-view]').forEach(b=>{
+  b.addEventListener('click', ()=>showView(b.dataset.view));
+});
+function showView(v){
+  document.querySelectorAll('nav button[data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  ['captura','historial','config'].forEach(id=>{
+    document.getElementById('view'+cap(id)).hidden = (id!==v);
+  });
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+/* ---------- Utilidades ---------- */
+function deptoNombre(id){ const d=DEPARTAMENTOS.find(x=>x.id===id); return d?d.nombre:id; }
+function n(v){ const x=parseFloat(v); return isFinite(x)?x:0; }
+function money(v){ return (v||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+/* ---------- Parser CSV simple (soporta comillas) ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[]; let field=''; let inQuotes=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQuotes){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else {inQuotes=false;} }
+      else field+=c;
+    } else {
+      if(c==='"') inQuotes=true;
+      else if(c===','){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c==='\r'){ /* skip */ }
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* ---------- Roster ---------- */
+async function cargarColaboradores(){
+  const snap = await db.collection('colaboradores').get();
+  currentColaboradores = snap.docs.map(d=>d.data());
+}
+
+document.getElementById('btnSyncRoster').addEventListener('click', async ()=>{
+  const msg = document.getElementById('syncMsg');
+  msg.textContent = 'Descargando CSV...';
+  try{
+    const res = await fetch(ROSTER_CSV_URL);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    const header = rows[0].map(h=>h.trim().toUpperCase());
+    const idx = {
+      clave: header.findIndex(h=>h.includes('CLAVE')),
+      nombre: header.findIndex(h=>h.includes('NOMBRE')),
+      puesto: header.findIndex(h=>h.includes('PUESTO')),
+      code: header.findIndex(h=>h==='CODE'),
+      correo: header.findIndex(h=>h.includes('CORREO'))
+    };
+    let batch = db.batch(); let count=0; let sinMapear = new Set();
+    for(let i=1;i<rows.length;i++){
+      const r = rows[i]; if(!r || !r[idx.clave]) continue;
+      const clave = r[idx.clave].trim();
+      if(!clave) continue;
+      const codeCsv = (r[idx.code]||'').trim();
+      const depto = DEPT_MAP_CSV[codeCsv] || null;
+      if(codeCsv && !depto) sinMapear.add(codeCsv);
+      const data = {
+        clave, nombre:(r[idx.nombre]||'').trim(), puesto:(r[idx.puesto]||'').trim(),
+        departamento: depto, departamentoCsv: codeCsv,
+        correoPersonal:(r[idx.correo]||'').trim(), activo:true
+      };
+      batch.set(db.collection('colaboradores').doc(clave), data, {merge:true});
+      count++;
+      if(count%400===0){ await batch.commit(); batch = db.batch(); }
+    }
+    await batch.commit();
+    msg.textContent = 'Listo: '+count+' colaboradores sincronizados.'+(sinMapear.size?(' ⚠ Departamentos sin mapear en DEPT_MAP_CSV: '+[...sinMapear].join(', ')):'');
+    await cargarColaboradores();
+  }catch(e){ msg.textContent = 'Error: '+e.message; }
+});
+
+document.getElementById('btnSeedUsuarios').addEventListener('click', async ()=>{
+  const msg = document.getElementById('seedMsg');
+  try{
+    const batch = db.batch();
+    USUARIOS_INICIALES.forEach(u=>{
+      batch.set(db.collection('usuarios').doc(u.email.toLowerCase()), u, {merge:true});
+    });
+    await batch.commit();
+    msg.textContent = 'Listo: '+USUARIOS_INICIALES.length+' usuarios sembrados/actualizados.';
+  }catch(e){ msg.textContent='Error: '+e.message; }
+});
+
+/* ---------- Filtros de periodo/depto ---------- */
+function initFiltros(){
+  const selAnio = document.getElementById('selAnio');
+  const selMes = document.getElementById('selMes');
+  const selDepto = document.getElementById('selDepto');
+  const y = new Date().getFullYear();
+  selAnio.innerHTML = [y-1,y,y+1].map(a=>`<option value="${a}">${a}</option>`).join('');
+  selAnio.value = y;
+  selMes.innerHTML = MESES.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  selMes.value = new Date().getMonth()+1;
+
+  let deptoOptions = DEPARTAMENTOS.map(d=>`<option value="${d.id}">${d.nombre}</option>`).join('');
+  if(currentUser.rol==='admin') deptoOptions = `<option value="TODOS">Todos (resumen)</option>` + deptoOptions;
+  selDepto.innerHTML = deptoOptions;
+  if(currentUser.rol==='lider'){ selDepto.value = currentUser.departamento; selDepto.disabled = true; }
+
+  // Historial: colaboradores visibles según rol
+  const histSel = document.getElementById('histColaborador');
+  const visibles = currentUser.rol==='admin' ? currentColaboradores : currentColaboradores.filter(c=>c.departamento===currentUser.departamento);
+  histSel.innerHTML = visibles.map(c=>`<option value="${c.clave}">${c.nombre} (${c.clave})</option>`).join('');
+}
+
+document.getElementById('btnCargarPeriodo').addEventListener('click', cargarPeriodo);
+
+function periodoId(anio,mes,q){ return anio+'-'+String(mes).padStart(2,'0')+'-'+q; }
+function periodoLabel(anio,mes,q){ return (q==='Q1'?'1Q ':'2Q ')+MESES[mes-1]+' '+anio; }
+
+async function cargarPeriodo(){
+  const anio = +document.getElementById('selAnio').value;
+  const mes = +document.getElementById('selMes').value;
+  const q = document.getElementById('selQ').value;
+  const depto = document.getElementById('selDepto').value;
+  currentPeriodoId = periodoId(anio,mes,q);
+  const msg = document.getElementById('capturaMsg'); msg.textContent='';
+
+  const pSnap = await db.collection('periodos').doc(currentPeriodoId).get();
+  if(!pSnap.exists){
+    currentPeriodoDoc = null;
+    document.getElementById('periodoEstado').textContent = 'Este periodo no existe todavía.';
+    document.getElementById('btnCrearPeriodo').hidden = (currentUser.rol!=='admin');
+    document.getElementById('tablaCaptura').querySelector('tbody').innerHTML='';
+    document.getElementById('tablaCaptura').querySelector('thead').innerHTML='';
+    document.getElementById('btnExportCsv').hidden = true;
+    document.getElementById('btnCerrarPeriodo').hidden = true;
+    return;
+  }
+  currentPeriodoDoc = pSnap.data();
+  document.getElementById('btnCrearPeriodo').hidden = true;
+  document.getElementById('periodoEstado').textContent = periodoLabel(anio,mes,q)+' · '+(currentPeriodoDoc.cerrado?'CERRADO':'abierto')+' · '+currentPeriodoDoc.diasPeriodo+' días';
+  document.getElementById('btnCerrarPeriodo').hidden = !(currentUser.rol==='admin' && !currentPeriodoDoc.cerrado);
+  document.getElementById('btnExportCsv').hidden = false;
+
+  await renderCaptura(depto);
+}
+
+document.getElementById('btnCrearPeriodo').addEventListener('click', async ()=>{
+  const anio = +document.getElementById('selAnio').value;
+  const mes = +document.getElementById('selMes').value;
+  const q = document.getElementById('selQ').value;
+  const dias = prompt('¿Cuántos días tiene este periodo (normalmente 15 o 16)?','15');
+  if(dias===null) return;
+  const doc = {
+    anio, mes, quincena:q, etiqueta: periodoLabel(anio,mes,q),
+    diasPeriodo: n(dias), cerrado:false,
+    creadoPor: currentUser.email, creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await db.collection('periodos').doc(periodoId(anio,mes,q)).set(doc);
+  cargarPeriodo();
+});
+
+document.getElementById('btnCerrarPeriodo').addEventListener('click', async ()=>{
+  if(!confirm('¿Cerrar este periodo? Ya no se podrá editar (útil una vez pagada la nómina).')) return;
+  await db.collection('periodos').doc(currentPeriodoId).update({
+    cerrado:true, cerradoPor: currentUser.email, cerradoEn: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  cargarPeriodo();
+});
+
+document.getElementById('selDepto').addEventListener('change', ()=>{ if(currentPeriodoDoc) cargarPeriodo(); });
+
+/* ---------- Cálculo (idéntico a las fórmulas del Excel) ---------- */
+function calcular(inc, sueldoMensual, diasPeriodo){
+  const diario = sueldoMensual/30;
+  const diasTrabajados = diasPeriodo - (n(inc.faltas)+n(inc.psg)+n(inc.incEgRt)) - n(inc.vac) - n(inc.agui);
+  const sueldo = diario * diasTrabajados;
+  const diaFestivo = diario * 2 * n(inc.df);
+  const descansoTrabajado = diario * 2 * n(inc.dt);
+  const horasExtra = (diario/8) * n(inc.he);
+  const vacaciones = diario * n(inc.vac);
+  const primaVac = vacaciones * 0.25;
+  const primaDom = diario * 0.25 * n(inc.pd);
+  const bono = n(inc.bono);
+  const otrosIngresos = n(inc.otrosIngresos);
+  const aguinaldos = n(inc.aguinaldos);
+  const totalPercepciones = sueldo+diaFestivo+descansoTrabajado+horasExtra+bono+otrosIngresos+vacaciones+primaVac+primaDom+aguinaldos;
+  const abonoPrestamo = n(inc.abonoPrestamo);
+  const otrosDescuentos = n(inc.otrosDescuentos);
+  const totalDeducciones = abonoPrestamo + otrosDescuentos;
+  const totalNeto = totalPercepciones - totalDeducciones;
+  return {diasTrabajados, sueldo, diaFestivo, descansoTrabajado, horasExtra, vacaciones, primaVac, primaDom, totalPercepciones, totalDeducciones, totalNeto};
+}
+
+const CAMPOS_EDITABLES = [
+  ['faltas','Faltas'],['psg','PSG'],['incEgRt','INC EG/RT'],['df','DF'],['dt','DT'],['he','HE'],
+  ['vac','VAC'],['pd','PD'],['agui','AGUI'],['bono','Bono'],['otrosIngresos','Otros ing.'],
+  ['aguinaldos','Aguinaldo'],['abonoPrestamo','Abono préstamo'],['otrosDescuentos','Otros desc.'],
+  ['prestamoNuevo','Préstamo nuevo'],['observaciones','Observaciones']
+];
+const CAMPOS_CALC = [
+  ['diasTrabajados','Días trab.'],['sueldo','Sueldo'],['diaFestivo','D.Festivo'],['descansoTrabajado','Desc.Trab'],
+  ['horasExtra','H.Extra'],['vacaciones','Vacaciones'],['primaVac','P.Vac'],['primaDom','P.Dom'],
+  ['totalPercepciones','TOTAL PERCEP.'],['totalDeducciones','TOTAL DEDUC.'],['totalNeto','TOTAL NETO']
+];
+
+/* ---------- Render tabla de captura ---------- */
+async function renderCaptura(deptoSel){
+  const tabla = document.getElementById('tablaCaptura');
+  const thead = tabla.querySelector('thead'); const tbody = tabla.querySelector('tbody'); const tfoot = tabla.querySelector('tfoot');
+  const soloLectura = currentPeriodoDoc.cerrado || deptoSel==='TODOS';
+
+  let cols = ['Clave','Nombre','Sueldo mensual'].concat(CAMPOS_EDITABLES.map(c=>c[1])).concat(CAMPOS_CALC.map(c=>c[1])).concat(['Estado','']);
+  thead.innerHTML = '<tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+
+  let lista = currentColaboradores.filter(c=>c.activo!==false);
+  if(deptoSel!=='TODOS') lista = lista.filter(c=>c.departamento===deptoSel);
+  lista.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+
+  // cargar incidencias existentes del periodo para este set de colaboradores
+  currentIncidencias = {};
+  const incSnap = await db.collection('periodos').doc(currentPeriodoId).collection('incidencias').get();
+  incSnap.forEach(d=>{ currentIncidencias[d.id]=d.data(); });
+
+  tbody.innerHTML='';
+  let totales = {}; CAMPOS_CALC.forEach(c=>totales[c[0]]=0);
+
+  lista.forEach(col=>{
+    const inc = currentIncidencias[col.clave] || {estado:null};
+    const calc = calcular(inc, n(col.sueldoMensual), currentPeriodoDoc.diasPeriodo);
+    CAMPOS_CALC.forEach(c=>totales[c[0]] += calc[c[0]]);
+
+    const puedeEditar = !soloLectura && (currentUser.rol==='admin' || (currentUser.rol==='lider' && inc.estado!=='verificado'));
+    const tr = document.createElement('tr');
+    tr.dataset.clave = col.clave;
+
+    let tds = `<td>${col.clave}</td><td class="name">${col.nombre}</td><td class="calc">${money(col.sueldoMensual)}</td>`;
+    CAMPOS_EDITABLES.forEach(([key])=>{
+      const val = inc[key]!=null ? inc[key] : (key==='observaciones'?'':0);
+      if(key==='observaciones'){
+        tds += `<td><input type="text" data-f="${key}" value="${(val+'').replace(/"/g,'&quot;')}" style="width:120px" ${puedeEditar?'':'disabled'}></td>`;
+      } else {
+        tds += `<td><input type="number" step="0.5" data-f="${key}" value="${val}" ${puedeEditar?'':'disabled'}></td>`;
+      }
+    });
+    CAMPOS_CALC.forEach(([key])=>{
+      tds += `<td class="calc" data-calc="${key}">${money(calc[key])}</td>`;
+    });
+    tds += `<td>${inc.estado?`<span class="badge ${inc.estado}">${inc.estado}</span>`:'<span class="small">sin capturar</span>'}</td>`;
+
+    let acciones = '';
+    if(puedeEditar) acciones += `<button data-accion="guardar">Guardar</button> `;
+    if(currentUser.rol==='admin' && inc.estado==='capturado') acciones += `<button data-accion="verificar">Verificar</button> `;
+    if(currentUser.rol==='admin' && (inc.estado==='capturado'||inc.estado==='verificado')) acciones += `<button data-accion="regresar">Regresar</button>`;
+    tds += `<td>${acciones}</td>`;
+
+    tr.innerHTML = tds;
+    tbody.appendChild(tr);
+  });
+
+  // fila de totales
+  let ftds = `<td colspan="${3+CAMPOS_EDITABLES.length}">TOTALES</td>`;
+  CAMPOS_CALC.forEach(([key])=>{ ftds += `<td>${money(totales[key])}</td>`; });
+  ftds += `<td colspan="2"></td>`;
+  tfoot.innerHTML = `<tr class="total">${ftds}</tr>`;
+
+  // recálculo en vivo al escribir
+  tbody.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const tr = inp.closest('tr'); const clave = tr.dataset.clave;
+      const col = lista.find(c=>c.clave===clave);
+      const draft = {};
+      tr.querySelectorAll('input[data-f]').forEach(i=>{ draft[i.dataset.f] = i.type==='number'? n(i.value) : i.value; });
+      const c = calcular(draft, n(col.sueldoMensual), currentPeriodoDoc.diasPeriodo);
+      CAMPOS_CALC.forEach(([key])=>{ tr.querySelector(`[data-calc="${key}"]`).textContent = money(c[key]); });
+    });
+  });
+
+  tbody.querySelectorAll('button[data-accion]').forEach(btn=>{
+    btn.addEventListener('click', ()=>onAccionFila(btn, lista));
+  });
+}
+
+async function onAccionFila(btn, lista){
+  const tr = btn.closest('tr'); const clave = tr.dataset.clave;
+  const col = lista.find(c=>c.clave===clave);
+  const accion = btn.dataset.accion;
+  const ref = db.collection('periodos').doc(currentPeriodoId).collection('incidencias').doc(clave);
+  const msg = document.getElementById('capturaMsg');
+
+  try{
+    if(accion==='guardar'){
+      const draft = {};
+      tr.querySelectorAll('input[data-f]').forEach(i=>{ draft[i.dataset.f] = i.type==='number'? n(i.value) : i.value; });
+      draft.departamento = col.departamento;
+      draft.colaboradorSnapshot = {nombre:col.nombre, puesto:col.puesto, sueldoMensual:n(col.sueldoMensual)};
+      draft.estado = 'capturado';
+      draft.actualizadoPor = currentUser.email;
+      draft.actualizadoEn = firebase.firestore.FieldValue.serverTimestamp();
+      const batch = db.batch();
+      batch.set(ref, draft, {merge:true});
+      batch.set(ref.collection('historial').doc(), {
+        accion:'captura', actor: currentUser.email, departamento: col.departamento,
+        fecha: firebase.firestore.FieldValue.serverTimestamp(), snapshot: draft
+      });
+      await batch.commit();
+    }
+    if(accion==='verificar'){
+      const batch = db.batch();
+      batch.update(ref, {estado:'verificado', verificadoPor: currentUser.email, verificadoEn: firebase.firestore.FieldValue.serverTimestamp()});
+      batch.set(ref.collection('historial').doc(), {
+        accion:'verificacion', actor: currentUser.email, departamento: col.departamento,
+        fecha: firebase.firestore.FieldValue.serverTimestamp(), snapshot:{estado:'verificado'}
+      });
+      await batch.commit();
+    }
+    if(accion==='regresar'){
+      const nota = prompt('¿Por qué regresa este registro a captura? (se guarda en el historial)','');
+      if(nota===null) return;
+      const batch = db.batch();
+      batch.update(ref, {estado:'capturado', notaCorreccion: nota});
+      batch.set(ref.collection('historial').doc(), {
+        accion:'regreso_a_correccion', actor: currentUser.email, departamento: col.departamento,
+        fecha: firebase.firestore.FieldValue.serverTimestamp(), snapshot:{nota}
+      });
+      await batch.commit();
+    }
+    const deptoSel = document.getElementById('selDepto').value;
+    await renderCaptura(deptoSel);
+  }catch(e){
+    msg.textContent = 'Error al guardar: '+e.message;
+  }
+}
+
+/* ---------- Exportar CSV ---------- */
+document.getElementById('btnExportCsv').addEventListener('click', ()=>{
+  const tabla = document.getElementById('tablaCaptura');
+  const rows = [...tabla.querySelectorAll('tr')].map(tr=>
+    [...tr.children].map(td=>{
+      const inp = td.querySelector('input');
+      const val = inp ? inp.value : td.textContent.trim();
+      return '"'+String(val).replace(/"/g,'""')+'"';
+    }).join(',')
+  );
+  const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'incidencias_'+currentPeriodoId+'.csv';
+  a.click();
+});
+
+/* ---------- Historial ---------- */
+document.getElementById('btnVerHistorial').addEventListener('click', async ()=>{
+  const clave = document.getElementById('histColaborador').value;
+  const periodoSel = document.getElementById('histPeriodo').value; // opcional, texto libre AAAA-MM-Q1
+  const cont = document.getElementById('histResultados');
+  cont.innerHTML = 'Buscando...';
+  try{
+    let entries = [];
+    if(periodoSel){
+      const snap = await db.collection('periodos').doc(periodoSel).collection('incidencias').doc(clave).collection('historial').orderBy('fecha','desc').get();
+      snap.forEach(d=>entries.push(Object.assign({periodo:periodoSel}, d.data())));
+    } else {
+      cont.innerHTML = '<p class="small">Escribe un periodo (formato AAAA-MM-Q1, ej. 2026-09-Q1) en el campo de arriba para ver su historial.</p>';
+      return;
+    }
+    if(!entries.length){ cont.innerHTML = '<p class="small">Sin historial para ese colaborador/periodo.</p>'; return; }
+    cont.innerHTML = entries.map(e=>{
+      const fecha = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleString('es-MX') : '';
+      return `<div class="hist-entry"><b>${e.accion}</b> · ${e.actor} · ${fecha}<br><span class="small">${JSON.stringify(e.snapshot||{})}</span></div>`;
+    }).join('');
+  }catch(e){ cont.innerHTML = '<p class="msg">Error: '+e.message+'</p>'; }
+});
+// convertir el <select> de periodo en texto libre simple
+document.getElementById('histPeriodo').outerHTML = '<input type="text" id="histPeriodo" placeholder="AAAA-MM-Q1">';
+
+</script>
+</body>
+</html>
