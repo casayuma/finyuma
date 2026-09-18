@@ -146,14 +146,19 @@ const MODULES=[
   {id:'horarios', tag:'Operación diaria', title:'Horarios Universal', stripe:'bit',
    desc:'Horarios, bitácora de turnos y ocupación del hotel en vivo.',
    href:'https://script.google.com/macros/s/AKfycbxDa9t3s3EtCfg4hdhEWAz7r3PbCQcMznQBlP6wD_EkVz4zrN_-utGZQb77YIX2Ye_j/exec', levels:['superfull','full','lider']},
+  {id:'incidencias', tag:'Nómina', title:'Incidencias', stripe:'inc',
+   desc:'Registro mensual de incidencias de nómina por colaborador (faltas, permisos, horas extra…).',
+   // Tiene su propio login (Google Sign-In / Firebase), separado del PIN de Finanzas — igual que
+   // Auditoría. Este nivel/deptosExtra solo controla si la tarjeta se ve habilitada aquí; el acceso
+   // real lo valida incidencias-casayuma.html contra su propia lista de usuarios (USUARIOS_INICIALES).
+   href:'incidencias-casayuma.html', levels:['superfull','full'],
+   deptosExtra:['Restaurante','Cocina','Mantenimiento','Ama de llaves','Recepción']},
 ];
 
 // ————— Módulos anunciados pero aún sin HTML/backend — se configuran más adelante —————
 const PENDING_MODULES=[
   {id:'calendario', tag:'Reservas · Eventos', title:'Calendario', stripe:'cal',
    desc:'Calendario compartido de reservas, eventos y fechas clave de Casa Yuma.'},
-  {id:'incidencias', tag:'Nómina', title:'Incidencias', stripe:'inc',
-   desc:'Registro mensual de incidencias de nómina por colaborador (faltas, permisos, horas extra…).'},
 ];
 
 let SESSION=null,PENDING=null;
