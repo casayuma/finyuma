@@ -145,9 +145,11 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .p-pend{background:#f2e6cf;color:var(--warn)}
 .p-aprob{background:#dce7ea;color:var(--blue)}
 .p-comprada{background:#e6d9ec;color:var(--purple)}
+.p-encamino{background:#dce7ea;color:var(--blue)}
 .p-recibida{background:#e0efe0;color:var(--ok)}
 .p-rech{background:#f2d6dc;color:var(--bad)}
 .p-horario{background:#f2d6dc;color:var(--bad)}
+.pedido-cl-id{font-weight:700;font-size:12.5px;color:var(--cactus);letter-spacing:.02em}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap}
 .mini-btn{border:none;padding:6px 11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border-radius:2px;color:#fff}
 .mini-btn.ok{background:var(--ok)}
@@ -235,15 +237,14 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
   PAGOS_URL:'pagos.html',
-  USERS:[
-    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
-    {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
-    {id:'CY039',n:'Jesus Israel Castillo Hernández'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
+  USERS:[ // picker de nombres en el login — no da acceso por sí solo, solo precarga el ID (ver Usuarios en el Sheet)
+    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
     {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
+    {id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},{id:'CY005',n:'Horacio Muñoz Martínez'},
     {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
-    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY025',n:'Egbert Cruz García'},
-    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},
-    {id:'CY005',n:'Horacio Muñoz Martínez'},
+    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY018',n:'Plácido Maurilio García Pérez'},
+    {id:'CY019',n:'Miriam Lopez Sanchez'},{id:'CY025',n:'Egbert Cruz García'},
+    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY031',n:'Margarita Díaz Canseco'},
   ],
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
@@ -1150,11 +1151,23 @@ async function actualizarBadgeComprasLinea(){
     const j=await apiGet({accion:'compras_linea_list',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok){ btn.textContent=base; return; }
     const filas=j.filas||[];
+    // Superfull: pendientes por comprar. El resto: lo que ya está en camino y solo falta recibir.
     const n = esSuperfull()
       ? filas.filter(r=>r[12]==='Pendiente').length
-      : filas.filter(r=>r[12]==='Comprada').length;
+      : filas.filter(r=>r[12]==='En camino').length;
     btn.innerHTML = n>0 ? (base+' <span class="tab-badge">'+n+'</span>') : base;
   }catch(e){ btn.textContent=base; }
+}
+// Da formato a FechaSolicitud ('yyyy-MM-dd HH:mm', o solo 'yyyy-MM-dd' en renglones viejos
+// sin hora) para mostrar fecha DD,MM,AAAA y hora HH:MM por separado, más notorio en la lista.
+function formatFechaHoraCL(valor){
+  const s=String(valor||'');
+  const partes=s.split(' ');
+  const f=partes[0]||'';
+  const [y,m,d]=f.split('-');
+  const fecha=(d&&m&&y) ? `${d},${m},${y}` : f;
+  const hora=partes[1]||'–';
+  return {fecha, hora};
 }
 function renderCompraLinea(){
   const deptoOpts = esLiderNormal()
@@ -1181,7 +1194,7 @@ function renderCompraLinea(){
         <div id="clMsg"></div>
       </div>
       <div class="cart-box">
-        <h3>${esSuperfull() ? 'Por comprar' : 'Mis solicitudes'}</h3>
+        <h3>${(esAprobador()||esLiderCompras()) ? 'Todas las solicitudes' : 'Mis solicitudes'}</h3>
         <div id="compraslineaListaBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div>
       </div>
     </div>`;
@@ -1226,23 +1239,28 @@ async function cargarComprasLinea(){
   }catch(e){ el.innerHTML=`<div class="errbox">${e.message}</div>`; }
 }
 function renderItemCompraLinea(r){
-  const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado]=r;
-  const pillClass = estatus==='Entregada' ? 'p-recibida' : (estatus==='Comprada' ? 'p-comprada' : 'p-pend');
+  const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado,fechaEnCamino,fechaEstimadaLlegada]=r;
+  const pillClass = estatus==='Entregada' ? 'p-recibida' : (estatus==='En camino' ? 'p-encamino' : (estatus==='Comprada' ? 'p-comprada' : 'p-pend'));
+  const {fecha:fechaFmt,hora:horaFmt} = formatFechaHoraCL(fecha);
   let acciones='';
   if(esSuperfull() && estatus==='Pendiente'){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button>`;
-  } else if(estatus==='Comprada' && (puedeRecibirDepto(depto))){
+  } else if(esSuperfull() && estatus==='Comprada'){
+    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEnCamino('${id}')">Marcar en camino</button>`;
+  } else if(estatus==='En camino' && (puedeRecibirDepto(depto))){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEntregada('${id}')">Marcar entregada</button>`;
   }
   return `<div class="cart-item" style="flex-direction:column;align-items:flex-start;gap:4px">
-    <div style="display:flex;justify-content:space-between;width:100%;gap:8px">
-      <strong>${escapeHtml(descripcion)}</strong>
+    <div style="display:flex;justify-content:space-between;width:100%;gap:8px;align-items:baseline">
+      <span class="pedido-cl-id">Pedido ${escapeHtml(String(id))}</span>
       <span class="pill ${pillClass}">${estatus}</span>
     </div>
-    <div style="font-size:11.5px;color:var(--cactus)">${escapeHtml(solNombre)} · ${escapeHtml(depto)} · ${fecha} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}</div>
+    <strong>${escapeHtml(descripcion)}</strong>
+    <div style="font-size:11.5px;color:var(--cactus)">${escapeHtml(solNombre)} · ${escapeHtml(depto)} · ${fechaFmt} · ${horaFmt} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}</div>
     <a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:11.5px;word-break:break-all">${escapeHtml(link)}</a>
     ${notas?`<div style="font-size:11px;color:var(--cactus)">${escapeHtml(notas)}</div>`:''}
     ${notaCompra?`<div style="font-size:11px;color:var(--cactus)">Nota de compra: ${escapeHtml(notaCompra)}</div>`:''}
+    ${fechaEstimadaLlegada?`<div style="font-size:11px;color:var(--blue)">Llegada estimada: ${escapeHtml(fechaEstimadaLlegada)}</div>`:''}
     ${acciones}
   </div>`;
 }
@@ -1250,6 +1268,15 @@ async function marcarCompraLineaComprada(idCompra){
   const notaCompra=prompt('¿Alguna nota de la compra? (opcional: número de guía, confirmación, etc.)')||'';
   try{
     const j=await apiPost({accion:'compras_linea_actualizar',id:SESSION.id,pin:SESSION.pin,idCompra,notaCompra});
+    if(!j.ok){ alert(j.error); return; }
+    cargarComprasLinea();
+    actualizarBadgeComprasLinea();
+  }catch(e){ alert('No se pudo procesar.'); }
+}
+async function marcarCompraLineaEnCamino(idCompra){
+  const fechaEstimadaLlegada=prompt('¿Fecha estimada de llegada? (AAAA-MM-DD, opcional)')||'';
+  try{
+    const j=await apiPost({accion:'compras_linea_marcar_en_camino',id:SESSION.id,pin:SESSION.pin,idCompra,fechaEstimadaLlegada});
     if(!j.ok){ alert(j.error); return; }
     cargarComprasLinea();
     actualizarBadgeComprasLinea();
@@ -1385,16 +1412,24 @@ async function cargarGasto(){
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   document.getElementById('gastoBody').dataset.loaded='1';
   try{
-    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta});
+    const [j,jcl]=await Promise.all([
+      apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta}),
+      apiGet({accion:'compras_linea_list',id:SESSION.id,pin:SESSION.pin,desde,hasta})
+    ]);
     if(!j.ok)throw new Error(j.error);
     const filas=(j.filas||[]).filter(r=>['Aprobado','Comprada','Recibida'].indexOf(r[16])!==-1);
-    if(verTodosDeptos()) renderGastoFull(el,filas,mes);
-    else renderGastoLider(el,filas,mes);
+    // Compras en línea ya comprometidas (Comprada/En camino/Entregada) cuentan como gasto del depto,
+    // aunque no pasen por Requisiciones — mismo criterio de "ya no es reversible" que Aprobado/Comprada/Recibida.
+    const filasCL = jcl.ok ? (jcl.filas||[]).filter(r=>['Comprada','En camino','Entregada'].indexOf(r[12])!==-1) : [];
+    if(verTodosDeptos()) renderGastoFull(el,filas,filasCL,mes);
+    else renderGastoLider(el,filas,filasCL,mes);
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
 }
-function renderGastoFull(el,filas,mes){
+function renderGastoFull(el,filas,filasCL,mes){
   const totales={}; DEPARTAMENTOS.forEach(d=>totales[d.nombre]=0);
   filas.forEach(r=>{ const d=r[5]; if(totales[d]==null)totales[d]=0; totales[d]+=num(r[11]); });
+  filasCL.forEach(r=>{ const d=r[4]; if(totales[d]==null)totales[d]=0; totales[d]+=num(r[7])*num(r[8]); });
+  const totalCL=filasCL.reduce((s,r)=>s+num(r[7])*num(r[8]),0);
   const max=Math.max(1,...Object.values(totales));
   const total=Object.values(totales).reduce((a,b)=>a+b,0);
   const barH=24, gap=14, chartW=560;
@@ -1411,7 +1446,10 @@ function renderGastoFull(el,filas,mes){
   }).join('');
   const svgH=DEPARTAMENTOS.length*(barH+gap);
   el.innerHTML=`
-    <div class="kpis"><div class="kpi"><div class="k-lbl">Gasto total del mes</div><div class="k-val">$${money(total)}</div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-lbl">Gasto total del mes</div><div class="k-val">$${money(total)}</div></div>
+      <div class="kpi"><div class="k-lbl">Incl. compras en línea</div><div class="k-val" style="font-size:17px">$${money(totalCL)}</div></div>
+    </div>
     <div class="chart-wrap viz-root">
       <svg width="100%" viewBox="0 0 ${chartW+140} ${svgH+30}" style="max-width:760px" role="img" aria-label="Gasto por departamento, ${mes}">
         <g transform="translate(120,10)">${filasSvg}</g>
@@ -1420,18 +1458,20 @@ function renderGastoFull(el,filas,mes){
     <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Departamento</th><th>Gasto del mes</th></tr></thead><tbody>
       ${DEPARTAMENTOS.map(d=>`<tr><td><span class="dept-dot" style="background:${d.color}"></span>${d.nombre}</td><td class="num">$${money(totales[d.nombre]||0)}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos (no cuenta pendientes ni rechazados).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de Requisiciones, más Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
 }
-function renderGastoLider(el,filas,mes){
+function renderGastoLider(el,filas,filasCL,mes){
   const total=filas.reduce((s,r)=>s+num(r[11]),0);
+  const totalCL=filasCL.reduce((s,r)=>s+num(r[7])*num(r[8]),0);
   const porEstatus={};
   filas.forEach(r=>{ porEstatus[r[16]]=(porEstatus[r[16]]||0)+num(r[11]); });
   el.innerHTML=`
     <div class="kpis">
-      <div class="kpi"><div class="k-lbl">Gasto de ${SESSION.departamento} este mes</div><div class="k-val">$${money(total)}</div></div>
+      <div class="kpi"><div class="k-lbl">Gasto de ${SESSION.departamento} este mes</div><div class="k-val">$${money(total+totalCL)}</div></div>
       ${Object.keys(porEstatus).map(k=>`<div class="kpi"><div class="k-lbl">${k}</div><div class="k-val" style="font-size:17px">$${money(porEstatus[k])}</div></div>`).join('')}
+      ${totalCL>0?`<div class="kpi"><div class="k-lbl">Compras en línea</div><div class="k-val" style="font-size:17px">$${money(totalCL)}</div></div>`:''}
     </div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento (no cuenta pendientes ni rechazados).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento, más tus Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
 }
 
 // ————— Catálogo (administración — Superfull / Líder Compras) —————

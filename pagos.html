@@ -142,12 +142,15 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 
 <script>
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec', // misma Web App que usa index.html y requisiciones.html
-  USERS:[
-    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
-    {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
-    {id:'CY039',n:'Jesus Israel Castillo Hernández'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
+  USERS:[ // picker de nombres en el login — no da acceso por sí solo, solo precarga el ID (ver Usuarios en el Sheet)
+    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
     {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
+    {id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},{id:'CY005',n:'Horacio Muñoz Martínez'},
+    {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
+    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY018',n:'Plácido Maurilio García Pérez'},
+    {id:'CY019',n:'Miriam Lopez Sanchez'},{id:'CY025',n:'Egbert Cruz García'},
+    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY031',n:'Margarita Díaz Canseco'},
   ],
 };
 const CATEGORIAS=['Alimentos y Bebidas','Mantenimiento','Amenities e Insumos','Servicios (luz/agua/internet)','Honorarios y Nómina externa','Marketing','Eventos','Construcción / Obra','Otros'];
@@ -155,6 +158,14 @@ const FORMAS_PAGO=['Transferencia','Cheque','Efectivo','Tarjeta'];
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 let SESSION=null,PENDING=null;
+const NIVELES_VALIDOS=['superfull','full','lider'];
+function esSuperfull(){ return SESSION && SESSION.nivel==='superfull'; }
+function esAprobador(){ return SESSION && (SESSION.nivel==='full' || SESSION.nivel==='superfull'); }
+function rolLabel(){
+  if(esSuperfull())return 'Superfull';
+  if(SESSION.nivel==='full')return 'Full';
+  return 'Líder'+(SESSION.rolEspecial==='compras'?' Compras':'');
+}
 
 (function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
 
@@ -169,8 +180,9 @@ async function apiPost(body){const res=await fetch(CONFIG.WEBAPP_URL,{method:'PO
     const s=JSON.parse(raw);
     const j=await apiGet({accion:'entrar',id:s.id,pin:s.pin});
     if(j.ok){
-      if((j.nivel||s.nivel)!=='full'){return;} // este módulo exige nivel full aunque la sesión sea válida
-      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:j.nivel||s.nivel};
+      const nivel=j.nivel||s.nivel;
+      if(NIVELES_VALIDOS.indexOf(nivel)===-1){return;}
+      SESSION={id:s.id,pin:s.pin,nombre:j.nombre||s.nombre,nivel:nivel,rolEspecial:j.rolEspecial||s.rolEspecial||''};
       entrarApp();
     }
   }catch(e){/* si falla, se queda en el gate normal */}
@@ -183,7 +195,7 @@ async function identificar(){
   try{
     const j=await apiGet({accion:'login',id:id});
     if(!j.ok){info.textContent='';err.textContent=j.error;return;}
-    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,tienePin:j.tienePin};info.textContent='';
+    PENDING={id:j.id,nombre:j.nombre,nivel:j.nivel,rolEspecial:j.rolEspecial,tienePin:j.tienePin};info.textContent='';
     document.getElementById('step1').classList.add('hidden');document.getElementById('step2').classList.remove('hidden');
     if(j.tienePin){document.getElementById('pinLabel').textContent='Tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.add('hidden');document.getElementById('pinBtn').textContent='Entrar';}
     else{document.getElementById('pinLabel').textContent='Crea tu PIN · '+j.nombre.split(' ')[0];document.getElementById('pinInput2wrap').classList.remove('hidden');document.getElementById('pinBtn').textContent='Crear PIN y entrar';info.textContent='Primera vez: define un PIN de 4 a 6 dígitos.';}
@@ -200,8 +212,8 @@ async function pinSubmit(){
     else{const pin2=document.getElementById('pinInput2').value.trim();if(pin!==pin2){err.textContent='Los PIN no coinciden.';return;}j=await apiPost({accion:'crearPin',id:PENDING.id,pin:pin});}
     if(!j.ok){err.textContent=j.error;return;}
     const nivel=j.nivel||PENDING.nivel;
-    if(nivel!=='full'){err.textContent='Este módulo requiere nivel de acceso "full".';return;}
-    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel};entrarApp();
+    if(NIVELES_VALIDOS.indexOf(nivel)===-1){err.textContent='Tu usuario no tiene acceso a Pagos.';return;}
+    SESSION={id:PENDING.id,pin:pin,nombre:j.nombre||PENDING.nombre,nivel:nivel,rolEspecial:j.rolEspecial||PENDING.rolEspecial||''};entrarApp();
   }catch(e){err.textContent='No se pudo conectar.';}
 }
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')pinSubmit();});
@@ -211,11 +223,20 @@ document.getElementById('userId').addEventListener('keydown',e=>{if(e.key==='Ent
 function entrarApp(){
   document.getElementById('gate').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+SESSION.nivel.toUpperCase();
+  document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+rolLabel();
   try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
   document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>switchView(b.dataset.view,b));
+  if(!esAprobador()){
+    // Un líder solo captura y ve sus propias solicitudes — sin Pendientes ni administrar Proveedores.
+    const btnPend=document.querySelector('nav.tabs button[data-view="pendientes"]');
+    const btnProv=document.querySelector('nav.tabs button[data-view="proveedores"]');
+    if(btnPend)btnPend.classList.add('hidden');
+    if(btnProv)btnProv.classList.add('hidden');
+    const btnHist=document.querySelector('nav.tabs button[data-view="historial"]');
+    if(btnHist)btnHist.textContent='Mis solicitudes';
+  }
   renderNueva();
-  cargarPendientes();
+  if(esAprobador())cargarPendientes();
   cargarProveedores();
   applyPrefillFromURL();
 }
@@ -277,9 +298,9 @@ async function crearPago(){
   try{
     const j=await apiPost(body);
     if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}
-    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id||''} creada. Aparecerá en "Pendientes".</div>`;
+    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id||''} creada. Aparecerá en ${esAprobador()?'"Pendientes"':'"Mis solicitudes"'}.</div>`;
     renderNueva();
-    cargarPendientes();
+    if(esAprobador())cargarPendientes();
   }catch(e){msg.innerHTML='<div class="errbox">No se pudo enviar.</div>';}
 }
 
@@ -350,7 +371,7 @@ async function cargarHistorial(){
 function rowHistorial(r){
   const [id,fechaSol,solId,solNombre,proveedor,categoria,concepto,monto,moneda,forma,fechaReq,factura,liga,urgencia,estatus,aprobadoPor,fechaAprob,motivoRech,fechaPago,refPago]=r;
   const pillClass=ESTATUS_PILL[estatus]||'p-pend';
-  const accionCol = estatus==='Aprobado' ? `<button class="mini-btn info no-pdf" onclick="marcarPagado('${id}')">Marcar pagado</button>` : (fechaPago?`${fechaPago}${refPago?' · '+refPago:''}`:'–');
+  const accionCol = (esAprobador() && estatus==='Aprobado') ? `<button class="mini-btn info no-pdf" onclick="marcarPagado('${id}')">Marcar pagado</button>` : (fechaPago?`${fechaPago}${refPago?' · '+refPago:''}`:'–');
   return `<tr>
     <td>${id}</td><td>${fechaSol||'–'}</td><td>${proveedor}</td><td>${categoria}</td><td>${concepto}</td>
     <td class="num">$${money(monto)}</td><td>${forma}</td>
@@ -399,13 +420,14 @@ function pdfHistorial(){
 // ————— Proveedores —————
 async function cargarProveedores(){
   const el=document.getElementById('proveedoresBody');
-  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  if(esAprobador())el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'proveedores_list',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
     PROVEEDORES_CACHE=j.filas||[];
     const dl=document.getElementById('pProveedorList');
     if(dl)dl.innerHTML=PROVEEDORES_CACHE.map(p=>`<option value="${p[1]}">`).join('');
+    if(!esAprobador())return; // el líder solo necesita el datalist de arriba, no administra proveedores
     el.innerHTML=`
       <div class="section-eyebrow">Nuevo proveedor</div>
       <div class="cap-form" style="margin-bottom:30px">
