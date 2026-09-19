@@ -131,12 +131,12 @@ tr.total td{font-weight:bold;background:var(--wool)}
 
 // 1) Pega aquí la config de tu proyecto Firebase (Firebase console → Configuración del proyecto → tus apps → SDK setup and configuration)
 const firebaseConfig = {
-  apiKey: "AIzaSyBTkP-xzi4CVt9Lnbvnh_oyCjkLAYsWT3E",
-  authDomain: "incidencias-b8b3a.firebaseapp.com",
-  projectId: "incidencias-b8b3a",
-  storageBucket: "incidencias-b8b3a.firebasestorage.app",
-  messagingSenderId: "830196094978",
-  appId: "1:830196094978:web:20ce50aff93256e6302f1b"
+  apiKey: "TODO",
+  authDomain: "TODO.firebaseapp.com",
+  projectId: "TODO",
+  storageBucket: "TODO.appspot.com",
+  messagingSenderId: "TODO",
+  appId: "TODO"
 };
 
 // 2) CSV publicado del roster de colaboradores (Google Sheets → Archivo → Compartir → Publicar en la web → CSV)
@@ -198,11 +198,19 @@ let currentPeriodoDoc = null;
 let currentIncidencias = {}; // clave -> doc data (para el periodo/depto cargado)
 
 /* ---------- Auth ---------- */
-document.getElementById('btnLogin').addEventListener('click', ()=>{
+// Se usa redirección de página completa (no popup): más confiable en compus
+// de hotel donde a veces hay bloqueadores de pop-ups o extensiones raras.
+document.getElementById('btnLogin').addEventListener('click', (ev)=>{
+  ev.target.disabled = true;
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e=>{
+  auth.signInWithRedirect(provider).catch(e=>{
     document.getElementById('loginMsg').textContent = 'Error: '+e.message;
+    ev.target.disabled = false;
   });
+});
+
+auth.getRedirectResult().catch(e=>{
+  document.getElementById('loginMsg').textContent = 'Error al volver de Google: '+e.message;
 });
 
 auth.onAuthStateChanged(async (user)=>{
