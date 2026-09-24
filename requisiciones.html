@@ -127,6 +127,9 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .cart-item .ci-meta{color:var(--cactus);font-size:11px}
 .cart-item .ci-amt{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cart-item .ci-x{background:none;border:none;color:var(--bad);font-size:11px;text-transform:uppercase;padding:0;margin-top:4px}
+.cart-item .ci-extra{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+@media(max-width:560px){.cart-item .ci-extra{grid-template-columns:1fr}}
+.item-det{font-size:10.5px;color:var(--cactus);margin-top:2px;white-space:normal}
 .cart-total{display:flex;justify-content:space-between;padding-top:14px;font-size:16px;font-weight:600}
 .window-note{font-size:11.5px;padding:10px 12px;border-radius:2px;margin-top:14px}
 .window-ok{background:#e0efe0;color:var(--ok);border:1px solid var(--ok)}
@@ -454,8 +457,8 @@ function renderNueva(){
           <div class="fld"><label>Departamento</label><select id="rDepto" ${deptoDisabled} onchange="renderCarrito();actualizarCatTabs()">${deptoOpts}</select></div>
           <div class="fld"><label>Urgencia</label><select id="rUrgencia">${URGENCIAS.map(u=>`<option>${u}</option>`).join('')}</select></div>
           <div class="fld"><label>Fecha requerida</label><input id="rFecha" type="date" value="${hoy}"></div>
-          <div class="fld"><label>Proveedor sugerido (opcional)</label><input id="rProveedor" placeholder="Si no sabes, déjalo vacío — Compras busca uno"></div>
         </div>
+        <div class="note" style="margin:-6px 0 14px">Comentario y proveedor sugerido se capturan por artículo en la "Lista del pedido" (ambos opcionales).</div>
 
         <div id="catTabsWrap" class="cat-tabs-wrap hidden">
           <div class="section-eyebrow" style="margin-top:6px">Categorías</div>
@@ -515,7 +518,7 @@ function yaEnCarrito(catalogoId, articulo){
 function agregarItemCarrito({articulo, catalogoId, cantidad, unidad, precioUnitario}){
   if(!articulo || !cantidad) return false;
   if(yaEnCarrito(catalogoId, articulo)) return false;
-  CARRITO.push({articulo, catalogoId:catalogoId||'', cantidad, unidad:unidad||'', precioUnitario:precioUnitario||0, subtotal:Math.round(cantidad*(precioUnitario||0)*100)/100});
+  CARRITO.push({articulo, catalogoId:catalogoId||'', cantidad, unidad:unidad||'', precioUnitario:precioUnitario||0, subtotal:Math.round(cantidad*(precioUnitario||0)*100)/100, comentario:'', proveedor:''});
   return true;
 }
 // ————— Pestañas de categoría (Cocina) —————
@@ -695,9 +698,13 @@ function renderCarrito(){
   if(!CARRITO.length){ cont.innerHTML='<div class="cart-empty">Todavía no agregas artículos.</div>'; }
   else {
     cont.innerHTML=CARRITO.map((it,idx)=>`
-      <div class="cart-item">
-        <div><div class="ci-name">${it.articulo}</div><div class="ci-meta">${it.cantidad} ${it.unidad||''} ${it.precioUnitario?('· $'+money(it.precioUnitario)+' c/u'):''}</div></div>
+      <div class="cart-item" style="flex-wrap:wrap">
+        <div><div class="ci-name">${escapeHtml(it.articulo)}</div><div class="ci-meta">${it.cantidad} ${escapeHtml(it.unidad||'')} ${it.precioUnitario?('· $'+money(it.precioUnitario)+' c/u'):''}</div></div>
         <div><div class="ci-amt">${it.precioUnitario?('$'+money(it.subtotal)):'a definir'}</div><button class="ci-x" onclick="quitarDelCarrito(${idx})">Quitar</button></div>
+        <div class="ci-extra">
+          <input class="cat-inp" placeholder="Comentario (opcional)" value="${escapeHtml(it.comentario||'')}" oninput="CARRITO[${idx}].comentario=this.value">
+          <input class="cat-inp" placeholder="Proveedor (opcional)" value="${escapeHtml(it.proveedor||'')}" oninput="CARRITO[${idx}].proveedor=this.value">
+        </div>
       </div>`).join('');
   }
   const total=CARRITO.reduce((s,it)=>s+(it.subtotal||0),0);
@@ -729,8 +736,10 @@ async function enviarPedido(){
     departamento,
     urgencia:document.getElementById('rUrgencia').value,
     fechaRequerida:document.getElementById('rFecha').value,
-    proveedorSugerido:(document.getElementById('rProveedor').value||'').trim(),
-    items:CARRITO};
+    // Proveedor a nivel pedido = lista única de los proveedores sugeridos por artículo
+    // (así el encabezado del pedido sigue mostrándolos, igual que antes).
+    proveedorSugerido:[...new Set(CARRITO.map(it=>(it.proveedor||'').trim()).filter(Boolean))].join(', '),
+    items:CARRITO.map(it=>Object.assign({},it,{comentario:(it.comentario||'').trim(),proveedor:(it.proveedor||'').trim()}))};
   msg.innerHTML='<div class="okmsg">Enviando…</div>';
   try{
     const j=await apiPost(body);
@@ -747,6 +756,7 @@ const SEL_PENDIENTES=new Set();
 async function cargarPendientes(){
   SEL_PENDIENTES.clear();
   const el=document.getElementById('pendientesBody');
+  await flushComentarios(el);
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,estatus:'Pendiente'});
@@ -760,7 +770,10 @@ async function cargarPendientes(){
           <input type="checkbox" id="chkTodosPend" onchange="toggleSeleccionarTodos(this.checked)"> Seleccionar todos
         </label>
         <span id="contadorSelPend" style="font-size:12.5px;color:var(--cactus)">0 seleccionados</span>
-        <button class="mini-btn ok" id="btnAprobarSel" disabled onclick="aprobarSeleccionados()" style="margin-left:auto">Aprobar seleccionados</button>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini-btn ok" id="btnAprobarSel" disabled onclick="aprobarSeleccionados()">Aprobar seleccionados</button>
+          <button class="mini-btn bad" id="btnRechazarSel" disabled onclick="rechazarSeleccionados()">Rechazar seleccionados</button>
+        </div>
       </div>
       <div style="overflow-x:auto"><table class="aud"><thead><tr>
         <th style="width:28px"></th><th>Artículo</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th>Urgencia</th><th>Acción</th>
@@ -777,6 +790,10 @@ function agruparPorPedido(filas){
     // artículos de distintas personas bajo un mismo encabezado.
     const clave=pedidoId+'|'+r[3]+'|'+r[2];
     if(!map[clave]){ map[clave]={pedidoId, fecha:r[2], solicitanteId:r[3], solicitanteNombre:r[4], departamento:r[5], justificacion:r[12], urgencia:r[13], fechaRequerida:r[14], fueraDeHorario:r[15], proveedorSugerido:r[22]||'', comentario:r[23]||'', items:[]}; orden.push(clave); }
+    // FIX comentarios: si el comentario quedó guardado solo en un renglón del pedido (p. ej. el
+    // primero, que luego se aprobó y ya no sale en Pendientes), lo tomamos de cualquier renglón.
+    if(!map[clave].comentario && r[23]) map[clave].comentario=r[23];
+    if(!map[clave].proveedorSugerido && r[22]) map[clave].proveedorSugerido=r[22];
     map[clave].items.push(r);
   });
   return orden.map(clave=>map[clave]);
@@ -799,30 +816,56 @@ function claveComentario(g, scope){
 // Historial — cualquiera con acceso a esa vista lo puede escribir o editar. No dispara una
 // recarga de toda la lista al guardar (solo una confirmación visual), para no perder el scroll
 // ni las franjas abiertas — ver el mismo cuidado en cargarAcumulados().
+// FIX comentarios: antes solo se guardaba si se picaba "Guardar comentario"; si se escribía y
+// luego se aprobaba/rechazaba, la lista se recargaba y el texto se perdía. Ahora:
+//  · se guarda solo al salir del campo o con Enter,
+//  · antes de recargar cualquier lista se guardan los comentarios que quedaron sin guardar
+//    (flushComentarios), y
+//  · al guardar se actualiza el mismo pedido en las otras pestañas/categorías (data-pk).
 function renderComentarioPedido(g, colspan, scope){
   const key=claveComentario(g, scope);
+  const pk=claveComentario(g,'pk');
   return `<tr class="pedido-comentario"><td colspan="${colspan}">
     <div class="coment-row">
-      <input type="text" class="coment-input" id="coment_${key}" placeholder="Agregar un comentario sobre este pedido…" value="${escapeHtml(g.comentario||'')}">
-      <button class="mini-btn info" id="comentBtn_${key}" onclick="guardarComentarioPedido('${escapeHtml(g.pedidoId)}','${escapeHtml(g.solicitanteId||'')}','${escapeHtml(g.fecha)}','${key}')">Guardar comentario</button>
+      <input type="text" class="coment-input" id="coment_${key}" data-key="${key}" data-pk="${pk}"
+        data-pedido="${escapeHtml(g.pedidoId)}" data-sol="${escapeHtml(g.solicitanteId||'')}" data-fecha="${escapeHtml(g.fecha)}"
+        data-orig="${escapeHtml(g.comentario||'')}" placeholder="Agregar un comentario sobre este pedido…" value="${escapeHtml(g.comentario||'')}"
+        onchange="guardarComentarioInput(this)" onkeydown="if(event.key==='Enter'){this.blur();}">
+      <button class="mini-btn info" id="comentBtn_${key}" onclick="guardarComentarioInput(document.getElementById('coment_${key}'),true)">Guardar comentario</button>
     </div>
   </td></tr>`;
 }
-async function guardarComentarioPedido(pedidoId, solicitanteId, fecha, key){
-  const input=document.getElementById('coment_'+key);
-  const btn=document.getElementById('comentBtn_'+key);
-  if(!input) return;
+async function guardarComentarioInput(input, forzar){
+  if(!input) return true;
   const comentario=input.value.trim();
-  const textoOriginal=btn?btn.textContent:'';
+  if(!forzar && comentario===(input.dataset.orig||'')) return true;
+  const btn=document.getElementById('comentBtn_'+input.dataset.key);
+  const textoOriginal='Guardar comentario';
   if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
   try{
-    const j=await apiPost({accion:'requisiciones_comentar_pedido',id:SESSION.id,pin:SESSION.pin,pedidoId,solicitanteId,fecha,comentario});
-    if(!j.ok){ alert(j.error); if(btn){btn.disabled=false; btn.textContent=textoOriginal;} return; }
+    const j=await apiPost({accion:'requisiciones_comentar_pedido',id:SESSION.id,pin:SESSION.pin,
+      pedidoId:input.dataset.pedido,solicitanteId:input.dataset.sol,fecha:input.dataset.fecha,comentario});
+    if(!j.ok){ alert('No se guardó el comentario: '+j.error); if(btn){btn.disabled=false; btn.textContent=textoOriginal;} return false; }
+    document.querySelectorAll('.coment-input[data-pk="'+input.dataset.pk+'"]').forEach(i=>{ i.dataset.orig=comentario; if(i!==input) i.value=comentario; });
     if(btn){ btn.textContent='Guardado ✓'; setTimeout(()=>{btn.disabled=false; btn.textContent=textoOriginal;},1200); }
+    return true;
   }catch(e){
-    alert('No se pudo guardar el comentario.');
+    alert('No se pudo guardar el comentario (sin conexión).');
     if(btn){btn.disabled=false; btn.textContent=textoOriginal;}
+    return false;
   }
+}
+// Guarda los comentarios escritos que todavía no se han guardado dentro de un contenedor.
+async function flushComentarios(el){
+  if(!el) return;
+  const sucios=Array.from(el.querySelectorAll('.coment-input')).filter(i=>i.value.trim()!==(i.dataset.orig||''));
+  for(const i of sucios){ await guardarComentarioInput(i); }
+}
+// Comentario y proveedor sugerido por artículo (columnas nuevas 25 y 26 de Requisiciones).
+function detalleItem(r){
+  const com=r[24]||'', prov=r[25]||'';
+  if(!com && !prov) return '';
+  return `<div class="item-det">${prov?('Proveedor: '+escapeHtml(prov)):''}${prov&&com?' · ':''}${com?('“'+escapeHtml(com)+'”'):''}</div>`;
 }
 // Agrupa por Fecha de solicitud (más reciente primero — las fechas vienen en formato ISO
 // aaaa-mm-dd, así que ordenan bien como texto) y, dentro de cada fecha, por pedido. Se usa en
@@ -850,7 +893,7 @@ function renderItemPendiente(r){
   const [id,pedidoId,fecha,solId,solNombre,depto,articulo,catalogoId,cantidad,unidad,precioUnitario,subtotal,justificacion,urgencia]=r;
   return `<tr>
     <td><input type="checkbox" class="pend-check" value="${id}" onchange="actualizarSeleccionPendientes()"></td>
-    <td>${articulo}</td>
+    <td>${articulo}${detalleItem(r)}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${precioUnitario?'$'+money(precioUnitario):'–'}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
@@ -869,6 +912,8 @@ function actualizarSeleccionPendientes(){
   if(contador) contador.textContent=SEL_PENDIENTES.size+' seleccionado'+(SEL_PENDIENTES.size===1?'':'s');
   const btn=document.getElementById('btnAprobarSel');
   if(btn) btn.disabled = SEL_PENDIENTES.size===0;
+  const btnR=document.getElementById('btnRechazarSel');
+  if(btnR) btnR.disabled = SEL_PENDIENTES.size===0;
   const chkTodos=document.getElementById('chkTodosPend');
   if(chkTodos) chkTodos.checked = total>0 && SEL_PENDIENTES.size===total;
 }
@@ -887,6 +932,28 @@ async function aprobarSeleccionados(){
     if(!j.ok){alert(j.error);cargarPendientes();return;}
     cargarPendientes();
   }catch(e){alert('No se pudo procesar la aprobación múltiple.');cargarPendientes();}
+}
+// Rechazo múltiple: un solo motivo para todos los seleccionados. Usa la misma acción del backend
+// que el rechazo individual (uno por uno), así que no requiere cambios en Codigo.gs.
+async function rechazarSeleccionados(){
+  if(!SEL_PENDIENTES.size)return;
+  const ids=Array.from(SEL_PENDIENTES);
+  const resp=prompt(`Motivo del rechazo para ${ids.length} artículo(s):`);
+  if(resp===null) return;
+  const motivo=resp.trim();
+  if(!motivo){ alert('Escribe un motivo para rechazar.'); return; }
+  const btn=document.getElementById('btnRechazarSel');
+  const btnA=document.getElementById('btnAprobarSel'); if(btnA) btnA.disabled=true;
+  let ok=0, fallos=[];
+  for(let i=0;i<ids.length;i++){
+    if(btn){btn.disabled=true;btn.textContent=`Rechazando ${i+1}/${ids.length}…`;}
+    try{
+      const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:ids[i],accionEstatus:'rechazar',motivo});
+      if(j.ok) ok++; else fallos.push(j.error);
+    }catch(e){ fallos.push('sin conexión'); }
+  }
+  if(fallos.length) alert(`Se rechazaron ${ok} de ${ids.length}. Errores: ${[...new Set(fallos)].join(' · ')}`);
+  cargarPendientes();
 }
 async function aprobarItem(id){
   try{const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:'aprobar'});if(!j.ok){alert(j.error);return;}cargarPendientes();}catch(e){alert('No se pudo procesar.');}
@@ -920,6 +987,7 @@ const SEL_ACUM_RECIBIR=new Set(); // artículos Comprada seleccionados para marc
 async function cargarAcumulados(){
   SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
   const el=document.getElementById('acumuladosBody');
+  await flushComentarios(el);
   // Antes de reconstruir la lista, guardamos qué franjas (departamento/categoría/fecha) estaban
   // abiertas y en qué parte de la página estabas, para restaurarlo después de recargar — así
   // marcar Comprada/Recibida en un artículo no te "regresa al inicio" ni te obliga a volver a
@@ -1071,7 +1139,7 @@ function renderItemAcumulado(r){
   const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
   return `<tr>
     <td>${checkbox}</td>
-    <td>${articulo}</td>
+    <td>${articulo}${detalleItem(r)}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td><span class="pill ${pillClass}">${estatus}</span></td>
@@ -1152,9 +1220,13 @@ async function actualizarBadgeComprasLinea(){
     if(!j.ok){ btn.textContent=base; return; }
     const filas=j.filas||[];
     // Superfull: pendientes por comprar. El resto: lo que ya está en camino y solo falta recibir.
+    // Superfull (Manu): pre-autorizadas por comprar. Full (Jorge): pendientes de pre-autorizar.
+    // Resto: lo que ya está en camino y solo falta recibir.
     const n = esSuperfull()
-      ? filas.filter(r=>r[12]==='Pendiente').length
-      : filas.filter(r=>r[12]==='En camino').length;
+      ? filas.filter(r=>r[12]==='Pre-autorizada').length
+      : (esAprobador()
+        ? filas.filter(r=>r[12]==='Pendiente').length
+        : filas.filter(r=>r[12]==='En camino').length);
     btn.innerHTML = n>0 ? (base+' <span class="tab-badge">'+n+'</span>') : base;
   }catch(e){ btn.textContent=base; }
 }
@@ -1177,7 +1249,7 @@ function renderCompraLinea(){
   const hoy=new Date().toISOString().slice(0,10);
   document.getElementById('compraslineaBody').innerHTML=`
     <div class="section-eyebrow">Compras en línea</div>
-    <div class="note" style="margin-top:0;margin-bottom:14px">Pedidos en línea que facturen y estén justificados. Pega el link del producto, no pasa por aprobación de pendientes, lo debe aprobar Dirección General.</div>
+    <div class="note" style="margin-top:0;margin-bottom:14px">Pedidos en línea que facturen y estén justificados. Pega el link del producto. Flujo: <b>Líder solicita → Gerencia General pre-autoriza → Dirección General compra</b> → En camino → Entregada.</div>
     <div class="grid2">
       <div class="cap-form">
         <div class="cap-grid">
@@ -1216,7 +1288,7 @@ async function enviarCompraLinea(){
   try{
     const j=await apiPost({accion:'compras_linea_crear',id:SESSION.id,pin:SESSION.pin,descripcion,link,cantidad,precioEstimado,departamento,urgencia,fechaRequerida,notas});
     if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
-    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Dirección General la va a revisar.</div>`;
+    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Gerencia General la va a pre-autorizar.</div>`;
     document.getElementById('clDescripcion').value='';
     document.getElementById('clLink').value='';
     document.getElementById('clCantidad').value='1';
@@ -1235,16 +1307,20 @@ async function cargarComprasLinea(){
     if(!j.ok) throw new Error(j.error);
     const filas=j.filas||[];
     if(!filas.length){ el.innerHTML='<div class="cart-empty">Todavía no hay solicitudes.</div>'; return; }
-    el.innerHTML = filas.map(r=>renderItemCompraLinea(r)).join('');
+    // Lo que me toca atender primero; después el resto (orden original = más reciente primero).
+    const mias=r=>tieneAccionCL(r[12],r[4])?0:1;
+    el.innerHTML = filas.slice().sort((a,b)=>mias(a)-mias(b)).map(r=>renderItemCompraLinea(r)).join('');
   }catch(e){ el.innerHTML=`<div class="errbox">${e.message}</div>`; }
 }
 function renderItemCompraLinea(r){
   const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado,fechaEnCamino,fechaEstimadaLlegada]=r;
-  const pillClass = estatus==='Entregada' ? 'p-recibida' : (estatus==='En camino' ? 'p-encamino' : (estatus==='Comprada' ? 'p-comprada' : 'p-pend'));
+  const pillClass = {'Entregada':'p-recibida','En camino':'p-encamino','Comprada':'p-comprada','Pre-autorizada':'p-aprob','Rechazada':'p-rech'}[estatus] || 'p-pend';
   const {fecha:fechaFmt,hora:horaFmt} = formatFechaHoraCL(fecha);
   let acciones='';
-  if(esSuperfull() && estatus==='Pendiente'){
-    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button>`;
+  if(esAprobador() && estatus==='Pendiente'){
+    acciones=`<div class="row-actions" style="margin-top:6px"><button class="mini-btn ok" onclick="preautorizarCompraLinea('${id}')">Pre-autorizar</button><button class="mini-btn bad" onclick="rechazarCompraLinea('${id}')">Rechazar</button></div>`;
+  } else if(esSuperfull() && estatus==='Pre-autorizada'){
+    acciones=`<div class="row-actions" style="margin-top:6px"><button class="mini-btn ok" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button><button class="mini-btn bad" onclick="rechazarCompraLinea('${id}')">Rechazar</button></div>`;
   } else if(esSuperfull() && estatus==='Comprada'){
     acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEnCamino('${id}')">Marcar en camino</button>`;
   } else if(estatus==='En camino' && (puedeRecibirDepto(depto))){
@@ -1259,10 +1335,32 @@ function renderItemCompraLinea(r){
     <div style="font-size:11.5px;color:var(--cactus)">${escapeHtml(solNombre)} · ${escapeHtml(depto)} · ${fechaFmt} · ${horaFmt} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}</div>
     <a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:11.5px;word-break:break-all">${escapeHtml(link)}</a>
     ${notas?`<div style="font-size:11px;color:var(--cactus)">${escapeHtml(notas)}</div>`:''}
-    ${notaCompra?`<div style="font-size:11px;color:var(--cactus)">Nota de compra: ${escapeHtml(notaCompra)}</div>`:''}
+    ${notaCompra?`<div style="font-size:11px;color:${estatus==='Rechazada'?'var(--bad)':'var(--cactus)'}">${estatus==='Rechazada'?'Motivo del rechazo':'Nota de compra'}: ${escapeHtml(notaCompra)}</div>`:''}
     ${fechaEstimadaLlegada?`<div style="font-size:11px;color:var(--blue)">Llegada estimada: ${escapeHtml(fechaEstimadaLlegada)}</div>`:''}
     ${acciones}
   </div>`;
+}
+function tieneAccionCL(estatus,depto){
+  return (esAprobador() && estatus==='Pendiente') || (esSuperfull() && (estatus==='Pre-autorizada'||estatus==='Comprada')) || (estatus==='En camino' && puedeRecibirDepto(depto));
+}
+async function preautorizarCompraLinea(idCompra){
+  if(!confirm('¿Pre-autorizar esta compra? Le llegará a Dirección General para comprarla.')) return;
+  try{
+    const j=await apiPost({accion:'compras_linea_preautorizar',id:SESSION.id,pin:SESSION.pin,idCompra});
+    if(!j.ok){ alert(j.error); return; }
+    cargarComprasLinea(); actualizarBadgeComprasLinea();
+  }catch(e){ alert('No se pudo procesar.'); }
+}
+async function rechazarCompraLinea(idCompra){
+  const resp=prompt('Motivo del rechazo:');
+  if(resp===null) return;
+  const motivo=resp.trim();
+  if(!motivo){ alert('Escribe un motivo.'); return; }
+  try{
+    const j=await apiPost({accion:'compras_linea_rechazar',id:SESSION.id,pin:SESSION.pin,idCompra,motivo});
+    if(!j.ok){ alert(j.error); return; }
+    cargarComprasLinea(); actualizarBadgeComprasLinea();
+  }catch(e){ alert('No se pudo procesar.'); }
 }
 async function marcarCompraLineaComprada(idCompra){
   const notaCompra=prompt('¿Alguna nota de la compra? (opcional: número de guía, confirmación, etc.)')||'';
@@ -1296,6 +1394,7 @@ async function marcarCompraLineaEntregada(idCompra){
 const ESTATUS_PILL={Pendiente:'p-pend',Aprobado:'p-aprob',Comprada:'p-comprada',Recibida:'p-recibida',Rechazado:'p-rech'};
 async function cargarHistorial(){
   const el=document.getElementById('historialBody');
+  await flushComentarios(el);
   const desde=document.getElementById('hDesde').value, hasta=document.getElementById('hHasta').value, estatus=document.getElementById('hEstatus').value;
   const departamento = verTodosDeptos() ? document.getElementById('hDepto').value : ''; // el backend ya fuerza el propio si es líder
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
@@ -1338,7 +1437,7 @@ function renderItemHistorial(r,pedidoId){
   }
   const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
   return `<tr>
-    <td>${articulo}</td>
+    <td>${articulo}${detalleItem(r)}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
     <td class="num">${subtotal?'$'+money(subtotal):'a definir'}</td>
     <td><span class="pill ${pillClass}">${estatus}</span>${estatus==='Rechazado'&&motivoRech?`<div style="font-size:10.5px;color:var(--cactus);margin-top:3px">${motivoRech}</div>`:''}</td>
