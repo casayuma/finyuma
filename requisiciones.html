@@ -130,6 +130,10 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .cart-item .ci-extra{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
 @media(max-width:560px){.cart-item .ci-extra{grid-template-columns:1fr}}
 .item-det{font-size:10.5px;color:var(--cactus);margin-top:2px;white-space:normal}
+.cl-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.cl-filtros select,.cl-filtros input{width:100%;font-size:13px;padding:8px 10px}
+@media(max-width:560px){.cl-filtros{grid-template-columns:1fr}}
+.cl-resumen{font-size:11px;color:var(--cactus);letter-spacing:.05em;padding:4px 0 6px;border-bottom:1px solid var(--line)}
 .cart-total{display:flex;justify-content:space-between;padding-top:14px;font-size:16px;font-weight:600}
 .window-note{font-size:11.5px;padding:10px 12px;border-radius:2px;margin-top:14px}
 .window-ok{background:#e0efe0;color:var(--ok);border:1px solid var(--ok)}
@@ -1271,6 +1275,10 @@ function renderCompraLinea(){
       </div>
       <div class="cart-box">
         <h3>${(esAprobador()||esLiderCompras()) ? 'Todas las solicitudes' : 'Mis solicitudes'}</h3>
+        <div class="cl-filtros">
+          <select id="clFiltro" onchange="CL_FILTRO=this.value;renderListaCL()"></select>
+          <input id="clBuscar" type="text" placeholder="Buscar artículo, persona, depto…" oninput="renderListaCL()">
+        </div>
         <div id="compraslineaListaBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div>
       </div>
     </div>`;
@@ -1302,6 +1310,9 @@ async function enviarCompraLinea(){
     actualizarBadgeComprasLinea();
   }catch(e){ msg.innerHTML='<div class="errbox">No se pudo enviar.</div>'; }
 }
+// ————— Control de Compras en línea: filtro por estatus (desplegable con conteos) + búsqueda —————
+const CL_ESTATUS=['Pendiente','Pre-autorizada','Comprada','En camino','Entregada','Rechazada'];
+let CL_FILAS=[], CL_FILTRO='';
 async function cargarComprasLinea(){
   const el=document.getElementById('compraslineaListaBody');
   if(!el) return;
@@ -1309,12 +1320,35 @@ async function cargarComprasLinea(){
   try{
     const j=await apiGet({accion:'compras_linea_list',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok) throw new Error(j.error);
-    const filas=j.filas||[];
-    if(!filas.length){ el.innerHTML='<div class="cart-empty">Todavía no hay solicitudes.</div>'; return; }
-    // Lo que me toca atender primero; después el resto (orden original = más reciente primero).
-    const mias=r=>tieneAccionCL(r[12],r[4])?0:1;
-    el.innerHTML = filas.slice().sort((a,b)=>mias(a)-mias(b)).map(r=>renderItemCompraLinea(r)).join('');
+    CL_FILAS=j.filas||[];
+    // Primera vez: arranca en "Por atender" si hay algo que me toca; si no, "En curso".
+    if(!CL_FILTRO) CL_FILTRO = CL_FILAS.some(r=>tieneAccionCL(r[12],r[4])) ? 'atender' : 'curso';
+    renderListaCL();
   }catch(e){ el.innerHTML=`<div class="errbox">${e.message}</div>`; }
+}
+function pasaFiltroCL(r,f){
+  const est=r[12];
+  if(f==='atender') return tieneAccionCL(est,r[4]);
+  if(f==='curso') return est!=='Entregada' && est!=='Rechazada';
+  if(f==='todas') return true;
+  return est===f;
+}
+function renderListaCL(){
+  const el=document.getElementById('compraslineaListaBody');
+  const sel=document.getElementById('clFiltro');
+  if(!el||!sel) return;
+  const cuenta=f=>CL_FILAS.filter(r=>pasaFiltroCL(r,f)).length;
+  const opciones=[['atender','⚡ Por atender (me toca)'],['curso','En curso'],...CL_ESTATUS.map(e=>[e,e]),['todas','Todas']];
+  sel.innerHTML=opciones.map(([v,l])=>`<option value="${v}" ${v===CL_FILTRO?'selected':''}>${l} (${cuenta(v)})</option>`).join('');
+  const q=normaliza((document.getElementById('clBuscar')||{}).value||'');
+  const filas=CL_FILAS.filter(r=>pasaFiltroCL(r,CL_FILTRO))
+    .filter(r=>!q || normaliza([r[0],r[3],r[4],r[5],r[11],r[14]].join(' ')).indexOf(q)!==-1);
+  if(!CL_FILAS.length){ el.innerHTML='<div class="cart-empty">Todavía no hay solicitudes.</div>'; return; }
+  if(!filas.length){ el.innerHTML='<div class="cart-empty">Nada en este filtro.</div>'; return; }
+  const total=filas.reduce((s,r)=>s+num(r[7])*num(r[8]),0);
+  const mias=r=>tieneAccionCL(r[12],r[4])?0:1;
+  el.innerHTML=`<div class="cl-resumen">${filas.length} solicitud(es)${total?(' · ~$'+money(total)):''}</div>`+
+    filas.slice().sort((a,b)=>mias(a)-mias(b)).map(r=>renderItemCompraLinea(r)).join('');
 }
 function renderItemCompraLinea(r){
   const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado,fechaEnCamino,fechaEstimadaLlegada]=r;
