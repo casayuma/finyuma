@@ -933,8 +933,7 @@ async function aprobarSeleccionados(){
     cargarPendientes();
   }catch(e){alert('No se pudo procesar la aprobación múltiple.');cargarPendientes();}
 }
-// Rechazo múltiple: un solo motivo para todos los seleccionados. Usa la misma acción del backend
-// que el rechazo individual (uno por uno), así que no requiere cambios en Codigo.gs.
+// Rechazo múltiple: un solo motivo para todos los seleccionados (requisiciones_rechazar_lote).
 async function rechazarSeleccionados(){
   if(!SEL_PENDIENTES.size)return;
   const ids=Array.from(SEL_PENDIENTES);
@@ -942,17 +941,12 @@ async function rechazarSeleccionados(){
   if(resp===null) return;
   const motivo=resp.trim();
   if(!motivo){ alert('Escribe un motivo para rechazar.'); return; }
-  const btn=document.getElementById('btnRechazarSel');
+  const btn=document.getElementById('btnRechazarSel'); if(btn){btn.disabled=true;btn.textContent='Rechazando…';}
   const btnA=document.getElementById('btnAprobarSel'); if(btnA) btnA.disabled=true;
-  let ok=0, fallos=[];
-  for(let i=0;i<ids.length;i++){
-    if(btn){btn.disabled=true;btn.textContent=`Rechazando ${i+1}/${ids.length}…`;}
-    try{
-      const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:ids[i],accionEstatus:'rechazar',motivo});
-      if(j.ok) ok++; else fallos.push(j.error);
-    }catch(e){ fallos.push('sin conexión'); }
-  }
-  if(fallos.length) alert(`Se rechazaron ${ok} de ${ids.length}. Errores: ${[...new Set(fallos)].join(' · ')}`);
+  try{
+    const j=await apiPost({accion:'requisiciones_rechazar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,motivo});
+    if(!j.ok) alert(j.error);
+  }catch(e){ alert('No se pudo procesar el rechazo múltiple.'); }
   cargarPendientes();
 }
 async function aprobarItem(id){
@@ -1233,7 +1227,17 @@ async function actualizarBadgeComprasLinea(){
 // Da formato a FechaSolicitud ('yyyy-MM-dd HH:mm', o solo 'yyyy-MM-dd' en renglones viejos
 // sin hora) para mostrar fecha DD,MM,AAAA y hora HH:MM por separado, más notorio en la lista.
 function formatFechaHoraCL(valor){
-  const s=String(valor||'');
+  let s=String(valor||'');
+  // Si el backend manda la fecha como ISO (ej. 2026-09-22T20:38:00.000Z), la pasamos a hora de
+  // Puerto Escondido (America/Mexico_City) en formato 'yyyy-MM-dd HH:mm'.
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){
+    const d=new Date(s);
+    if(!isNaN(d)){
+      const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+      const g=t=>(p.find(x=>x.type===t)||{}).value||'';
+      s=`${g('year')}-${g('month')}-${g('day')} ${g('hour')==='24'?'00':g('hour')}:${g('minute')}`;
+    }
+  }
   const partes=s.split(' ');
   const f=partes[0]||'';
   const [y,m,d]=f.split('-');
