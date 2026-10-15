@@ -241,18 +241,14 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 </div>
 
 <script>
+// ————— El directorio de colaboradores YA NO se copia aquí a mano —————
+// El selector de nombres del login (#userSel) se llena en vivo desde la pestaña "Usuarios"
+// del Sheet (acción pública 'listar_colaboradores' en Codigo.gs). Para agregar, quitar o
+// reactivar a alguien del selector, solo edita esa pestaña (columna E: Activo) — no hace
+// falta tocar este archivo ni los otros dos (index.html, pagos.html).
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
   PAGOS_URL:'pagos.html',
-  USERS:[ // picker de nombres en el login — no da acceso por sí solo, solo precarga el ID (ver Usuarios en el Sheet)
-    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
-    {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
-    {id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},{id:'CY005',n:'Horacio Muñoz Martínez'},
-    {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
-    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY018',n:'Plácido Maurilio García Pérez'},
-    {id:'CY019',n:'Miriam Lopez Sanchez'},{id:'CY025',n:'Egbert Cruz García'},
-    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY031',n:'Margarita Díaz Canseco'},
-  ],
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
 const DEPARTAMENTOS=[
@@ -312,7 +308,17 @@ function rolLabel(){
   return 'Líder · '+(SESSION.departamento||'');
 }
 
-(function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
+(function(){
+  const sel=document.getElementById('userSel');
+  sel.innerHTML='<option value="">Cargando…</option>';
+  apiGet({accion:'listar_colaboradores'}).then(j=>{
+    if(!j || !j.ok || !j.usuarios || !j.usuarios.length){ sel.innerHTML='<option value="">— escribe tu número abajo —</option>'; return; }
+    sel.innerHTML='';
+    j.usuarios.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.nombre;sel.appendChild(o);});
+    sel.onchange=()=>{document.getElementById('userId').value=sel.value;};
+    document.getElementById('userId').value=sel.value;
+  }).catch(()=>{ sel.innerHTML='<option value="">— escribe tu número abajo —</option>'; });
+})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
 
 async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});return res.json();}
@@ -1555,9 +1561,11 @@ async function cargarGasto(){
     ]);
     if(!j.ok)throw new Error(j.error);
     const filas=(j.filas||[]).filter(r=>['Aprobado','Comprada','Recibida'].indexOf(r[16])!==-1);
-    // Compras en línea ya comprometidas (Comprada/En camino/Entregada) cuentan como gasto del depto,
-    // aunque no pasen por Requisiciones — mismo criterio de "ya no es reversible" que Aprobado/Comprada/Recibida.
-    const filasCL = jcl.ok ? (jcl.filas||[]).filter(r=>['Comprada','En camino','Entregada'].indexOf(r[12])!==-1) : [];
+    // Compras en línea ya comprometidas (Pre-autorizada/Comprada/En camino/Entregada) cuentan como
+    // gasto del depto, aunque no pasen por Requisiciones — mismo criterio de "ya no es reversible"
+    // que Aprobado/Comprada/Recibida (Pre-autorizada ya la aprobó Gerencia General, aunque Dirección
+    // General todavía no la compre).
+    const filasCL = jcl.ok ? (jcl.filas||[]).filter(r=>['Pre-autorizada','Comprada','En camino','Entregada'].indexOf(r[12])!==-1) : [];
     if(verTodosDeptos()) renderGastoFull(el,filas,filasCL,mes);
     else renderGastoLider(el,filas,filasCL,mes);
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
@@ -1595,7 +1603,7 @@ function renderGastoFull(el,filas,filasCL,mes){
     <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Departamento</th><th>Gasto del mes</th></tr></thead><tbody>
       ${DEPARTAMENTOS.map(d=>`<tr><td><span class="dept-dot" style="background:${d.color}"></span>${d.nombre}</td><td class="num">$${money(totales[d.nombre]||0)}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de Requisiciones, más Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de Requisiciones, más Compras en línea ya Pre-autorizadas/Compradas/En camino/Entregadas (no cuenta pendientes ni rechazadas).</div>`;
 }
 function renderGastoLider(el,filas,filasCL,mes){
   const total=filas.reduce((s,r)=>s+num(r[11]),0);
@@ -1608,7 +1616,7 @@ function renderGastoLider(el,filas,filasCL,mes){
       ${Object.keys(porEstatus).map(k=>`<div class="kpi"><div class="k-lbl">${k}</div><div class="k-val" style="font-size:17px">$${money(porEstatus[k])}</div></div>`).join('')}
       ${totalCL>0?`<div class="kpi"><div class="k-lbl">Compras en línea</div><div class="k-val" style="font-size:17px">$${money(totalCL)}</div></div>`:''}
     </div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento, más tus Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento, más tus Compras en línea ya Pre-autorizadas/Compradas/En camino/Entregadas (no cuenta pendientes ni rechazadas).</div>`;
 }
 
 // ————— Catálogo (administración — Superfull / Líder Compras) —————
