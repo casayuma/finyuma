@@ -99,6 +99,8 @@ select:focus{border-color:var(--blue)}
 .t-adj{background:#f2e6cf;color:var(--warn)}
 .t-otro{background:#dce4dc;color:var(--cactus)}
 @media(max-width:640px){.libro-cols{grid-template-columns:1fr !important}}
+.net{font-size:13.5px;font-weight:600}.bru{font-size:10px;color:var(--cactus);font-weight:400}.dim{color:#a9a28f}
+.dr-table tr.sub2 td.lbl{padding-left:40px;color:#8a8578;font-size:11.5px}.dr-table tr.info td{color:#8a8578;font-style:italic}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -169,7 +171,7 @@ select:focus{border-color:var(--blue)}
     </section>
     <section class="view" id="v-concil">
       <div class="ctl"><label for="concilFecha">Fecha</label><input id="concilFecha" type="date" onchange="cargarConcil()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarConcil()">Ver</button></div>
-      <div id="concilBody"><div class="empty">Elige una fecha para conciliar Cloudbeds vs CAPTURA.</div></div>
+      <div id="concilBody"><div class="empty">Elige una fecha para comparar lo guardado contra Cloudbeds y Poster en vivo.</div></div>
     </section>
   </main>
 </div>
@@ -266,6 +268,8 @@ select:focus{border-color:var(--blue)}
 .t-adj{background:#f2e6cf;color:var(--warn)}
 .t-otro{background:#dce4dc;color:var(--cactus)}
 @media(max-width:640px){.libro-cols{grid-template-columns:1fr !important}}
+.net{font-size:13.5px;font-weight:600}.bru{font-size:10px;color:var(--cactus);font-weight:400}.dim{color:#a9a28f}
+.dr-table tr.sub2 td.lbl{padding-left:40px;color:#8a8578;font-size:11.5px}.dr-table tr.info td{color:#8a8578;font-style:italic}
 </style>`;
 
 const CONFIG={
@@ -327,17 +331,17 @@ const TABDEFS=[
   {id:'control',label:'Control mensual',levels:['full','superfull']},
   {id:'ingpago',label:'Ingreso vs Pago',levels:['capture','full','superfull']},
   {id:'propinas',label:'Propinas',levels:['full','superfull']},
-  {id:'concil',label:'Conciliación CB',levels:['superfull']},
+  {id:'concil',label:'Verificar día',levels:['superfull']},
 ];
 function buildTabs(){const tabs=document.getElementById('tabs');tabs.innerHTML='';const allowed=TABDEFS.filter(t=>t.levels.includes(SESSION.nivel));allowed.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.label;b.dataset.view=t.id;if(i===0)b.classList.add('active');b.onclick=()=>switchView(t.id,b);tabs.appendChild(b);});switchView(allowed[0].id,tabs.querySelector('button'));}
 function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');}
 let DATA={captura:null,ajustes:null,control:null,presupuesto:null,cuadres:null};
 async function loadAll(){
-  try{const j=await apiGet({accion:'captura',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.captura=j.filas;} else throw new Error(j.error);
+  try{const j=await apiGet({accion:'captura',id:SESSION.id,pin:SESSION.pin});if(!j.ok) throw new Error(j.error);
     try{const jp=await apiGet({accion:'presupuesto',id:SESSION.id,pin:SESSION.pin});if(jp.ok)DATA.presupuesto=jp.filas;}catch(_){}
-    initDaily();}
+    initDaily(j);}
   catch(e){document.getElementById('dailyBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
-  if(SESSION.nivel==='capture'||SESSION.nivel==='full'||SESSION.nivel==='superfull')renderCaptura();
+  if(SESSION.nivel!=='read')renderCaptura();
   if(SESSION.nivel==='full'||SESSION.nivel==='superfull'){
     try{const j=await apiGet({accion:'ajustes',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.ajustes=j.filas;renderAjustes();}}
     catch(e){document.getElementById('ajustesBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
@@ -347,181 +351,100 @@ async function loadAll(){
     catch(e){document.getElementById('historialBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
   }
 }
-let CAP_ROWS=[];
 const MESES={ene:0,jan:0,feb:1,mar:2,abr:3,apr:3,may:4,jun:5,jul:6,ago:7,aug:7,sep:8,oct:9,nov:10,dic:11,dec:11};
 function parseFecha(s){s=String(s).trim();if(!s)return null;let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return{y:+m[1],m:+m[2]-1,d:+m[3]};m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);if(m)return{y:+m[3]<100?2000+ +m[3]:+m[3],m:+m[2]-1,d:+m[1]};m=s.match(/^(\d{1,2})[\-\s]([A-Za-z]{3})/);if(m){const mm=MESES[m[2].toLowerCase()];if(mm!=null)return{y:2026,m:mm,d:+m[1]};}return null;}
-const ROOMS=25; // cuartos disponibles del hotel (para % Ocupación y RevPAR acumulados)
-function esBisiesto(y){return (y%4===0&&(y%100!==0||y%400===0));}
-function diasDelAnioHasta(f){const dm=[31,esBisiesto(f.y)?29:28,31,30,31,30,31,31,30,31,30,31];let d=f.d;for(let i=0;i<f.m;i++)d+=dm[i];return d;}
-function dateKey(f){return f.y+'-'+String(f.m+1).padStart(2,'0')+'-'+String(f.d).padStart(2,'0');}
-// una fila cuenta como "con datos reales" si algún ingreso/ocupación no es cero (evita parar en filas futuras vacías del molde)
-function tieneDatosFila(r){ for(let k=1;k<=39;k++){ if(num(r[k])!==0) return true; } return false; }
-let CAP_INDEX={},CAP_KEYS=[];
-function initDaily(){
-  CAP_ROWS=DATA.captura.filter(r=>parseFecha(r[0]));
-  CAP_INDEX={};
-  CAP_ROWS.forEach((r,idx)=>{const f=parseFecha(r[0]);if(f)CAP_INDEX[dateKey(f)]=idx;});
-  CAP_KEYS=Object.keys(CAP_INDEX).sort();
-  let defaultKey=CAP_KEYS.length?CAP_KEYS[CAP_KEYS.length-1]:null;
-  for(let i=CAP_KEYS.length-1;i>=0;i--){ if(tieneDatosFila(CAP_ROWS[CAP_INDEX[CAP_KEYS[i]]])){ defaultKey=CAP_KEYS[i]; break; } }
+const ROOMS=25;
+// ── Daily Report v2: lee DAILY (neto) y DAILY_BRUTO por clave de columna, no por índice ──
+let CAP={N:{},B:{},keys:[]};
+function initDaily(j){
+  const toObj=r=>{const o={};j.cols.forEach((c,i)=>o[c]=r[i]);return o;};
+  const idx=(rows,dest)=>rows.forEach(r=>{const o=toObj(r);const f=String(o.fecha||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(f))dest[f]=o;});
+  CAP={N:{},B:{},keys:[]}; idx(j.neto,CAP.N); idx(j.bruto,CAP.B);
+  CAP.keys=Object.keys(CAP.N).sort();
+  let def=CAP.keys[CAP.keys.length-1];
+  for(let i=CAP.keys.length-1;i>=0;i--){ if(num(CAP.N[CAP.keys[i]].totHotel)!==0){def=CAP.keys[i];break;} }
   const sel=document.getElementById('daySel');
-  if(CAP_KEYS.length){sel.min=CAP_KEYS[0];sel.max=CAP_KEYS[CAP_KEYS.length-1];sel.value=defaultKey;}
+  if(CAP.keys.length){sel.min=CAP.keys[0];sel.max=CAP.keys[CAP.keys.length-1];sel.value=def;}
   renderDaily();
 }
-// índice (dentro de CAP_KEYS) de la fecha capturada más cercana (igual o anterior) a la elegida en el picker
-function fechaActualPos(){
-  const key=document.getElementById('daySel').value;
-  if(CAP_INDEX[key]!==undefined) return CAP_KEYS.indexOf(key);
-  let pos=-1;
-  for(let i=0;i<CAP_KEYS.length;i++){ if(CAP_KEYS[i]<=key) pos=i; else break; }
-  return pos<0?0:pos;
+function fechaActualPos(){const k=document.getElementById('daySel').value;let p=-1;for(let i=0;i<CAP.keys.length;i++){if(CAP.keys[i]<=k)p=i;else break;}return p<0?0:p;}
+function cambiarDia(d){if(!CAP.keys.length)return;const p=Math.max(0,Math.min(CAP.keys.length-1,fechaActualPos()+d));document.getElementById('daySel').value=CAP.keys[p];renderDaily();}
+const SUM_KEYS=['vendidas','cortesia','usoCasa','intercambio','ocupSinUC','ocupados','hab','noShow','early','late','pet','miscOtros','spa','lav','transp','dayPassN','dayPass','activ','well','misc','shop','propinas','ajustes','totDiv','alim','beb','rest','pax','eventos','minibar','cigarros','totAB','totHotel','sinClasif','iva','ish','sisCB','exclCB','cbPoster','sisPoster','exclPoster'];
+function acumular(src,fSel,modo){
+  const a={dias:0}; SUM_KEYS.forEach(k=>a[k]=0);
+  CAP.keys.forEach(k=>{const f=parseFecha(k); if(f.y!==fSel.y) return;
+    const ok=modo==='dia'?(f.m===fSel.m&&f.d===fSel.d):modo==='mtd'?(f.m===fSel.m&&f.d<=fSel.d):(f.m<fSel.m||(f.m===fSel.m&&f.d<=fSel.d));
+    if(!ok) return; a.dias++; const r=src[k]||{}; SUM_KEYS.forEach(c=>a[c]+=num(r[c]));});
+  a.ocupPct=a.dias?a.ocupados/(ROOMS*a.dias):0; a.adr=a.ocupados?a.hab/a.ocupados:0;
+  a.revpar=a.dias?a.hab/(ROOMS*a.dias):0; a.cheque=a.pax?a.rest/a.pax:0;
+  return a;
 }
-function cambiarDia(delta){
-  if(!CAP_KEYS.length) return;
-  let pos=Math.max(0,Math.min(CAP_KEYS.length-1,fechaActualPos()+delta));
-  document.getElementById('daySel').value=CAP_KEYS[pos];
-  renderDaily();
+const PPTO_NOMBRE={ocupados:'Total cuartos ocupados',ocupPct:'% de Ocupación',adr:'ADR',revpar:'RevPAR',hab:'Total Cuartos (Ingreso Hab.)',
+  spa:'Spa',well:'Wellness',lav:'Lavandería',transp:'Transportación (La Ola)',dayPass:'Day Pass',activ:'Actividades',misc:'Misceláneos',
+  shop:'Shop / Boutique',totDiv:'TOTAL DIVISIÓN CUARTOS',alim:'Restaurante Alimentos',beb:'Restaurante Bebidas',
+  rest:['Restaurante Alimentos','Restaurante Bebidas'],eventos:'Total Eventos',minibar:'Total Minibar',totAB:'TOTAL A&B',totHotel:'TOTAL HOTEL'};
+// [etiqueta, clave, tipo(m=dinero,i=entero,p=%,r=tasa $), clase]
+const SECCIONES=[
+  ['Habitaciones',[['% Ocupación','ocupPct','p'],['ADR','adr','r'],['RevPAR','revpar','r'],
+    ['Hab. vendidas','vendidas','i','sub'],['Cortesía','cortesia','i','sub'],['Uso casa','usoCasa','i','sub'],['Intercambio','intercambio','i','sub'],
+    ['Ocupados s/ uso casa','ocupSinUC','i'],['Total cuartos ocupados','ocupados','i','total'],['Ingreso habitaciones','hab','m','total']]],
+  ['División cuartos',[['Spa','spa','m','sub'],['Lavandería','lav','m','sub'],['Transportación','transp','m','sub'],
+    ['Day Pass','dayPass','m','sub'],['Day Pass (#)','dayPassN','i','sub2'],['Actividades','activ','m','sub'],['Wellness','well','m','sub'],
+    ['Misceláneos','misc','m','sub'],['No-Show','noShow','m','sub2'],['Early Check-In','early','m','sub2'],['Late Check-Out','late','m','sub2'],
+    ['Pet Fee','pet','m','sub2'],['Otros','miscOtros','m','sub2'],['Shop / Boutique','shop','m','sub'],
+    ['Propinas (informativo, no suma)','propinas','m','info'],['Ajustes y correcciones (informativo)','ajustes','m','info'],
+    ['Total división cuartos','totDiv','m','total']]],
+  ['Restaurante',[['Alimentos','alim','m','sub'],['Bebidas','beb','m','sub'],['Total restaurante','rest','m','total'],['No. Pax','pax','i'],['Cheque promedio','cheque','r']]],
+  ['Eventos · Minibar · Cigarros',[['Eventos','eventos','m','sub'],['Minibar','minibar','m','sub'],['Cigarros','cigarros','m','sub']]],
+  ['Totales',[['Total A&B','totAB','m','total'],['TOTAL HOTEL','totHotel','m','total']]],
+];
+function pptoDe(nombre,mesCol){
+  if(!DATA.presupuesto||!mesCol||!nombre) return null;
+  if(Array.isArray(nombre)){let s=0,f=false;nombre.forEach(n=>{const v=pptoDe(n,mesCol);if(v!=null){s+=v;f=true;}});return f?s:null;}
+  const nm=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''), t=nm(nombre);
+  for(const r of DATA.presupuesto){ if(nm(r[0])===t) return num(r[mesCol]); } return null;
 }
 function renderDaily(){
-  if(!CAP_ROWS.length){document.getElementById('dailyBody').innerHTML='<div class="empty">Sin datos.</div>';return;}
-  const key=CAP_KEYS[fechaActualPos()];
-  document.getElementById('daySel').value=key; // refleja la fecha capturada real que se está mostrando
-  const i=CAP_INDEX[key]; const r=CAP_ROWS[i]; const g=k=>r[k]!==undefined?r[k]:'';
-  const fSel=parseFecha(r[0]);
-  // acumuladores MTD (mes de la fecha, hasta el día) y YTD (todo el año hasta el día)
-  const cols=[1,2,3,4,6,7,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,39,41];
-  let mtd={},ytd={}; cols.forEach(c=>{mtd[c]=0;ytd[c]=0;});
-  if(fSel)CAP_ROWS.forEach(rr=>{const f=parseFecha(rr[0]);if(!f)return;
-    const enYTD=(f.y===fSel.y)&&(f.m<fSel.m||(f.m===fSel.m&&f.d<=fSel.d));
-    const enMTD=(f.y===fSel.y&&f.m===fSel.m&&f.d<=fSel.d);
-    cols.forEach(c=>{const v=num(rr[c]); if(enYTD)ytd[c]+=v; if(enMTD)mtd[c]+=v;});
-  });
-  // indicadores recalculados a partir de los acumulados (no se suman directamente)
-  const adrMTD = mtd[6]>0 ? (mtd[7]/mtd[6]) : 0;      // ingreso acumulado / cuartos acumulados
-  const adrYTD = ytd[6]>0 ? (ytd[7]/ytd[6]) : 0;
-  const chqMTD  = mtd[36]>0 ? (mtd[35]/mtd[36]) : 0;  // cheque prom A&B
-  const chqYTD  = ytd[36]>0 ? (ytd[35]/ytd[36]) : 0;
-  const diasMTD = fSel ? fSel.d : 0;                   // días transcurridos del mes hasta la fecha elegida
-  const diasYTD = fSel ? diasDelAnioHasta(fSel) : 0;   // días transcurridos del año hasta la fecha elegida
-  const dispMTD = ROOMS*diasMTD, dispYTD = ROOMS*diasYTD; // cuartos-noche disponibles acumulados
-  const ocupPctMTD = dispMTD>0 ? (mtd[6]/dispMTD*100) : 0;
-  const ocupPctYTD = dispYTD>0 ? (ytd[6]/dispYTD*100) : 0;
-  const revparMTD = dispMTD>0 ? (mtd[7]/dispMTD) : 0;
-  const revparYTD = dispYTD>0 ? (ytd[7]/dispYTD) : 0;
-
-  // ── PRESUPUESTO del mes seleccionado (busca concepto por nombre en col 0) ──
-  const mesCol = fSel ? (fSel.m+1) : 0; // Ene=col1 ... Dic=col12
-  function pptoDe(nombre){
-    if(!DATA.presupuesto||!mesCol) return null;
-    const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-    if(Array.isArray(nombre)){
-      // suma de varios conceptos (ej. Total restaurante = Restaurante Alimentos + Restaurante Bebidas)
-      let sum=0, found=false;
-      nombre.forEach(n=>{ const v=pptoDe(n); if(v!=null){ sum+=v; found=true; } });
-      return found?sum:null;
-    }
-    const target=norm(nombre);
-    for(let k=0;k<DATA.presupuesto.length;k++){
-      if(norm(DATA.presupuesto[k][0])===target) return num(DATA.presupuesto[k][mesCol]);
-    }
-    return null;
-  }
-
-
-  // fila: label, colDia (índice o valor), tipo. tipo: 'm'=money, 'i'=int, 'raw'=texto tal cual (ADR/%), 'calc'
-  const M=(c)=>'$'+money(num(g(c)));
-  const I=(c)=>int(num(g(c)));
-  const cell=(v)=>`<td class="val">${v}</td>`;
-  // celda de variación: acumulado real (MTD) vs Ppto del mes. Verde si ya alcanzó/superó la meta, rojo si aún falta.
-  function varCellsFmt(realMtd, ppto, fmt){
-    if(ppto==null||ppto===0) return `<td class="val" style="color:#c9c0a8">–</td><td class="val" style="color:#c9c0a8">–</td>`;
-    const dif=realMtd-ppto; const pctv=(dif/ppto)*100;
-    const col=dif>=0?'var(--ok)':'var(--bad)'; const sg=dif>=0?'+':'';
-    return `<td class="val">${fmt(ppto)}</td><td class="val" style="color:${col}">${sg}${fmt(dif)}<br><span style="font-size:10px">${sg}${pctv.toFixed(1)}%</span></td>`;
-  }
-  const fmtMoney=v=>'$'+money(v);
-  const fmtInt=v=>int(v);
-  const fmtPct=v=>v.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
-  function varCells(realMtd, ppto){ return varCellsFmt(realMtd,ppto,fmtMoney); }
-  // helpers de fila con Ppto+Variación (por nombre de concepto para buscar el ppto)
-  function fMoney(lbl,c,cls,pptoNombre){ const pp=pptoDe(pptoNombre||lbl); return `<tr class="${cls||''}"><td class="lbl">${lbl}</td>${cell(M(c))}${cell('$'+money(mtd[c]))}${varCells(mtd[c],pp)}${cell('$'+money(ytd[c]))}</tr>`; }
-  function fInt(lbl,c,cls,pptoNombre){ const pp=pptoDe(pptoNombre||lbl); return `<tr class="${cls||''}"><td class="lbl">${lbl}</td>${cell(I(c))}${cell(int(mtd[c]))}${varCellsFmt(mtd[c],pp,fmtInt)}${cell(int(ytd[c]))}</tr>`; }
-  function fRaw(lbl,valDia,valMtd,valYtd,cls){ return `<tr class="${cls||''}"><td class="lbl">${lbl}</td>${cell(valDia)}${cell(valMtd)}<td class="val" style="color:#c9c0a8">–</td><td class="val" style="color:#c9c0a8">–</td>${cell(valYtd)}</tr>`; }
-  // fila de indicador (tasa/porcentaje): MTD/YTD llegan ya calculados como número, no como texto
-  function fInd(lbl,valDiaStr,mtdNum,ytdNum,fmt,pptoNombre,cls){
-    let pp=pptoDe(pptoNombre||lbl);
-    // Sheets guarda las celdas con formato "%" como fracción (0.506 = 50.6%); si detectamos fracción, escalamos a puntos porcentuales.
-    if(fmt===fmtPct && pp!=null && Math.abs(pp)<=1) pp=pp*100;
-    return `<tr class="${cls||''}"><td class="lbl">${lbl}</td>${cell(valDiaStr)}${cell(fmt(mtdNum))}${varCellsFmt(mtdNum,pp,fmt)}${cell(fmt(ytdNum))}</tr>`;
-  }
-  function head(t){ return `<tr class="head"><td>${t}</td><td class="val">Hoy</td><td class="val">MTD</td><td class="val">Ppto</td><td class="val">Var</td><td class="val">YTD</td></tr>`; }
-
+  if(!CAP.keys.length){document.getElementById('dailyBody').innerHTML='<div class="empty">Sin datos todavía.</div>';return;}
+  const key=CAP.keys[fechaActualPos()]; document.getElementById('daySel').value=key;
+  const fS=parseFecha(key), mesCol=fS.m+1;
+  const D={n:acumular(CAP.N,fS,'dia'),b:acumular(CAP.B,fS,'dia')}, M={n:acumular(CAP.N,fS,'mtd'),b:acumular(CAP.B,fS,'mtd')}, Y={n:acumular(CAP.N,fS,'ytd'),b:acumular(CAP.B,fS,'ytd')};
+  const fP=v=>(v*100).toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  const fmt=(t,v)=>t==='p'?fP(v):(t==='i'?int(v):'$'+money(v));
+  // neto grande; bruto chico debajo (solo dinero, y solo si difiere del neto)
+  const celda=(t,P,k)=>{ const n=P.n[k], b=P.b[k]; const bru=(t==='m'||t==='r')&&Math.abs(b-n)>0.009?`<div class="bru">$${money(b)} bruto</div>`:'';
+    return `<td class="val"><div class="net">${fmt(t,n)}</div>${bru}</td>`; };
+  const varC=(t,real,pp)=>{ if(pp==null||pp===0) return '<td class="val dim">–</td><td class="val dim">–</td>';
+    if(t==='p'&&Math.abs(pp)<=1) pp*=100; const r=t==='p'?real*100:real, dif=r-pp, col=dif>=0?'var(--ok)':'var(--bad)', sg=dif>=0?'+':'';
+    const f=v=>t==='p'?v.toFixed(1)+'%':(t==='i'?int(v):'$'+money(v));
+    return `<td class="val">${f(pp)}</td><td class="val" style="color:${col}">${sg}${f(dif)}<br><span style="font-size:10px">${sg}${(dif/pp*100).toFixed(1)}%</span></td>`; };
+  const head=t=>`<tr class="head"><td>${t}</td><td class="val">Hoy</td><td class="val">MTD</td><td class="val">Ppto</td><td class="val">Var</td><td class="val">YTD</td></tr>`;
+  let filas='';
+  SECCIONES.forEach(([tit,rows])=>{ filas+=head(tit); rows.forEach(([lbl,k,t,cls])=>{
+    filas+=`<tr class="${cls||''}"><td class="lbl">${lbl}</td>${celda(t,D,k)}${celda(t,M,k)}${varC(t,M.n[k],pptoDe(PPTO_NOMBRE[k],mesCol))}${celda(t,Y,k)}</tr>`; }); });
+  const b=D.b;
+  const cuadreSis = b.sisCB!==0 ? `
+    <div class="section-eyebrow">Cuadre contra sistema · ${key}</div>
+    <table class="aud"><tbody>
+      <tr><td><strong>Cloudbeds · cargos del día (bruto)</strong></td><td class="num"><strong>$${money(b.sisCB)}</strong></td></tr>
+      <tr><td>&nbsp;&nbsp;− Excluido (Paid Out, Paquetería)</td><td class="num">$${money(b.exclCB)}</td></tr>
+      <tr><td>&nbsp;&nbsp;= Entra al reporte (incluye propinas y ajustes informativos)</td><td class="num">$${money(b.sisCB-b.exclCB)}</td></tr>
+      <tr><td class="dim">Restaurante cargado a habitación (ya contado en Poster)</td><td class="num dim">$${money(b.cbPoster)}</td></tr>
+      <tr><td class="dim">IVA · ISH (no son ingreso)</td><td class="num dim">$${money(b.iva)} · $${money(b.ish)}</td></tr>
+      <tr><td><strong>Poster · ventas del día (bruto)</strong></td><td class="num"><strong>$${money(b.sisPoster)}</strong></td></tr>
+      <tr><td>&nbsp;&nbsp;− No-venta (desayuno incluido, cortesía, ignorar)</td><td class="num">$${money(b.exclPoster)}</td></tr>
+    </tbody></table>
+    <div class="note">Si algún concepto de Cloudbeds/Poster no coincide con tu reporte del sistema, compara contra estas líneas: son la suma exacta de lo que trae la API ese día.</div>` : '';
   const kpis=`<div class="kpis">
-    <div class="kpi"><div class="k-lbl">ADR</div><div class="k-val">$${money(num(g(9)))}</div><div class="k-sub">MTD $${money(adrMTD)}</div></div>
-    <div class="kpi"><div class="k-lbl">Ocupación</div><div class="k-val">${pct(g(8))}</div><div class="k-sub">${int(num(g(1)))} vendidas</div></div>
-    <div class="kpi"><div class="k-lbl">Ingreso habitaciones</div><div class="k-val">$${money(num(g(7)))}</div><div class="k-sub">YTD $${money(ytd[7])}</div></div>
-    <div class="kpi"><div class="k-lbl">Total Hotel</div><div class="k-val">$${money(num(g(39)))}</div><div class="k-sub">MTD $${money(mtd[39])}</div></div>
+    <div class="kpi"><div class="k-lbl">Ocupación</div><div class="k-val">${fP(D.n.ocupPct)}</div><div class="k-sub">${int(D.n.ocupados)} ocupados · MTD ${fP(M.n.ocupPct)}</div></div>
+    <div class="kpi"><div class="k-lbl">ADR</div><div class="k-val">$${money(D.n.adr)}</div><div class="k-sub">MTD $${money(M.n.adr)}</div></div>
+    <div class="kpi"><div class="k-lbl">Ingreso habitaciones</div><div class="k-val">$${money(D.n.hab)}</div><div class="k-sub">MTD $${money(M.n.hab)}</div></div>
+    <div class="kpi"><div class="k-lbl">Total hotel (neto)</div><div class="k-val">$${money(D.n.totHotel)}</div><div class="k-sub">bruto $${money(D.b.totHotel)}</div></div>
   </div>`;
-
-  const t=`
-  <div class="section-eyebrow">Daily Report · ${g(0)}</div>
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table class="dr-table">
-    ${head('Habitaciones')}
-    ${fInt('Hab. ocupadas (vendidas)',1,'','Total cuartos ocupados')}
-    ${fInt('Hab. cortesía',2)}
-    ${fInt('Hab. uso casa',3)}
-    ${fInt('Hab. intercambio',4)}
-    ${fInt('Total cuartos ocupados',6,'total')}
-    ${fInd('% Ocupación', pct(g(8)), ocupPctMTD, ocupPctYTD, fmtPct, '% de Ocupación')}
-    ${fInd('ADR', '$'+money(num(g(9))), adrMTD, adrYTD, fmtMoney, 'ADR')}
-    ${fInd('RevPAR', '$'+money(num(g(10))), revparMTD, revparYTD, fmtMoney, 'RevPAR')}
-    ${fMoney('Total cuartos (ingreso)',7,'total','Total Cuartos (Ingreso Hab.)')}
-    <div id="desgloseHabBox"></div>
-
-    ${head('División cuartos')}
-    ${fMoney('Spa',11,'sub','Spa')}
-    ${fMoney('Wellness',41,'sub','Wellness')}
-    ${fMoney('Lavandería',12,'sub','Lavandería')}
-    ${fMoney('Transportación (La Ola)',13,'sub','Transportación (La Ola)')}
-    ${fMoney('Day Pass',14,'sub','Day Pass')}
-    ${fMoney('Actividades',15,'sub','Actividades')}
-    ${fMoney('Misceláneos',16,'sub','Misceláneos')}
-    ${fMoney('Shop / Boutique',34,'sub','Shop / Boutique')}
-    ${fMoney('Total división cuartos',17,'total','TOTAL DIVISIÓN CUARTOS')}
-
-    ${head('Restaurante')}
-    ${fMoney('Alimentos',18,'sub','Restaurante Alimentos')}
-    ${fMoney('Bebidas',19,'sub','Restaurante Bebidas')}
-    ${fMoney('Total restaurante',20,'total',['Restaurante Alimentos','Restaurante Bebidas'])}
-    ${fInt('No. Pax',21)}
-
-    ${head('Eventos')}
-    ${fMoney('Alimentos',22,'sub','Eventos Alimentos')}
-    ${fMoney('Bebidas',23,'sub','Eventos Bebidas')}
-    ${fMoney('Renta',24,'sub','Eventos Renta')}
-    ${fMoney('Extras',25,'sub','Eventos Extras')}
-    ${fMoney('Total eventos',26,'total','Total Eventos')}
-    ${fInt('No. Pax',27)}
-
-    ${head('Minibar')}
-    ${fMoney('Alimentos',28,'sub','Minibar Alimentos')}
-    ${fMoney('Bebidas',29,'sub','Minibar Bebidas')}
-    ${fMoney('Tabaquería / Otros',30,'sub')}
-    ${fMoney('Total minibar',31,'total','Total Minibar')}
-    ${fInt('No. Pax',32)}
-
-    ${head('Totales')}
-    ${fMoney('Total A&B',35,'total','TOTAL A&B')}
-    ${fInt('A&B No. Pax',36)}
-    ${fRaw('Cheque promedio A&B', '$'+money(num(g(37))), '$'+money(chqMTD), '$'+money(chqYTD))}
-    ${fRaw('RevPAR (A&B + Hab)', '$'+money(num(g(38))), '–','–')}
-    ${fMoney('TOTAL HOTEL',39,'total','TOTAL HOTEL')}
-  </table></div>
-  <div class="note">MTD = todo el mes en curso sumado hasta la fecha elegida · YTD = todo el año sumado hasta la fecha elegida · Var = acumulado real menos Ppto del mes (verde = meta alcanzada/superada, rojo = lo que falta para llegar). Ppto/Var solo aparecen si esa fila tiene una meta capturada en la pestaña PRESUPUESTO para el mes seleccionado; si la celda está vacía ahí, aquí se ve "–". % Ocupación y RevPAR se recalculan con ${ROOMS} cuartos disponibles × días transcurridos; ADR y cheque promedio, con el acumulado de ingreso entre el acumulado de cuartos/pax.</div>`;
-  document.getElementById('dailyBody').innerHTML=kpis+t;
-  cargarDesgloseHab(key);  // carga el desglose del ingreso de habitaciones (Tarifas, No-Show, Late, Early)
+  document.getElementById('dailyBody').innerHTML=kpis+`<div class="section-eyebrow">Daily Report · ${key}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table class="dr-table">${filas}</table></div>
+    <div class="note">Número grande = NETO (sin IVA). Número chico = BRUTO, como aparece en Cloudbeds/Poster. Propinas y ajustes son informativos y no suman. Ocupación, ADR y RevPAR sobre ${ROOMS} cuartos; ocupados incluye cortesía, uso casa e intercambio. Day 1/Day 2 no cuentan como habitación: van a Day Pass.</div>`+cuadreSis;
 }
-
 function descargarPDF(){
   const fecha=document.getElementById('daySel').value||'';
   pdfDe('dailyBody','DailyReport_CasaYuma',fecha);
@@ -551,121 +474,94 @@ function pdfDe(idEl, prefijo, fecha, orient){
 }
 
 function renderCaptura(){
-  const hoy=new Date().toISOString().slice(0,10);
+  const ayer=new Date(Date.now()-864e5).toISOString().slice(0,10);
+  const inp=(id,lbl,on)=>`<div class="fld"><label>${lbl}</label><input id="${id}" type="number" step="0.01" placeholder="0.00"${on?` oninput="${on}"`:''}></div>`;
   document.getElementById('capturaBody').innerHTML=`
     <div class="section-eyebrow">Cuadre diario · captura</div>
     <div class="cap-form">
-      <div class="fld cap-full"><label>Fecha del cuadre</label><input id="cFecha" type="date" value="${hoy}" onchange="cargarCuadreExistente()"></div>
-
-      <div class="cap-h">Terminal FRONT (afil. 004837575)</div>
-      <div class="cap-grid">
-        <div class="fld"><label>Crédito otros</label><input id="fCredOtros" type="number" step="0.01" placeholder="0.00" oninput="sumFront()"></div>
-        <div class="fld"><label>Crédito AMEX</label><input id="fAmex" type="number" step="0.01" placeholder="0.00" oninput="sumFront()"></div>
-        <div class="fld"><label>Débito otros</label><input id="fDebOtros" type="number" step="0.01" placeholder="0.00" oninput="sumFront()"></div>
-        <div class="fld"><label>Arqueo efectivo Front</label><input id="cArqFront" type="number" step="0.01" placeholder="0.00"></div>
-      </div>
+      <div class="fld cap-full"><label>Fecha del cuadre</label><input id="cFecha" type="date" value="${ayer}" onchange="cargarCuadreExistente()"></div>
+      <div class="cap-h">Terminal FRONT (cierre de lote)</div>
+      <div class="cap-grid">${inp('fCredOtros','Crédito otros','sumFront()')}${inp('fAmex','Crédito AMEX','sumFront()')}${inp('fDebOtros','Débito otros','sumFront()')}${inp('cArqFront','Arqueo efectivo Front')}</div>
       <div class="cap-sub">Total terminal Front: <strong id="totFrontLbl">$0.00</strong></div>
-
       <div class="cap-h">Otros canales FRONT</div>
-      <div class="cap-grid">
-        <div class="fld"><label>Openpay (link)</label><input id="cOpenpay" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="fld"><label>Transferencias</label><input id="cTransfer" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="fld cap-full"><label>Estado de transferencias</label>
-          <select id="cTransferEstado"><option value="Pendiente">Pendiente por validar</option><option value="Validado">Validado</option></select></div>
-      </div>
-
-      <div class="cap-h">Terminal RESTAURANTE (afil. 004859665)</div>
-      <div class="cap-grid">
-        <div class="fld"><label>Crédito otros</label><input id="rCredOtros" type="number" step="0.01" placeholder="0.00" oninput="sumRest()"></div>
-        <div class="fld"><label>Crédito AMEX</label><input id="rAmex" type="number" step="0.01" placeholder="0.00" oninput="sumRest()"></div>
-        <div class="fld"><label>Débito otros</label><input id="rDebOtros" type="number" step="0.01" placeholder="0.00" oninput="sumRest()"></div>
-        <div class="fld"><label>Arqueo efectivo Restaurante</label><input id="cArqRest" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="fld"><label>Cargos a habitación (Poster)</label><input id="rCargoHab" type="number" step="0.01" placeholder="0.00"></div>
-      </div>
+      <div class="cap-grid">${inp('cOpenpay','Openpay (link)')}${inp('cTransfer','Transferencias')}
+        <div class="fld cap-full"><label>Estado de transferencias</label><select id="cTransferEstado"><option value="Pendiente">Pendiente por validar</option><option value="Validado">Validado</option></select></div></div>
+      <div class="cap-h">Terminal RESTAURANTE (cierre de lote)</div>
+      <div class="cap-grid">${inp('rCredOtros','Crédito otros','sumRest()')}${inp('rAmex','Crédito AMEX','sumRest()')}${inp('rDebOtros','Débito otros','sumRest()')}${inp('cArqRest','Arqueo efectivo Restaurante')}${inp('rCargoHab','Cargos a habitación (Poster)')}</div>
       <div class="cap-sub">Total terminal Rest: <strong id="totRestLbl">$0.00</strong></div>
-      <div class="cap-sub" style="font-size:11px;color:var(--cactus)">Poster marca como "tarjeta" también los consumos cargados a habitación. Captura aquí ese monto para que el cuadre reste y compare solo tu terminal real.</div>
-
+      <div class="cap-sub" style="font-size:11px">"Cargos a habitación" se llena solo con lo que Poster mandó a Cloudbeds ese día. Corrígelo solo si sabes que es distinto.</div>
+      <div class="fld cap-full"><label>Notas (opcional)</label><input id="cNotas" type="text" placeholder="Ej. ticket 9453 pagado en efectivo, no aparece en jornal"></div>
       <button class="cap-btn" onclick="guardarCuadre()">Guardar y ver cuadre</button>
-      <div id="cuadreMsg"></div>
-      <div id="cuadreRes"></div>
+      <div id="cuadreMsg"></div><div id="cuadreRes"></div>
     </div>
-    <div class="note">Terminal se cuadra por resta (todo lo que no es Openpay, transferencia, VCC o efectivo). Las VCC de agencias se muestran informativas. Front vs Cloudbeds · Restaurante vs Poster.</div>`;
+    <div class="note">Si un consumo de restaurante o Day Pass se cobra en la terminal o en efectivo de Front, escribe <strong>TERMINAL RESTAURANTE</strong> en la nota del pago en Cloudbeds: así el sistema lo separa solo y no descuadra Front.</div>`;
   cargarCuadreExistente();
 }
-function sumFront(){ const t=(+document.getElementById('fCredOtros').value||0)+(+document.getElementById('fAmex').value||0)+(+document.getElementById('fDebOtros').value||0); document.getElementById('totFrontLbl').textContent='$'+money(t); }
-function sumRest(){ const t=(+document.getElementById('rCredOtros').value||0)+(+document.getElementById('rAmex').value||0)+(+document.getElementById('rDebOtros').value||0); document.getElementById('totRestLbl').textContent='$'+money(t); }
-
+function sumFront(){ const t=['fCredOtros','fAmex','fDebOtros'].reduce((s,i)=>s+(+document.getElementById(i).value||0),0); document.getElementById('totFrontLbl').textContent='$'+money(t); }
+function sumRest(){ const t=['rCredOtros','rAmex','rDebOtros'].reduce((s,i)=>s+(+document.getElementById(i).value||0),0); document.getElementById('totRestLbl').textContent='$'+money(t); }
+const CAMPOS_CUADRE=['fCredOtros','fAmex','fDebOtros','cOpenpay','cTransfer','rCredOtros','rAmex','rDebOtros','cArqFront','cArqRest','rCargoHab'];
 async function cargarCuadreExistente(){
-  const fecha=document.getElementById('cFecha').value;
+  const fecha=document.getElementById('cFecha').value, set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v!==''&&v!=null&&!isNaN(v))?v:'';};
+  document.getElementById('cuadreRes').innerHTML=''; document.getElementById('cuadreMsg').innerHTML='';
   try{
     const j=await apiGet({accion:'cuadres',id:SESSION.id,pin:SESSION.pin});
-    if(!j.ok)return;
-    const row=j.filas.slice(1).find(r=>String(r[0]).slice(0,10)===fecha);
-    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v!==''&&v!=null&&!isNaN(v))?v:'';};
+    const row=j.ok?j.filas.slice(1).find(r=>String(r[0]).slice(0,10)===fecha):null;
     if(row){
-      set('fCredOtros',row[1]);set('fAmex',row[2]);set('fDebOtros',row[3]);
-      set('cOpenpay',row[5]);set('cTransfer',row[6]);
-      const te=document.getElementById('cTransferEstado'); if(te&&row[7])te.value=row[7];
-      set('rCredOtros',row[8]);set('rAmex',row[9]);set('rDebOtros',row[10]);
-      set('cArqFront',row[12]);set('cArqRest',row[13]);
-      if(row[24]!==undefined) set('rCargoHab',row[24]);
+      set('fCredOtros',row[1]);set('fAmex',row[2]);set('fDebOtros',row[3]);set('cOpenpay',row[5]);set('cTransfer',row[6]);
+      if(row[7])document.getElementById('cTransferEstado').value=row[7];
+      set('rCredOtros',row[8]);set('rAmex',row[9]);set('rDebOtros',row[10]);set('cArqFront',row[12]);set('cArqRest',row[13]);set('rCargoHab',row[24]);
+      document.getElementById('cNotas').value=row[16]||'';
       document.getElementById('cuadreMsg').innerHTML=`<div class="note">Ya hay un cuadre para ${fecha} (por ${row[14]||'—'}). Puedes corregirlo.</div>`;
     }else{
-      ['fCredOtros','fAmex','fDebOtros','cOpenpay','cTransfer','rCredOtros','rAmex','rDebOtros','cArqFront','cArqRest','rCargoHab'].forEach(id=>set(id,''));
-      document.getElementById('cuadreMsg').innerHTML='';
+      CAMPOS_CUADRE.forEach(id=>set(id,'')); document.getElementById('cNotas').value='';
+      const s=await apiGet({accion:'sugerCuadre',id:SESSION.id,pin:SESSION.pin,fecha:fecha});
+      if(s.ok&&s.sug) set('rCargoHab',s.sug.cargoHab);
     }
     sumFront();sumRest();
-    document.getElementById('cuadreRes').innerHTML='';
   }catch(e){}
 }
-
 async function guardarCuadre(){
-  const b={accion:'guardarCuadre',id:SESSION.id,pin:SESSION.pin,
-    fecha:document.getElementById('cFecha').value,
-    fCredOtros:document.getElementById('fCredOtros').value||0,fAmex:document.getElementById('fAmex').value||0,fDebOtros:document.getElementById('fDebOtros').value||0,
-    openpay:document.getElementById('cOpenpay').value||0,transfer:document.getElementById('cTransfer').value||0,transferEstado:document.getElementById('cTransferEstado').value,
-    rCredOtros:document.getElementById('rCredOtros').value||0,rAmex:document.getElementById('rAmex').value||0,rDebOtros:document.getElementById('rDebOtros').value||0,
-    arqFront:document.getElementById('cArqFront').value||0,arqRest:document.getElementById('cArqRest').value||0,
-    cargoHabRest:document.getElementById('rCargoHab').value||0};
-  const msg=document.getElementById('cuadreMsg'); msg.innerHTML='Guardando y comparando…';
+  const v=id=>document.getElementById(id).value||0;
+  const b={accion:'guardarCuadre',id:SESSION.id,pin:SESSION.pin,fecha:document.getElementById('cFecha').value,
+    fCredOtros:v('fCredOtros'),fAmex:v('fAmex'),fDebOtros:v('fDebOtros'),openpay:v('cOpenpay'),transfer:v('cTransfer'),
+    transferEstado:document.getElementById('cTransferEstado').value,rCredOtros:v('rCredOtros'),rAmex:v('rAmex'),rDebOtros:v('rDebOtros'),
+    arqFront:v('cArqFront'),arqRest:v('cArqRest'),cargoHabRest:v('rCargoHab'),notas:document.getElementById('cNotas').value||''};
+  const msg=document.getElementById('cuadreMsg'); msg.innerHTML='<div class="loading" style="padding:14px"><div class="spinner"></div>Guardando y comparando contra Cloudbeds y Poster…</div>';
   try{
     const j=await apiPost(b);
     if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
     msg.innerHTML=`<div class="okmsg">Cuadre guardado para ${b.fecha}.</div>`;
-    if(j.cuadre) pintarCuadre(j.cuadre, document.getElementById('cTransferEstado').value);
-  }catch(e){ msg.innerHTML=`<div class="errbox">No se pudo guardar.</div>`; }
+    pintarCuadre(j.cuadre, b.transferEstado);
+  }catch(e){ msg.innerHTML='<div class="errbox">No se pudo guardar.</div>'; }
 }
+const CANAL_LBL={terminal:'Terminal Front',openpay:'Openpay',transfer:'Transferencia',vcc:'VCC agencias',efectivo:'Efectivo Front',restCB:'Cobrado en restaurante',cortesia:'Cortesía'};
 function pintarCuadre(c, transferEstado){
-  const linea=(lbl,o)=>{
-    const col=o.ok?'var(--ok)':'var(--bad)'; const ico=o.ok?'🟢':'🔴';
-    return `<div class="line"><span>${ico} ${lbl}</span><span style="font-variant-numeric:tabular-nums">cap $${money(o.capturado)} · sist $${money(o.sistema)} · <strong style="color:${col}">${o.dif>=0?'+':''}${money(o.dif)}</strong></span></div>`;
-  };
-  const lineaInfo=(lbl,val,extra)=>`<div class="line"><span>🔵 ${lbl}</span><span style="font-variant-numeric:tabular-nums">$${money(val)}${extra||''}</span></div>`;
-  const f=c.front;
-  const transferLine=(transferEstado==='Validado')
-    ? linea('Transferencias',f.transfer)
-    : `<div class="line"><span>⏳ Transferencias (por validar)</span><span style="font-variant-numeric:tabular-nums">cap $${money(f.transfer.capturado)} · sist $${money(f.transfer.sistema)}</span></div>`;
-  const allOk=f.terminal.ok&&f.openpay.ok&&f.efectivo.ok&&c.rest.terminal.ok&&c.rest.efectivo.ok&&(transferEstado==='Validado'?f.transfer.ok:true);
+  const linea=(lbl,o)=>`<div class="line"><span>${o.ok?'🟢':'🔴'} ${lbl}</span><span style="font-variant-numeric:tabular-nums">capturado $${money(o.capturado)} · sistema $${money(o.sistema)} · <strong style="color:${o.ok?'var(--ok)':'var(--bad)'}">${o.dif>=0?'+':''}${money(o.dif)}</strong></span></div>`;
+  const info=(lbl,val,extra)=>`<div class="line"><span>🔵 ${lbl}</span><span style="font-variant-numeric:tabular-nums">$${money(val)}${extra||''}</span></div>`;
+  const f=c.front, r=c.rest;
+  const tLine=transferEstado==='Validado'?linea('Transferencias',f.transfer):`<div class="line"><span>⏳ Transferencias (por validar)</span><span>capturado $${money(f.transfer.capturado)} · sistema $${money(f.transfer.sistema)}</span></div>`;
+  const allOk=f.terminal.ok&&f.openpay.ok&&f.efectivo.ok&&r.terminal.ok&&r.efectivo.ok&&(transferEstado==='Validado'?f.transfer.ok:true);
+  const pagos=(c.pagos||[]).map(p=>`<tr><td>${CANAL_LBL[p.canal]||p.canal}</td><td>${p.metodo}</td><td>${p.huesped||'—'}${p.hab?' · '+p.hab:''}</td><td style="font-size:11px">${p.nota||''}</td><td class="num">$${money(p.monto)}</td></tr>`).join('');
+  const tickets=(c.tickets||[]).filter(t=>t.tarjeta||t.efectivo).map(t=>`<tr><td>${t.ticket}</td><td>${t.hora||''}</td><td class="num">${t.efectivo?'$'+money(t.efectivo):'–'}</td><td class="num">${t.tarjeta?'$'+money(t.tarjeta):'–'}</td></tr>`).join('');
   document.getElementById('cuadreRes').innerHTML=`
     <div style="margin-top:18px;padding:16px;border-radius:2px;border:1px solid ${allOk?'var(--ok)':'var(--bad)'};background:${allOk?'#e0efe0':'#faf0ef'}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-weight:600;font-family:var(--disp)">${allOk?'✅ Todo cuadra':'⚠️ Revisar diferencias'}</span>
-        <button class="cap-btn no-pdf" style="padding:6px 12px;font-size:12px" onclick="pdfDe('cuadreRes','Cuadre_CasaYuma',document.getElementById('cFecha').value)">PDF</button>
-      </div>
+        <button class="cap-btn no-pdf" style="padding:6px 12px;font-size:12px" onclick="pdfDe('cuadreRes','Cuadre_CasaYuma',document.getElementById('cFecha').value)">PDF</button></div>
       <div class="cuadre-cat">Front · Cloudbeds</div>
-      ${linea('Terminal BBVA',f.terminal)}
-      ${f.termRestEnFront ? lineaInfo('↳ En terminal restaurante (excluido de front)',f.termRestEnFront) : ''}
-      ${linea('Openpay',f.openpay)}
-      ${transferLine}
-      ${lineaInfo('VCC agencias (informativo)',f.vcc.sistema)}
-      ${linea('Efectivo',f.efectivo)}
+      ${linea('Terminal Front',f.terminal)}${linea('Openpay',f.openpay)}${tLine}${linea('Efectivo Front',f.efectivo)}
+      ${info('VCC agencias (informativo)',f.vcc.sistema)}
+      ${f.termRestEnFront?info('Cobrado en restaurante, registrado en Cloudbeds (fuera de Front)',f.termRestEnFront):''}
       <div class="cuadre-cat">Restaurante · Poster</div>
-      ${linea('Terminal',c.rest.terminal)}
-      ${linea('Efectivo',c.rest.efectivo)}
-      ${c.rest.cargoHab && c.rest.cargoHab.capturado ? lineaInfo('Cargos a habitación (restado de Poster)',c.rest.cargoHab.capturado,' · Poster total tarjeta: $'+money(c.rest.cargoHab.posterTotal)) : ''}
-    </div>`;
+      ${linea('Terminal Restaurante',r.terminal)}${linea('Efectivo Restaurante',r.efectivo)}
+      ${r.cargoHab.capturado?info('Cargos a habitación (restados de tarjeta Poster)',r.cargoHab.capturado,' · tarjeta Poster total $'+money(r.cargoHab.posterTotal)):''}
+    </div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--blue)">Ver cada pago de Cloudbeds (${(c.pagos||[]).length})</summary>
+      <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Canal</th><th>Método</th><th>Huésped</th><th>Nota</th><th style="text-align:right">Monto</th></tr></thead><tbody>${pagos||'<tr><td colspan=5>Sin pagos</td></tr>'}</tbody></table></div></details>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--blue)">Ver tickets de Poster con efectivo/tarjeta</summary>
+      <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Ticket</th><th>Hora</th><th style="text-align:right">Efectivo</th><th style="text-align:right">Tarjeta</th></tr></thead><tbody>${tickets||'<tr><td colspan=4>Sin tickets</td></tr>'}</tbody></table></div></details>
+    <div class="note">Si hay diferencia: busca el monto en estas listas. Un ticket de Poster que no está en tu jornal, o un pago con método mal elegido en Cloudbeds, aparece aquí con su número.</div>`;
 }
-
 function renderAjustes(){
   const allRows=DATA.ajustes.slice(1).filter(r=>r[5]);
   // meses disponibles, más reciente arriba
@@ -875,28 +771,10 @@ function descargarPropinasExcel(){
   const nombre='Propinas_CasaYuma_'+R.desde+'_a_'+R.hasta+'.xlsx';
   XLSX.writeFile(wb, nombre);
 }
-function cargarDesgloseHab(fecha){
-  const box=document.getElementById('desgloseHabBox');
-  if(!box) return;
-  box.innerHTML='';
-  if(!fecha) return;
-  apiGet({accion:'desgloseHab',id:SESSION.id,pin:SESSION.pin,fecha:fecha}).then(j=>{
-    if(!j.ok||!j.desg||j.desg.error){ return; }
-    const d=j.desg;
-    const filas=[];
-    filas.push(['Tarifas', d.tarifas]);
-    if(Math.abs(d.noShow)>0.01) filas.push(['No-Show', d.noShow]);
-    if(Math.abs(d.lateOut)>0.01) filas.push(['Late Check-Out', d.lateOut]);
-    if(Math.abs(d.earlyIn)>0.01) filas.push(['Early Check-In', d.earlyIn]);
-    if(Math.abs(d.otrosHab)>0.01) filas.push(['Otros (extra person, upgrade…)', d.otrosHab]);
-    const rows=filas.map(f=>`<div class="row" style="padding-left:24px;font-size:13px;color:var(--cactus)"><span>· ${f[0]}</span><span class="num">$${money(f[1])}</span></div>`).join('');
-    box.innerHTML=rows;
-  }).catch(e=>{});
-}
 function cargarConcil(){
   const fecha=document.getElementById('concilFecha').value;
   if(!fecha){ document.getElementById('concilBody').innerHTML='<div class="empty">Elige una fecha.</div>'; return; }
-  document.getElementById('concilBody').innerHTML='<div class="loading"><div class="spinner"></div>Conciliando…</div>';
+  document.getElementById('concilBody').innerHTML='<div class="loading"><div class="spinner"></div>Recalculando en vivo…</div>';
   apiGet({accion:'conciliacion',id:SESSION.id,pin:SESSION.pin,fecha:fecha}).then(j=>{
     if(!j.ok){ document.getElementById('concilBody').innerHTML=`<div class="errbox">${j.error}</div>`; return; }
     pintarConcil(j.con);
@@ -904,40 +782,29 @@ function cargarConcil(){
 }
 function pintarConcil(c){
   if(c.error){ document.getElementById('concilBody').innerHTML=`<div class="errbox">${c.error}</div>`; return; }
-  const dif=c.difCapturaVsCB;
-  const difColor=Math.abs(dif)<100?'var(--ok)':'var(--warn)';
+  const difs=c.filas.filter(f=>Math.abs(f.vivo-f.guardado)>=0.01);
+  const filas=c.filas.map(f=>{ const d=f.vivo-f.guardado, mal=Math.abs(d)>=0.01;
+    return `<tr${mal?' style="background:#faf0ef"':''}><td>${f.lbl}</td><td class="num">${money(f.guardado)}</td><td class="num">${money(f.vivo)}</td><td class="num" style="color:${mal?'var(--bad)':'var(--cactus)'}">${mal?money(d):'✓'}</td><td class="num dim">${money(f.brutoVivo)}</td></tr>`; }).join('');
+  const B=c.B;
   document.getElementById('concilBody').innerHTML=`
-    <div style="padding:16px;background:var(--wool);border-radius:2px;margin-bottom:14px">
-      <strong style="font-family:var(--disp);font-size:19px">Conciliación Cloudbeds · ${c.fecha}</strong>
+    <div style="padding:16px;background:${difs.length?'#faf0ef':'var(--wool)'};border-radius:2px;margin-bottom:14px">
+      <strong style="font-family:var(--disp);font-size:19px">Verificar día · ${c.fecha}</strong>
+      <div style="font-size:13px;margin-top:6px">${difs.length?difs.length+' conceptos cambiaron desde que se procesó (cargos posteados tarde o corregidos).':'Lo guardado coincide con Cloudbeds y Poster hoy ✓'}</div>
+      ${difs.length?`<button class="cap-btn" style="margin-top:10px;padding:9px 16px" onclick="reprocesarDia('${c.fecha}')">Actualizar este día</button>`:''}
     </div>
-
-    <div class="section-eyebrow">Las dos cifras que comparas</div>
-    <table class="aud"><tbody>
-      <tr><td><strong>CAPTURA (ingreso total neto del hotel)</strong></td><td class="num"><strong>$${money(c.capturaTotal)}</strong></td></tr>
-      <tr><td>Informe de transacciones Cloudbeds (cargos sin impuestos)</td><td class="num">$${money(c.informeCB)}</td></tr>
-      <tr><td><strong>Diferencia</strong></td><td class="num"><strong style="color:${difColor}">$${money(dif)}</strong></td></tr>
-    </tbody></table>
-    <div class="note">CAPTURA incluye TODO el restaurante de Poster (neteado, con walk-ins). El Informe de Cloudbeds solo cuenta lo posteado a habitaciones. Por eso difieren — CAPTURA es más completo.</div>
-
-    <div class="section-eyebrow" style="margin-top:22px">Desglose del jornal Cloudbeds (bruto)</div>
-    <table class="aud"><tbody>
-      <tr><td>Habitaciones (rate)</td><td class="num">$${money(c.rate)}</td></tr>
-      <tr><td>Productos/servicios (spa, taxis, etc.)</td><td class="num">$${money(c.products)}</td></tr>
-      <tr><td>Restaurante posteado a habitación (custom_item)</td><td class="num">$${money(c.custom)}</td></tr>
-      <tr style="border-top:2px solid var(--line)"><td><strong>Informe transacciones CB (suma cargos)</strong></td><td class="num"><strong>$${money(c.informeCB)}</strong></td></tr>
-      <tr><td style="color:var(--cactus)">IVA (informativo, no suma)</td><td class="num" style="color:var(--cactus)">$${money(c.iva)}</td></tr>
-      <tr><td style="color:var(--cactus)">Hospedaje (informativo, no suma)</td><td class="num" style="color:var(--cactus)">$${money(c.hospedaje)}</td></tr>
-      <tr><td style="color:var(--cactus)">Propinas (informativo, no suma)</td><td class="num" style="color:var(--cactus)">$${money(c.propinas)}</td></tr>
-    </tbody></table>
-
-    <div class="section-eyebrow" style="margin-top:22px">Restaurante (Poster) — la fuente de la diferencia</div>
-    <table class="aud"><tbody>
-      <tr><td>Poster BRUTO (con IVA, ${c.posterTx} tickets)</td><td class="num">$${money(c.posterBruto)}</td></tr>
-      <tr><td>Poster NETO (÷1.16)</td><td class="num">$${money(c.posterNeto)}</td></tr>
-      <tr><td>Restaurante en Cloudbeds (custom_item)</td><td class="num">$${money(c.custom)}</td></tr>
-      <tr><td><strong>Diferencia restaurante (Poster neto − CB)</strong></td><td class="num"><strong>$${money(c.posterNeto-c.custom)}</strong></td></tr>
-    </tbody></table>
-    <div class="note">Esta diferencia (walk-ins del restaurante que están en Poster pero no en Cloudbeds) explica el grueso de la diferencia total. Es correcto: CAPTURA los cuenta, el informe de Cloudbeds no.</div>`;
+    <div class="kpis">
+      <div class="kpi"><div class="k-lbl">Cloudbeds cargos</div><div class="k-val">$${money(B.sisCB)}</div><div class="k-sub">excluido $${money(B.exclCB)}</div></div>
+      <div class="kpi"><div class="k-lbl">Poster ventas</div><div class="k-val">$${money(B.sisPoster)}</div><div class="k-sub">no-venta $${money(B.exclPoster)}</div></div>
+      <div class="kpi"><div class="k-lbl">IVA · ISH</div><div class="k-val" style="font-size:18px">$${money(B.iva)}</div><div class="k-sub">ISH $${money(B.ish)}</div></div>
+    </div>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Concepto</th><th style="text-align:right">Guardado (neto)</th><th style="text-align:right">En vivo (neto)</th><th style="text-align:right">Dif</th><th style="text-align:right">Bruto sistema</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+}
+async function reprocesarDia(fecha){
+  document.getElementById('concilBody').innerHTML='<div class="loading"><div class="spinner"></div>Actualizando '+fecha+'…</div>';
+  const j=await apiPost({accion:'reprocesarDia',id:SESSION.id,pin:SESSION.pin,fecha:fecha});
+  if(!j.ok){ document.getElementById('concilBody').innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+  const jc=await apiGet({accion:'captura',id:SESSION.id,pin:SESSION.pin}); if(jc.ok) initDaily(jc);
+  cargarConcil();
 }
 function cargarIngPago(){
   const desde=document.getElementById('ivpDesde').value;
@@ -1201,75 +1068,30 @@ function detalleCuadre(idx){
   document.getElementById('cuadreDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-function detalleDia(fecha){
-  document.getElementById('ctrlDiaBody').innerHTML='<div class="loading"><div class="spinner"></div>Consultando '+fecha+'…</div>';
-  document.getElementById('ctrlDiaBody').scrollIntoView({behavior:'smooth',block:'nearest'});
-  apiGet({accion:'detalleDiaControl',id:SESSION.id,pin:SESSION.pin,fecha:fecha}).then(j=>{
-    if(!j.ok){ document.getElementById('ctrlDiaBody').innerHTML=`<div class="errbox">${j.error}</div>`; return; }
-    const d=j.det;
-    if(d.error){ document.getElementById('ctrlDiaBody').innerHTML=`<div class="errbox">${d.error}</div>`; return; }
-    // sin clasificar
-    let scHtml='';
-    if(d.sinClasif.length){
-      const filas=d.sinClasif.map(x=>`<tr><td>${x.concepto}</td><td style="text-align:center">${x.codigo}</td><td style="text-align:center">${x.cat}</td><td>${x.reserva}</td><td class="num">$${money(x.monto)}</td></tr>`).join('');
-      scHtml=`<div class="section-eyebrow" style="margin-top:18px">Transacciones sin clasificar · ${fecha}</div>
-        <table class="aud"><thead><tr><th>Concepto</th><th style="text-align:center">Código</th><th style="text-align:center">Categoría</th><th>Reserva</th><th style="text-align:right">Monto</th></tr></thead><tbody>${filas}</tbody></table>
-        <div class="note">Estas transacciones no las clasifica el motor. Para arreglarlo: identifica el patrón y agrégalo a la fórmula de RAW (como se hizo con Pet Fee, Service Fee).</div>`;
-    }else{
-      scHtml=`<div class="note" style="margin-top:14px">✓ Sin transacciones sin clasificar este día.</div>`;
-    }
-    // cuartos
-    const c=d.cuartos;
-    const cuadra=c.totalOcupados===c.conRenta;
-    const filasC=c.detalle.map(x=>`<tr><td>${x.habitacion}</td><td style="text-align:center">${x.conRenta?'<span style="color:var(--ok)">Con renta</span>':'<span style="color:var(--bad)">SIN renta</span>'}</td><td class="num">$${money(x.renta)}</td></tr>`).join('');
-    const cHtml=`<div class="section-eyebrow" style="margin-top:22px">Cuartos · ${fecha} · ${c.totalOcupados} ocupados, ${c.conRenta} con renta ${cuadra?'<span style="color:var(--ok)">✓</span>':'<span style="color:var(--bad)">✗ no cuadra</span>'}</div>
-      <table class="aud"><thead><tr><th>Habitación</th><th style="text-align:center">Estado</th><th style="text-align:right">Renta</th></tr></thead><tbody>${filasC}</tbody></table>
-      <div class="note">Los cuartos "SIN renta" son ocupados que no generaron cargo de hospedaje ese día (posible cortesía/uso casa no marcado, o cargo faltante). Revísalos en Cloudbeds.</div>`;
-    document.getElementById('ctrlDiaBody').innerHTML=`<div style="padding:12px 14px;background:var(--wool);border-radius:2px;margin-top:16px"><strong style="font-family:var(--disp)">Detalle del ${fecha}</strong></div>${scHtml}${cHtml}`;
-    document.getElementById('ctrlDiaBody').scrollIntoView({behavior:'smooth',block:'nearest'});
-  }).catch(e=>{ document.getElementById('ctrlDiaBody').innerHTML='<div class="errbox">No se pudo consultar.</div>'; });
-}
+// Control mensual: filas [fecha, cuadreGeneral, termFront, openpay, efvoFront, termRest, efvoRest, sinClasif]
 function renderControl(){
-  const rows=DATA.control.slice(1).filter(r=>r[0]); const M={};
-  window._CTRL_ROWS=rows;
-  rows.forEach(r=>{const f=parseFecha(r[0]);if(!f)return;const key=f.y+'-'+String(f.m+1).padStart(2,'0');if(!M[key])M[key]={dias:0,term:0,cuartos:0,sc:0,eff:0,efr:0,aj:0};const m=M[key];m.dias++;if(r[2]==='REVISAR')m.term++;if(r[3]==='REVISAR')m.cuartos++;if(r[5]==='REVISAR')m.sc++;if(r[6]==='REVISAR')m.eff++;if(r[7]==='REVISAR')m.efr++;if(r[9]==='REVISAR')m.aj++;});
+  const rows=(DATA.control||[]); window._CTRL_ROWS=rows; const M={};
+  rows.forEach(r=>{ const k=String(r[0]).slice(0,7); if(!M[k])M[k]={dias:0,sin:0,rev:0,sc:0}; const m=M[k]; m.dias++;
+    if(r[1]==='SIN CAPTURA')m.sin++; else if(r[1]==='REVISAR')m.rev++; if(num(r[7])>0.01)m.sc++; });
   const keys=Object.keys(M).sort().reverse();
   if(!keys.length){document.getElementById('controlBody').innerHTML='<div class="empty">Sin datos de control aún.</div>';return;}
-  const body=keys.map(k=>{const m=M[k],tot=m.term+m.cuartos+m.sc+m.eff+m.efr+m.aj;const sem=tot===0?'<span class="badge sem-ok">🟢</span>':tot<=3?'<span class="badge sem-warn">🟡</span>':'<span class="badge sem-bad">🔴</span>';const cell=v=>v>0?`<td class="num" style="background:#f2d6dc;color:var(--bad)">${v}</td>`:`<td class="num">0</td>`;
-    return `<tr class="clickrow" onclick="detalleMes('${k}')"><td>${k}</td><td class="num">${m.dias}</td>${cell(m.term)}${cell(m.cuartos)}${cell(m.sc)}${cell(m.eff)}${cell(m.efr)}${cell(m.aj)}<td style="text-align:center">${sem}</td></tr>`;}).join('');
-  document.getElementById('controlBody').innerHTML=`<div class="section-eyebrow">Control mensual · días con foco rojo por tipo</div>
-    <table class="aud"><thead><tr><th>Mes</th><th style="text-align:right">Días</th><th style="text-align:right">Terminales</th><th style="text-align:right">Cuartos</th><th style="text-align:right">Sin clasif</th><th style="text-align:right">Efvo Front</th><th style="text-align:right">Efvo Rest</th><th style="text-align:right">Ajustes</th><th style="text-align:center">Semáforo</th></tr></thead><tbody>${body}</tbody></table>
-    <div class="note">Clic en un mes para ver los días con foco rojo y su detalle. Terminales/efectivo salen 0 si no se ha capturado el cuadre.</div>
-    <div id="ctrlDetBody"></div>`;
+  const cell=v=>v>0?`<td class="num" style="background:#f2d6dc;color:var(--bad)">${v}</td>`:'<td class="num">0</td>';
+  const body=keys.map(k=>{const m=M[k],t=m.sin+m.rev+m.sc;const sem=t===0?'🟢':t<=3?'🟡':'🔴';
+    return `<tr class="clickrow" onclick="detalleMes('${k}')"><td>${k}</td><td class="num">${m.dias}</td>${cell(m.sin)}${cell(m.rev)}${cell(m.sc)}<td style="text-align:center">${sem}</td></tr>`;}).join('');
+  document.getElementById('controlBody').innerHTML=`<div class="section-eyebrow">Control mensual</div>
+    <table class="aud"><thead><tr><th>Mes</th><th style="text-align:right">Días</th><th style="text-align:right">Sin cuadre capturado</th><th style="text-align:right">Cuadre a revisar</th><th style="text-align:right">Con ingreso sin clasificar</th><th style="text-align:center">Semáforo</th></tr></thead><tbody>${body}</tbody></table>
+    <div class="note">Clic en un mes para ver qué días tienen pendientes.</div><div id="ctrlDetBody"></div>`;
 }
-function detalleMes(mesKey){
-  const rows=(window._CTRL_ROWS||[]).filter(r=>{ const f=parseFecha(r[0]); return f && (f.y+'-'+String(f.m+1).padStart(2,'0'))===mesKey; });
-  rows.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
-  // solo días con al menos un foco rojo
-  const conRojo=rows.filter(r=> r[2]==='REVISAR'||r[3]==='REVISAR'||r[5]==='REVISAR'||r[6]==='REVISAR'||r[7]==='REVISAR'||r[9]==='REVISAR');
-  const est=(v)=>{ if(v==='REVISAR') return '<span class="tipo-chip t-void">Revisar</span>'; if(v==='OK') return '<span style="color:var(--ok)">OK</span>'; if(String(v||'').indexOf('PENDIENTE')===0) return '<span style="color:var(--cactus);font-size:11px">Pend.</span>'; return '<span style="color:#c9c0a8">—</span>'; };
-  const dif=(v)=>{ const n=num(v); return n!==0?`<span style="color:var(--bad)">$${money(n)}</span>`:'<span style="color:#c9c0a8">—</span>'; };
-  if(!conRojo.length){
-    document.getElementById('ctrlDetBody').innerHTML=`<div class="section-eyebrow" style="margin-top:20px">${mesKey} · sin focos rojos ✓</div><div class="note">Todos los días de ${mesKey} cuadran.</div>`;
-    document.getElementById('ctrlDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
-    return;
-  }
-  const body=conRojo.map(r=>{
-    const fecha=String(r[0]).slice(0,10);
-    return `<tr class="clickrow" onclick="detalleDia('${fecha}')">
-      <td>${fecha}</td>
-      <td style="text-align:center">${est(r[2])}</td>
-      <td style="text-align:center">${est(r[3])}</td>
-      <td style="text-align:center">${est(r[5])}<br>${dif(r[4])}</td>
-      <td style="text-align:center">${est(r[6])}</td>
-      <td style="text-align:center">${est(r[7])}</td>
-      <td style="text-align:center">${est(r[9])}<br>${dif(r[8])}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('ctrlDetBody').innerHTML=`
-    <div class="section-eyebrow" style="margin-top:22px">${mesKey} · ${conRojo.length} días con foco rojo</div>
-    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Fecha</th><th style="text-align:center">Terminales</th><th style="text-align:center">Cuartos</th><th style="text-align:center">Sin clasif</th><th style="text-align:center">Efvo Front</th><th style="text-align:center">Efvo Rest</th><th style="text-align:center">Ajustes</th></tr></thead><tbody>${body}</tbody></table></div>
-    <div class="note">Clic en un día para ver la causa: transacciones sin clasificar y desglose de cuartos ocupados vs. con renta.</div><div id="ctrlDiaBody"></div>`;
+function detalleMes(mes){
+  const est=v=>v==='REVISAR'?'<span class="tipo-chip t-void">Revisar</span>':v==='OK'?'<span style="color:var(--ok)">OK</span>':'<span class="dim">—</span>';
+  const rows=(window._CTRL_ROWS||[]).filter(r=>String(r[0]).slice(0,7)===mes&&(r[1]!=='CUADRA'||num(r[7])>0.01));
+  const body=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]==='SIN CAPTURA'?'<span class="tipo-chip t-adj">Sin captura</span>':est(r[1]==='CUADRA'?'OK':r[1])}</td>
+    <td style="text-align:center">${est(r[2])}</td><td style="text-align:center">${est(r[3])}</td><td style="text-align:center">${est(r[4])}</td><td style="text-align:center">${est(r[5])}</td><td style="text-align:center">${est(r[6])}</td>
+    <td class="num">${num(r[7])>0.01?'<span style="color:var(--bad)">$'+money(r[7])+'</span>':'–'}</td></tr>`).join('');
+  document.getElementById('ctrlDetBody').innerHTML=rows.length?`<div class="section-eyebrow" style="margin-top:22px">${mes} · ${rows.length} días con pendientes</div>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Fecha</th><th>Cuadre</th><th>Term Front</th><th>Openpay</th><th>Efvo Front</th><th>Term Rest</th><th>Efvo Rest</th><th style="text-align:right">Sin clasificar</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="note">"Sin clasificar" = producto que no está en MAPA_ITEMS / MAPA_POSTER. Agrégalo ahí y usa "Verificar día" para actualizar.</div>`
+    :`<div class="note" style="margin-top:14px">${mes}: todos los días cuadran ✓</div>`;
   document.getElementById('ctrlDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 </script>
