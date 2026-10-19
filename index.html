@@ -66,6 +66,7 @@ main{max-width:1080px;margin:0 auto;padding:40px 20px 80px}
 .stripe.inc{background:#C97B4A}
 .stripe.bit{background:#8B6BAE}
 .stripe.cal{background:#4E7C8C}
+.stripe.mk{background:#C2577A}
 .card.pending{background:var(--wool);opacity:.9}
 .card.pending h3{color:var(--cactus)}
 .card.pending .go{background:var(--line);color:var(--cactus);pointer-events:none}
@@ -148,6 +149,9 @@ const MODULES=[
    // real lo valida incidencias-casayuma.html contra su propia lista de usuarios (USUARIOS_INICIALES).
    href:'incidencias-casayuma.html', levels:['superfull','full'],
    deptosExtra:['Restaurante','Cocina','Mantenimiento','Ama de llaves','Recepción']},
+  {id:'marketing', tag:'Diseño · Foto · Video', title:'Marketing', stripe:'mk',
+   desc:'Solicitudes a Marketing por departamento: pide diseño, foto o video y da seguimiento a cada entrega.',
+   href:'marketing.html', levels:['superfull','full','lider'], deptosExtra:['Marketing']},
 ];
 
 // ————— Módulos anunciados pero aún sin HTML/backend — se configuran más adelante —————

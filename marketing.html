@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casa Yuma · Marketing</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#2C6E73;--gold:#E1D082;--wool:#EAE3CD;--cactus:#72785E;--purple:#88285C;--ink:#20302f;--paper:#F5F1E6;--line:#d8cfb8;--ok:#3f7d4e;--warn:#b5892a;--bad:#a8324a;--mk:#C2577A;
+--mono:'Spline Sans Mono',ui-monospace,monospace;--disp:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--mono);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5}
+h1,h2,h3{font-family:var(--disp);font-weight:600;line-height:1.15}
+button{font-family:var(--mono);cursor:pointer}
+.hidden{display:none!important}
+header{background:var(--blue);color:var(--paper);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:20px;font-weight:900}
+header .who{font-size:11px;letter-spacing:.1em;text-transform:uppercase;display:flex;gap:12px;align-items:center}
+header .who a,header .who button{color:var(--paper);background:none;border:1px solid rgba(255,255,255,.4);padding:5px 11px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-radius:2px;text-decoration:none}
+main{max-width:860px;margin:0 auto;padding:26px 16px 80px}
+.tabs{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:none;padding:10px 14px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--cactus);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--blue);border-color:var(--mk);font-weight:600}
+.badge{background:var(--mk);color:#fff;border-radius:20px;padding:1px 7px;font-size:10px;margin-left:4px}
+.box{background:#fff;border:1px solid var(--line);border-radius:3px;padding:22px}
+.rule{border-left:4px solid var(--mk);background:#fbf3f6;padding:12px 14px;font-size:12.5px;margin-bottom:20px;color:#5a3344}
+.fld{margin-bottom:18px}
+.fld>label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cactus);margin-bottom:6px}
+.fld small{display:block;color:var(--cactus);font-size:11.5px;margin-top:5px}
+input,select,textarea{width:100%;font-family:var(--mono);font-size:15px;padding:10px 12px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:2px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+textarea{min-height:140px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:#fff;padding:9px 14px;border-radius:30px;font-size:13px;color:var(--ink)}
+.chip.on{background:var(--blue);color:var(--paper);border-color:var(--blue)}
+.drop{border:2px dashed var(--line);border-radius:3px;padding:18px;text-align:center;color:var(--cactus);font-size:12.5px;cursor:pointer}
+.drop.over{border-color:var(--blue);background:#eef5f5}
+.files{list-style:none;margin-top:8px;font-size:12.5px}
+.files li{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted var(--line)}
+.files li button{background:none;border:none;color:var(--bad)}
+.alert{font-size:12px;margin-top:6px;padding:6px 10px;border-radius:2px}
+.alert.warn{background:#f7eccb;color:#7a5a12}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;background:var(--wool);padding:12px;border-radius:2px}
+.check input{width:auto;margin-top:3px}
+.btn{background:var(--blue);color:var(--paper);border:none;padding:13px 20px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-radius:2px}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:#fff;color:var(--blue);border:1px solid var(--line)}
+.btn.mk{background:var(--mk)}
+.btn.sm{padding:8px 12px;font-size:10.5px}
+.msg{margin-top:12px;font-size:12.5px;min-height:18px}
+.msg.err{color:var(--bad)}.msg.ok{color:var(--ok)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.bar input{flex:1;min-width:160px}
+.item{background:#fff;border:1px solid var(--line);border-left:5px solid var(--line);border-radius:3px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 12px}
+.item:hover{border-color:var(--blue)}
+.item .t{font-weight:600;font-size:14px}
+.item .m{font-size:11.5px;color:var(--cactus)}
+.pill{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap;align-self:start;justify-self:end}
+.due{font-size:11.5px;justify-self:end}
+.due.late{color:var(--bad);font-weight:600}.due.soon{color:var(--warn);font-weight:600}
+.empty{text-align:center;color:var(--cactus);padding:40px 10px;font-size:13px}
+#modal{position:fixed;inset:0;background:rgba(20,30,30,.55);display:flex;justify-content:center;align-items:flex-start;padding:30px 12px;overflow:auto;z-index:50}
+#modal .box{max-width:720px;width:100%;position:relative}
+.x{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:var(--cactus)}
+.sec{margin-top:20px}
+.sec h3{font-size:15px;color:var(--blue);margin-bottom:8px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:13px}
+.kv b{color:var(--cactus);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.detalle{white-space:pre-wrap;background:var(--paper);padding:12px;border-radius:2px;font-size:13px}
+.ver{border:1px solid var(--line);border-radius:2px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.ver.last{border-color:var(--mk);background:#fbf3f6}
+.ver a{word-break:break-all}
+.hist{font-size:12px;border-left:2px solid var(--line);padding-left:12px}
+.hist div{margin-bottom:8px}.hist span{color:var(--cactus)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#gate{position:fixed;inset:0;background:var(--blue);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+#gate .box{max-width:360px;width:100%;text-align:center}
+@media(max-width:600px){.row{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="gate" class="hidden"><div class="box">
+  <h2 style="color:var(--blue);margin-bottom:4px">Casa Yuma</h2>
+  <p style="font-size:12px;color:var(--cactus);margin-bottom:18px">Solicitudes de Marketing</p>
+  <div class="fld"><label>Número de colaborador</label><input id="gId" placeholder="CY000" autocomplete="off"></div>
+  <div class="fld"><label>PIN</label><input id="gPin" type="password" inputmode="numeric" maxlength="6" style="text-align:center;letter-spacing:.4em"></div>
+  <button class="btn" style="width:100%" onclick="gateLogin()">Entrar</button>
+  <div class="msg err" id="gMsg"></div>
+  <p style="font-size:11px;color:var(--cactus);margin-top:10px">¿Primera vez? Crea tu PIN en el <a href="index.html">Portal de Finanzas</a>.</p>
+</div></div>
+
+<header>
+  <h1>Marketing · Solicitudes</h1>
+  <div class="who"><span id="who"></span><a href="index.html">Portal</a><button onclick="salir()">Salir</button></div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button id="tNueva" class="on" onclick="tab('nueva')">Nueva solicitud</button>
+    <button id="tLista" onclick="tab('lista')">Solicitudes <span id="cnt" class="badge hidden"></span></button>
+  </div>
+
+  <!-- ===== NUEVA ===== -->
+  <section id="vNueva">
+    <div class="rule"><b>Importante:</b> la persona responsable de cada solicitud debe recopilar y validar el contenido con las áreas involucradas y ser el <b>único punto de contacto</b> con Marketing. Así evitamos información dispersa, cambios constantes y retrabajos.</div>
+    <div class="box">
+      <div class="row">
+        <div class="fld"><label>1 · Área que solicita</label><select id="fArea"></select></div>
+        <div class="fld"><label>2 · Fecha de solicitud</label><input id="fHoy" disabled></div>
+      </div>
+      <div class="row">
+        <div class="fld"><label>3 · ¿Para cuándo la necesitas?</label><input id="fEntrega" type="date" onchange="avisoFecha()">
+          <div id="fAviso" class="alert warn hidden"></div>
+          <small>Pide con la mayor anticipación posible para garantizar la entrega.</small></div>
+        <div class="fld"><label>Tu correo (para avisarte)</label><input id="fCorreo" type="email" placeholder="tu@casayuma.com"></div>
+      </div>
+      <div class="fld"><label>4 · Tipo de solicitud</label>
+        <div class="chips" id="fTipo"></div>
+        <input id="fTipoOtro" class="hidden" style="margin-top:8px" placeholder="¿Qué tipo?">
+      </div>
+      <div class="fld"><label>5 · Información completa</label>
+        <textarea id="fDetalle" placeholder="Necesidad / instrucciones:&#10;Medidas o formato:&#10;Finalidad (¿para qué y dónde se usará?):&#10;Público:&#10;Otros aspectos:"></textarea>
+        <input id="fLinkTexto" style="margin-top:8px" placeholder="Enlace a Word / Doc de Drive con los textos (recomendado)">
+        <small>Si hay textos, mándalos en Word o Doc de Drive para no transcribir. <b>No mandes screenshots con texto.</b></small>
+      </div>
+      <div class="fld"><label>6 · Referencias (aquí sí se valen screenshots)</label>
+        <div class="drop" id="dRef">Arrastra archivos aquí o toca para elegir<br><small>jpg, png, pdf, word… máx. 15 MB c/u</small></div>
+        <input type="file" id="iRef" multiple class="hidden">
+        <ul class="files" id="lRef"></ul>
+        <input id="fLinkRef" style="margin-top:8px" placeholder="o pega un enlace de referencia (Drive, Instagram, Pinterest…)">
+      </div>
+      <label class="check"><input type="checkbox" id="fAcepta"> Confirmo que validé el contenido con las áreas involucradas y que soy el único punto de contacto con Marketing para esta solicitud.</label>
+      <div style="margin-top:18px"><button class="btn mk" id="bEnviar" onclick="enviar()">Enviar solicitud</button></div>
+      <div class="msg" id="mNueva"></div>
+    </div>
+  </section>
+
+  <!-- ===== LISTA ===== -->
+  <section id="vLista" class="hidden">
+    <div class="bar">
+      <div class="chips" id="filtros"></div>
+      <input id="q" placeholder="Buscar…" oninput="render()">
+    </div>
+    <div id="lista"></div>
+  </section>
+</main>
+
+<div id="modal" class="hidden" onclick="if(event.target===this)cerrar()"><div class="box" id="mBox"></div></div>
+
+<script>
+// ===== CONFIG =====
+const MAIN_URL='https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec';
+const MK_URL='PEGAR_AQUI_URL_DE_LA_APP_WEB_DE_MARKETING'; // /exec de Marketing.gs
+const AREAS=['Dirección','Administración','Recepción','Ama de llaves','Restaurante','Cocina','Mantenimiento','Spa','Eventos','Compras','Marketing','Otro'];
+const TIPOS=['Diseño digital','Diseño impreso','Fotografía','Video','Otro'];
+const COLORES={'Recibida':'#e4ecec;color:#2C6E73','En proceso':'#e7e9de;color:#4f5440','Falta info':'#f7eccb;color:#7a5a12','En revisión':'#f6e0e8;color:#88285C','Cambios solicitados':'#f2d6dc;color:#a8324a','Aprobada':'#dcebdf;color:#3f7d4e','Cancelada':'#eee;color:#888'};
+const ESTADOS=Object.keys(COLORES);
+const DIAS_MIN=5, MAX_MB=15;
+
+let S=null, DATA={solicitudes:[],archivos:[],historial:[],yo:{}}, REFS=[], TIPO='', FILTRO='activas', ABIERTA=null;
+
+// ===== Sesión =====
+(function init(){
+  try{S=JSON.parse(sessionStorage.getItem('CY_FIN_SESSION'));}catch(e){}
+  if(!S||!S.id)return document.getElementById('gate').classList.remove('hidden');
+  arrancar();
+})();
+async function gateLogin(){
+  const id=gId.value.trim().toUpperCase(),pin=gPin.value.trim();gMsg.textContent='Verificando…';
+  try{const r=await fetch(MAIN_URL+'?accion=entrar&id='+encodeURIComponent(id)+'&pin='+encodeURIComponent(pin));const j=await r.json();
+    if(!j.ok){gMsg.textContent=j.error||'PIN incorrecto';return;}
+    S={id,pin,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento||''};
+    sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(S));gate.classList.add('hidden');arrancar();
+  }catch(e){gMsg.textContent='No se pudo conectar.';}
+}
+gPin.addEventListener('keydown',e=>{if(e.key==='Enter')gateLogin();});
+function salir(){sessionStorage.removeItem('CY_FIN_SESSION');location.href='index.html';}
+
+async function api(body){
+  const r=await fetch(MK_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({id:S.id,pin:S.pin},body))});
+  const j=await r.json(); if(!j.ok)throw new Error(j.error||'Error'); return j;
+}
+
+function arrancar(){
+  who.textContent=S.nombre;
+  fArea.innerHTML=AREAS.map(a=>`<option>${a}</option>`).join('');
+  if(S.departamento){if(!AREAS.includes(S.departamento))fArea.insertAdjacentHTML('afterbegin',`<option>${S.departamento}</option>`);fArea.value=S.departamento;}
+  fHoy.value=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+  fEntrega.min=hoyISO();
+  fCorreo.value=localStorage.getItem('CY_MK_CORREO')||'';
+  fTipo.innerHTML=TIPOS.map(t=>`<button class="chip" onclick="elegirTipo(this,'${t}')">${t}</button>`).join('');
+  armarDrop('dRef','iRef',REFS,'lRef');
+  cargar();
+}
+function hoyISO(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);}
+function diasA(f){return Math.round((new Date(f.slice(0,10)+'T12:00')-new Date(hoyISO()+'T12:00'))/864e5);}
+
+async function cargar(){
+  try{DATA=await api({accion:'mk_list'});}catch(e){lista.innerHTML=`<div class="empty">${e.message}</div>`;return;}
+  if(DATA.yo.mk&&!sessionStorage.getItem('mkTab')){sessionStorage.setItem('mkTab',1);tab('lista');}
+  armarFiltros();render();if(ABIERTA)abrir(ABIERTA);
+}
+function tab(t){vNueva.classList.toggle('hidden',t!=='nueva');vLista.classList.toggle('hidden',t!=='lista');tNueva.classList.toggle('on',t==='nueva');tLista.classList.toggle('on',t==='lista');}
+
+// ===== Formulario =====
+function elegirTipo(el,t){document.querySelectorAll('#fTipo .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');TIPO=t;fTipoOtro.classList.toggle('hidden',t!=='Otro');}
+function avisoFecha(){const d=diasA(fEntrega.value);fAviso.classList.toggle('hidden',!(d<DIAS_MIN));fAviso.textContent=`Faltan ${d} día(s). Con menos de ${DIAS_MIN} días no se garantiza la entrega a tiempo.`;}
+function armarDrop(dropId,inputId,arr,listId){
+  const d=document.getElementById(dropId),inp=document.getElementById(inputId);
+  d.onclick=()=>inp.click();
+  inp.onchange=()=>{agregar(inp.files,arr,listId);inp.value='';};
+  d.ondragover=e=>{e.preventDefault();d.classList.add('over');};
+  d.ondragleave=()=>d.classList.remove('over');
+  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');agregar(e.dataTransfer.files,arr,listId);};
+}
+function agregar(files,arr,listId){
+  [...files].forEach(f=>{if(f.size>MAX_MB*1048576)return alert(`${f.name} pesa más de ${MAX_MB} MB. Súbelo a Drive y pega el enlace.`);arr.push(f);});
+  pintarLista(arr,listId);
+}
+function pintarLista(arr,listId){document.getElementById(listId).innerHTML=arr.map((f,i)=>`<li>${f.name} <button onclick="quitar('${listId}',${i})">✕</button></li>`).join('');}
+function quitar(listId,i){const arr=listId==='lRef'?REFS:ENT;arr.splice(i,1);pintarLista(arr,listId);}
+function b64(f){return new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok({nombre:f.name,mime:f.type,b64:r.result.split(',')[1]});r.onerror=ko;r.readAsDataURL(f);});}
+
+async function enviar(){
+  const m=mNueva;m.className='msg err';
+  const tipo=TIPO==='Otro'?('Otro: '+fTipoOtro.value.trim()):TIPO;
+  if(!fEntrega.value)return m.textContent='Elige la fecha de entrega.';
+  if(!TIPO||tipo==='Otro: ')return m.textContent='Elige el tipo de solicitud.';
+  if(fDetalle.value.trim().length<30)return m.textContent='Describe la solicitud con más detalle.';
+  if(!fAcepta.checked)return m.textContent='Marca la casilla de confirmación.';
+  bEnviar.disabled=true;m.className='msg';m.textContent='Enviando… (si hay archivos puede tardar)';
+  try{
+    if(fCorreo.value)localStorage.setItem('CY_MK_CORREO',fCorreo.value.trim());
+    const j=await api({accion:'mk_crear',datos:{area:fArea.value,fechaEntrega:fEntrega.value,tipo,detalle:fDetalle.value.trim(),linkTexto:fLinkTexto.value.trim(),correo:fCorreo.value.trim(),acepta:true},
+      archivos:await Promise.all(REFS.map(b64)),links:[fLinkRef.value.trim()]});
+    m.className='msg ok';m.textContent=`✓ Solicitud ${j.id} enviada a Marketing.`;
+    [fDetalle,fLinkTexto,fLinkRef,fTipoOtro,fEntrega].forEach(x=>x.value='');fAcepta.checked=false;REFS.length=0;pintarLista(REFS,'lRef');
+    document.querySelectorAll('#fTipo .chip').forEach(c=>c.classList.remove('on'));TIPO='';fAviso.classList.add('hidden');
+    cargar();
+  }catch(e){m.className='msg err';m.textContent=e.message;}
+  bEnviar.disabled=false;
+}
+
+// ===== Lista =====
+function pendienteMio(s){return DATA.yo.mk?['Recibida','Cambios solicitados'].includes(s.Estado):['En revisión','Falta info'].includes(s.Estado);}
+function armarFiltros(){
+  const f=[['activas','Activas'],['mias','Requieren tu acción'],['todas','Todas']];
+  filtros.innerHTML=f.map(([k,l])=>`<button class="chip ${FILTRO===k?'on':''}" onclick="FILTRO='${k}';armarFiltros();render()">${l}</button>`).join('');
+  const n=DATA.solicitudes.filter(pendienteMio).length;cnt.textContent=n;cnt.classList.toggle('hidden',!n);
+}
+function render(){
+  const q=document.getElementById('q').value.toLowerCase();
+  let L=DATA.solicitudes.filter(s=>FILTRO==='todas'||(FILTRO==='mias'?pendienteMio(s):!['Aprobada','Cancelada'].includes(s.Estado)));
+  if(q)L=L.filter(s=>[s.ID,s.Area,s.Tipo,s.Solicitante,s.Detalle].join(' ').toLowerCase().includes(q));
+  L.sort((a,b)=>String(a.FechaEntrega).localeCompare(String(b.FechaEntrega)));
+  lista.innerHTML=L.length?L.map(s=>{
+    const d=diasA(String(s.FechaEntrega)),cerrada=['Aprobada','Cancelada'].includes(s.Estado);
+    const cls=cerrada?'':d<0?'late':d<=2?'soon':'',txt=cerrada?String(s.FechaEntrega).slice(0,10):d<0?`Vencida (${-d} d)`:d===0?'Hoy':`En ${d} d`;
+    return `<div class="item" style="border-left-color:${COLORES[s.Estado].split(';')[1].slice(6)}" onclick="abrir('${s.ID}')">
+      <div class="t">${s.Tipo} · ${s.Area}</div><span class="pill" style="background:${COLORES[s.Estado]}">${s.Estado}</span>
+      <div class="m">${s.ID} · ${s.Solicitante} · ${esc(String(s.Detalle).slice(0,70))}…</div><div class="due ${cls}">${txt}</div></div>`;
+  }).join(''):'<div class="empty">No hay solicitudes aquí.</div>';
+}
+
+// ===== Detalle =====
+let ENT=[];
+function abrir(id){
+  ABIERTA=id;const s=DATA.solicitudes.find(x=>x.ID===id);if(!s)return cerrar();
+  const A=DATA.archivos.filter(a=>a.SolicitudID===id),Hh=DATA.historial.filter(h=>h.SolicitudID===id).reverse();
+  const refs=A.filter(a=>a.Clase==='ref'),ents=A.filter(a=>a.Clase==='entrega');
+  const vers=[...new Set(ents.map(a=>+a.Version))].sort((a,b)=>b-a);
+  const yo=DATA.yo,esMk=yo.mk||yo.admin;
+  const link=a=>`<a href="${url(a.Url)}" target="_blank" rel="noopener">${esc(a.Nombre)}</a>`;
+  ENT=[];
+  mBox.innerHTML=`<button class="x" onclick="cerrar()">×</button>
+    <div style="font-size:11px;color:var(--cactus);letter-spacing:.1em">${s.ID}</div>
+    <h2 style="color:var(--blue);margin:2px 0 8px">${esc(s.Tipo)} · ${esc(s.Area)}</h2>
+    <span class="pill" style="background:${COLORES[s.Estado]}">${s.Estado}</span>
+    ${+s.Rondas>=2?`<div class="alert warn">Esta solicitud lleva ${s.Rondas} rondas de cambios.</div>`:''}
+    <div class="sec kv"><b>Solicita</b><span>${esc(s.Solicitante)}</span><b>Pedida</b><span>${String(s.Creada).slice(0,10)}</span><b>Entrega</b><span>${String(s.FechaEntrega).slice(0,10)}</span>
+      ${s.LinkTexto?`<b>Textos</b><a href="${url(s.LinkTexto)}" target="_blank" rel="noopener">Abrir documento</a>`:''}
+      <b>Carpeta</b><a href="https://drive.google.com/drive/folders/${s.Carpeta}" target="_blank" rel="noopener">Abrir en Drive</a></div>
+    <div class="sec"><h3>Información</h3><div class="detalle">${esc(s.Detalle)}</div></div>
+    <div class="sec"><h3>Referencias</h3>${refs.length?refs.map(a=>`<div>• ${link(a)} <span style="color:var(--cactus);font-size:11px">${a.Por}</span></div>`).join(''):'<small>Sin referencias.</small>'}
+      <div class="actions"><button class="btn ghost sm" onclick="subir('ref')">+ Agregar referencia</button></div></div>
+    <div class="sec"><h3>Entregas</h3>${vers.length?vers.map((v,i)=>`<div class="ver ${i===0?'last':''}"><b>v${v}</b>${i===0?' · última':''} — ${ents.filter(a=>+a.Version===v).map(link).join(', ')}
+        ${ents.find(a=>+a.Version===v).Nota?`<div style="font-size:12px;color:var(--cactus)">${esc(ents.find(a=>+a.Version===v).Nota)}</div>`:''}</div>`).join(''):'<small>Aún no hay entregas.</small>'}
+      ${esMk?`<div class="actions"><button class="btn mk sm" onclick="subir('entrega')">↑ Subir entrega v${(vers[0]||0)+1}</button></div>`:''}</div>
+    <div class="sec" id="zona"></div>
+    <div class="sec"><h3>Acciones</h3><textarea id="cTxt" style="min-height:70px" placeholder="Comentario (obligatorio para pedir cambios)"></textarea>
+      <div class="actions">
+        ${!esMk&&s.Estado==='En revisión'?`<button class="btn sm" style="background:var(--ok)" onclick="resp('aprobar')">✓ Aprobar entrega</button><button class="btn sm" style="background:var(--bad)" onclick="resp('cambios')">Pedir cambios</button>`:''}
+        <button class="btn ghost sm" onclick="resp('comentar')">Comentar</button>
+        ${esMk?`<select id="cEst" style="width:auto;padding:7px">${ESTADOS.map(e=>`<option ${e===s.Estado?'selected':''}>${e}</option>`).join('')}</select><button class="btn sm" onclick="cambiarEstado()">Cambiar estado</button>`:''}
+      </div><div class="msg" id="mDet"></div></div>
+    <div class="sec"><h3>Historial</h3><div class="hist">${Hh.map(h=>`<div><span>${h.Fecha} · ${esc(h.Por)}</span><br><b>${esc(h.Accion)}</b>${h.Comentario?' — '+esc(h.Comentario):''}</div>`).join('')}</div></div>`;
+  modal.classList.remove('hidden');
+}
+function cerrar(){ABIERTA=null;modal.classList.add('hidden');}
+function subir(clase){
+  zona.innerHTML=`<h3>${clase==='entrega'?'Nueva entrega':'Agregar referencia'}</h3>
+    <div class="drop" id="dEnt">Arrastra archivos o toca para elegir</div><input type="file" id="iEnt" multiple class="hidden"><ul class="files" id="lEnt"></ul>
+    <input id="eLink" style="margin-top:8px" placeholder="o enlace (Drive, WeTransfer… para videos pesados)">
+    <input id="eNota" style="margin-top:8px" placeholder="Nota (opcional)">
+    <div class="actions"><button class="btn sm ${clase==='entrega'?'mk':''}" id="bSub" onclick="mandarArchivo('${clase}')">Subir</button></div><div class="msg" id="mSub"></div>`;
+  armarDrop('dEnt','iEnt',ENT,'lEnt');
+}
+async function mandarArchivo(clase){
+  if(!ENT.length&&!eLink.value.trim()){mSub.className='msg err';return mSub.textContent='Agrega un archivo o enlace.';}
+  bSub.disabled=true;mSub.className='msg';mSub.textContent='Subiendo…';
+  try{await api({accion:'mk_archivo',solId:ABIERTA,clase,archivos:await Promise.all(ENT.map(b64)),links:[eLink.value.trim()],nota:eNota.value.trim()});await cargar();}
+  catch(e){mSub.className='msg err';mSub.textContent=e.message;bSub.disabled=false;}
+}
+async function resp(tipo){
+  mDet.className='msg';mDet.textContent='Guardando…';
+  try{await api({accion:'mk_responder',solId:ABIERTA,tipo,comentario:cTxt.value});await cargar();}
+  catch(e){mDet.className='msg err';mDet.textContent=e.message;}
+}
+async function cambiarEstado(){
+  mDet.className='msg';mDet.textContent='Guardando…';
+  try{await api({accion:'mk_estado',solId:ABIERTA,estado:cEst.value,comentario:cTxt.value.trim()});await cargar();}
+  catch(e){mDet.className='msg err';mDet.textContent=e.message;}
+}
+function url(x){return /^https?:\/\//i.test(String(x||''))?esc(x):'#';}
+function esc(t){return String(t??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+</script>
+</body>
+</html>
