@@ -273,7 +273,7 @@ select:focus{border-color:var(--blue)}
 </style>`;
 
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbzud9MZ1tAec1MFA5XQPFOEpNHSo_yxYkxg4I82D4YL2O0yfc9amIOj4BAp08lmpbg/exec',
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwCCOV67OLeA89YbZyZ0xYxH57Bu313wgRAyGtz8jtF8omp76NCknGsmt8PNs_hi0I/exec',
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
@@ -477,94 +477,121 @@ function pdfDe(idEl, prefijo, fecha, orient){
   setTimeout(function(){ w.focus(); w.print(); }, 600);
 }
 
+// ══ CUADRE DIARIO v2 · auditor nocturno ══
+// El sistema pre-llena la forma de pago de todo; el auditor solo captura 3 vouchers + 2 arqueos
+// y revisa únicamente lo que no cuadra.
+let CQ=null;
+const TJ_LBL={DEB_BBVA:'Déb BBVA',DEB_VISA:'Déb Visa',DEB_MASTER:'Déb Master',DEB_AMEX:'Déb Amex',CRED_BBVA:'Créd BBVA',CRED_VISA:'Créd Visa',CRED_MASTER:'Créd Master',CRED_AMEX:'Créd Amex'};
 function renderCaptura(){
-  const ayer=new Date(Date.now()-864e5).toISOString().slice(0,10);
-  const inp=(id,lbl,on)=>`<div class="fld"><label>${lbl}</label><input id="${id}" type="number" step="0.01" placeholder="0.00"${on?` oninput="${on}"`:''}></div>`;
+  const ayer=new Date(Date.now()-864e5-6*36e5).toISOString().slice(0,10);
   document.getElementById('capturaBody').innerHTML=`
-    <div class="section-eyebrow">Cuadre diario · captura</div>
+    <div class="section-eyebrow">Cuadre diario · auditoría nocturna</div>
+    <div class="ctl"><label>Fecha a cuadrar</label><input id="cFecha" type="date" value="${ayer}" onchange="cargarCuadre()"></div>
+    <div id="cqBody"><div class="loading"><div class="spinner"></div>Trayendo pagos de Cloudbeds y Poster…</div></div>`;
+  cargarCuadre();
+}
+async function cargarCuadre(){
+  const fecha=document.getElementById('cFecha').value, box=document.getElementById('cqBody');
+  box.innerHTML='<div class="loading"><div class="spinner"></div>Trayendo pagos de Cloudbeds y Poster…</div>';
+  try{ const j=await apiGet({accion:'cuadreDatos',id:SESSION.id,pin:SESSION.pin,fecha:fecha});
+    if(!j.ok||j.datos.error){ box.innerHTML=`<div class="errbox">${j.error||j.datos.error}</div>`; return; }
+    CQ=j.datos; pintarCQ(); }
+  catch(e){ box.innerHTML='<div class="errbox">No se pudo consultar.</div>'; }
+}
+const sumTerm=(cap,t)=>CQ.tarjetas.reduce((s,k)=>s+(+((cap[t]||{})[k])||0),0);
+function pintarCQ(){
+  const E=CQ.esperado, cap=CQ.captura||{T1:{},T2:{},T3:{}}, F=CQ.formas;
+  const fila=(lbl,v,nota)=>`<tr><td>${lbl}${nota?`<div style="font-size:10px;color:var(--cactus)">${nota}</div>`:''}</td><td class="num">$${money(v)}</td></tr>`;
+  const grid=(t,titulo)=>`<div class="cap-h">${titulo}</div><div class="cap-grid">${CQ.tarjetas.map(k=>`<div class="fld"><label>${TJ_LBL[k]}</label><input type="number" step="0.01" data-t="${t}" data-k="${k}" value="${(cap[t]||{})[k]||''}" placeholder="0.00" oninput="totCQ()"></div>`).join('')}</div>
+    <div class="cap-sub">Total ${t}: <strong id="tot_${t}">$0.00</strong></div>`;
+  const est=CQ.estados||{}, alertas=[]
+    .concat((est.abiertos||[]).map(x=>`Ticket <strong>${x.ticket}</strong> sigue ABIERTO ($${money(x.monto)}).`))
+    .concat((est.eliminados||[]).map(x=>`Ticket <strong>${x.ticket}</strong> fue ELIMINADO ($${money(x.monto)}). ¿Quién y por qué?`));
+  if(Math.abs(CQ.cargoHabCB-E.CARGOHAB)>1) alertas.push(`Poster mandó a habitaciones $${money(E.CARGOHAB)} pero Cloudbeds recibió $${money(CQ.cargoHabCB)}. Revisa cargos a habitación de otro día o no ligados.`);
+  document.getElementById('cqBody').innerHTML=`
+    ${alertas.length?`<div class="errbox" style="margin-bottom:14px">${alertas.map(a=>'⚠️ '+a).join('<br>')}</div>`:''}
+    <div class="libro-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><div class="section-eyebrow">Lo que dice el sistema · se cuadra</div>
+        <table class="aud"><tbody>
+          ${fila('Terminales Front (T1 + T2)',E.T12,'incluye Amex $'+money(E.T12_AMEX))}
+          ${fila('Terminal Restaurante (T3)',E.T3,'incluye propinas con tarjeta $'+money(E.PROP_TJ))}
+          ${fila('Efectivo Front',E.EF_FRONT)}
+          ${fila('Efectivo Restaurante',E.EF_REST,'sin propinas en efectivo')}
+        </tbody></table></div>
+      <div><div class="section-eyebrow">Informativo · no se cuadra en terminal</div>
+        <table class="aud"><tbody>
+          ${fila(F.VCC,E.VCC)}${fila(F.TRANSFER,E.TRANSFER)}${fila(F.OPENPAY,E.OPENPAY)}${E.DEPOSITO?fila(F.DEPOSITO,E.DEPOSITO):''}
+          ${fila(F.CARGOHAB,E.CARGOHAB)}${E.CORTESIA?fila(F.CORTESIA,E.CORTESIA):''}${E.USOCASA?fila(F.USOCASA,E.USOCASA):''}${E.CXC?fila(F.CXC,E.CXC):''}
+        </tbody></table></div>
+    </div>
+    <div class="section-eyebrow" style="margin-top:20px">Captura del auditor${CQ.captura?` · última por ${CQ.captura.por} (${CQ.captura.cuando})`:''}</div>
     <div class="cap-form">
-      <div class="fld cap-full"><label>Fecha del cuadre</label><input id="cFecha" type="date" value="${ayer}" onchange="cargarCuadreExistente()"></div>
-      <div class="cap-h">Terminal FRONT (cierre de lote)</div>
-      <div class="cap-grid">${inp('fCredOtros','Crédito otros','sumFront()')}${inp('fAmex','Crédito AMEX','sumFront()')}${inp('fDebOtros','Débito otros','sumFront()')}${inp('cArqFront','Arqueo efectivo Front')}</div>
-      <div class="cap-sub">Total terminal Front: <strong id="totFrontLbl">$0.00</strong></div>
-      <div class="cap-h">Otros canales FRONT</div>
-      <div class="cap-grid">${inp('cOpenpay','Openpay (link)')}${inp('cTransfer','Transferencias')}
-        <div class="fld cap-full"><label>Estado de transferencias</label><select id="cTransferEstado"><option value="Pendiente">Pendiente por validar</option><option value="Validado">Validado</option></select></div></div>
-      <div class="cap-h">Terminal RESTAURANTE (cierre de lote)</div>
-      <div class="cap-grid">${inp('rCredOtros','Crédito otros','sumRest()')}${inp('rAmex','Crédito AMEX','sumRest()')}${inp('rDebOtros','Débito otros','sumRest()')}${inp('cArqRest','Arqueo efectivo Restaurante')}${inp('rCargoHab','Cargos a habitación (Poster)')}</div>
-      <div class="cap-sub">Total terminal Rest: <strong id="totRestLbl">$0.00</strong></div>
-      <div class="cap-sub" style="font-size:11px">"Cargos a habitación" se llena solo con lo que Poster mandó a Cloudbeds ese día. Corrígelo solo si sabes que es distinto.</div>
-      <div class="fld cap-full"><label>Notas (opcional)</label><input id="cNotas" type="text" placeholder="Ej. ticket 9453 pagado en efectivo, no aparece en jornal"></div>
-      <button class="cap-btn" onclick="guardarCuadre()">Guardar y ver cuadre</button>
-      <div id="cuadreMsg"></div><div id="cuadreRes"></div>
+      ${grid('T1','Voucher Terminal 1 · Front')}${grid('T2','Voucher Terminal 2 · Front')}${grid('T3','Voucher Terminal 3 · Restaurante')}
+      <div class="cap-h">Arqueos de efectivo (sin propinas)</div>
+      <div class="cap-grid"><div class="fld"><label>Efectivo Front</label><input id="cqArqF" type="number" step="0.01" value="${cap.arqFront||''}" placeholder="0.00"></div>
+        <div class="fld"><label>Efectivo Restaurante</label><input id="cqArqR" type="number" step="0.01" value="${cap.arqRest||''}" placeholder="0.00"></div></div>
+      <div class="fld cap-full"><label>Notas (opcional)</label><input id="cqNotas" type="text" value="${(cap.notas||'').replace(/"/g,'&quot;')}"></div>
+      <button class="cap-btn" onclick="guardarCQ()">Cuadrar</button><div id="cqMsg"></div>
     </div>
-    <div class="note">Si un consumo de restaurante o Day Pass se cobra en la terminal o en efectivo de Front, escribe <strong>TERMINAL RESTAURANTE</strong> en la nota del pago en Cloudbeds: así el sistema lo separa solo y no descuadra Front.</div>`;
-  cargarCuadreExistente();
+    <div id="cqRes"></div>
+    <div class="ctl" style="margin-top:20px"><label>Renglones</label><select id="cqFiltro" onchange="tablaCQ()">
+      <option value="rev">Solo para revisar</option><option value="T12">Terminal Front</option><option value="T3">Terminal Restaurante</option>
+      <option value="EF">Efectivo</option><option value="otros">Transferencias, Openpay, VCC, cargos a hab.</option><option value="todos">Todos</option></select></div>
+    <div id="cqTabla"></div>`;
+  totCQ(); if(CQ.resultado) resCQ(CQ.resultado); tablaCQ();
 }
-function sumFront(){ const t=['fCredOtros','fAmex','fDebOtros'].reduce((s,i)=>s+(+document.getElementById(i).value||0),0); document.getElementById('totFrontLbl').textContent='$'+money(t); }
-function sumRest(){ const t=['rCredOtros','rAmex','rDebOtros'].reduce((s,i)=>s+(+document.getElementById(i).value||0),0); document.getElementById('totRestLbl').textContent='$'+money(t); }
-const CAMPOS_CUADRE=['fCredOtros','fAmex','fDebOtros','cOpenpay','cTransfer','rCredOtros','rAmex','rDebOtros','cArqFront','cArqRest','rCargoHab'];
-async function cargarCuadreExistente(){
-  const fecha=document.getElementById('cFecha').value, set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v!==''&&v!=null&&!isNaN(v))?v:'';};
-  document.getElementById('cuadreRes').innerHTML=''; document.getElementById('cuadreMsg').innerHTML='';
-  try{
-    const j=await apiGet({accion:'cuadres',id:SESSION.id,pin:SESSION.pin});
-    const row=j.ok?j.filas.slice(1).find(r=>String(r[0]).slice(0,10)===fecha):null;
-    if(row){
-      set('fCredOtros',row[1]);set('fAmex',row[2]);set('fDebOtros',row[3]);set('cOpenpay',row[5]);set('cTransfer',row[6]);
-      if(row[7])document.getElementById('cTransferEstado').value=row[7];
-      set('rCredOtros',row[8]);set('rAmex',row[9]);set('rDebOtros',row[10]);set('cArqFront',row[12]);set('cArqRest',row[13]);set('rCargoHab',row[24]);
-      document.getElementById('cNotas').value=row[16]||'';
-      document.getElementById('cuadreMsg').innerHTML=`<div class="note">Ya hay un cuadre para ${fecha} (por ${row[14]||'—'}). Puedes corregirlo.</div>`;
-    }else{
-      CAMPOS_CUADRE.forEach(id=>set(id,'')); document.getElementById('cNotas').value='';
-      const s=await apiGet({accion:'sugerCuadre',id:SESSION.id,pin:SESSION.pin,fecha:fecha});
-      if(s.ok&&s.sug) set('rCargoHab',s.sug.cargoHab);
-    }
-    sumFront();sumRest();
-  }catch(e){}
+function totCQ(){ ['T1','T2','T3'].forEach(t=>{ let s=0; document.querySelectorAll(`input[data-t="${t}"]`).forEach(i=>s+=+i.value||0); const el=document.getElementById('tot_'+t); if(el) el.textContent='$'+money(s); }); }
+async function guardarCQ(){
+  const b={accion:'guardarCuadre',id:SESSION.id,pin:SESSION.pin,fecha:CQ.fecha,T1:{},T2:{},T3:{},
+    arqFront:document.getElementById('cqArqF').value||0,arqRest:document.getElementById('cqArqR').value||0,notas:document.getElementById('cqNotas').value||''};
+  document.querySelectorAll('input[data-t]').forEach(i=>b[i.dataset.t][i.dataset.k]=+i.value||0);
+  const msg=document.getElementById('cqMsg'); msg.innerHTML='<div class="loading" style="padding:12px"><div class="spinner"></div>Comparando…</div>';
+  try{ const j=await apiPost(b); if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+    msg.innerHTML='<div class="okmsg">Cuadre guardado.</div>'; await cargarCuadre(); }
+  catch(e){ msg.innerHTML='<div class="errbox">No se pudo guardar.</div>'; }
 }
-async function guardarCuadre(){
-  const v=id=>document.getElementById(id).value||0;
-  const b={accion:'guardarCuadre',id:SESSION.id,pin:SESSION.pin,fecha:document.getElementById('cFecha').value,
-    fCredOtros:v('fCredOtros'),fAmex:v('fAmex'),fDebOtros:v('fDebOtros'),openpay:v('cOpenpay'),transfer:v('cTransfer'),
-    transferEstado:document.getElementById('cTransferEstado').value,rCredOtros:v('rCredOtros'),rAmex:v('rAmex'),rDebOtros:v('rDebOtros'),
-    arqFront:v('cArqFront'),arqRest:v('cArqRest'),cargoHabRest:v('rCargoHab'),notas:document.getElementById('cNotas').value||''};
-  const msg=document.getElementById('cuadreMsg'); msg.innerHTML='<div class="loading" style="padding:14px"><div class="spinner"></div>Guardando y comparando contra Cloudbeds y Poster…</div>';
-  try{
-    const j=await apiPost(b);
-    if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
-    msg.innerHTML=`<div class="okmsg">Cuadre guardado para ${b.fecha}.</div>`;
-    pintarCuadre(j.cuadre, b.transferEstado);
-  }catch(e){ msg.innerHTML='<div class="errbox">No se pudo guardar.</div>'; }
-}
-const CANAL_LBL={terminal:'Terminal Front',openpay:'Openpay',transfer:'Transferencia',vcc:'VCC agencias',efectivo:'Efectivo Front',restCB:'Cobrado en restaurante',cortesia:'Cortesía'};
-function pintarCuadre(c, transferEstado){
-  const linea=(lbl,o)=>`<div class="line"><span>${o.ok?'🟢':'🔴'} ${lbl}</span><span style="font-variant-numeric:tabular-nums">capturado $${money(o.capturado)} · sistema $${money(o.sistema)} · <strong style="color:${o.ok?'var(--ok)':'var(--bad)'}">${o.dif>=0?'+':''}${money(o.dif)}</strong></span></div>`;
-  const info=(lbl,val,extra)=>`<div class="line"><span>🔵 ${lbl}</span><span style="font-variant-numeric:tabular-nums">$${money(val)}${extra||''}</span></div>`;
-  const f=c.front, r=c.rest;
-  const tLine=transferEstado==='Validado'?linea('Transferencias',f.transfer):`<div class="line"><span>⏳ Transferencias (por validar)</span><span>capturado $${money(f.transfer.capturado)} · sistema $${money(f.transfer.sistema)}</span></div>`;
-  const allOk=f.terminal.ok&&f.openpay.ok&&f.efectivo.ok&&r.terminal.ok&&r.efectivo.ok&&(transferEstado==='Validado'?f.transfer.ok:true);
-  const pagos=(c.pagos||[]).map(p=>`<tr><td>${CANAL_LBL[p.canal]||p.canal}</td><td>${p.metodo}</td><td>${p.huesped||'—'}${p.hab?' · '+p.hab:''}</td><td style="font-size:11px">${p.nota||''}</td><td class="num">$${money(p.monto)}</td></tr>`).join('');
-  const tickets=(c.tickets||[]).filter(t=>t.tarjeta||t.efectivo).map(t=>`<tr><td>${t.ticket}</td><td>${t.hora||''}</td><td class="num">${t.efectivo?'$'+money(t.efectivo):'–'}</td><td class="num">${t.tarjeta?'$'+money(t.tarjeta):'–'}</td></tr>`).join('');
-  document.getElementById('cuadreRes').innerHTML=`
-    <div style="margin-top:18px;padding:16px;border-radius:2px;border:1px solid ${allOk?'var(--ok)':'var(--bad)'};background:${allOk?'#e0efe0':'#faf0ef'}">
+function resCQ(R){
+  const L=(lbl,o)=>`<div class="line"><span>${o.ok?'🟢':'🔴'} ${lbl}</span><span style="font-variant-numeric:tabular-nums">capturado $${money(o.capturado)} · sistema $${money(o.sistema)} · <strong style="color:${o.ok?'var(--ok)':'var(--bad)'}">${o.dif>=0?'+':''}${money(o.dif)}</strong></span></div>`;
+  const ok=R.general==='CUADRA';
+  document.getElementById('cqRes').innerHTML=`
+    <div style="margin-top:16px;padding:16px;border-radius:2px;border:1px solid ${ok?'var(--ok)':'var(--bad)'};background:${ok?'#e0efe0':'#faf0ef'}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-weight:600;font-family:var(--disp)">${allOk?'✅ Todo cuadra':'⚠️ Revisar diferencias'}</span>
-        <button class="cap-btn no-pdf" style="padding:6px 12px;font-size:12px" onclick="pdfDe('cuadreRes','Cuadre_CasaYuma',document.getElementById('cFecha').value)">PDF</button></div>
-      <div class="cuadre-cat">Front · Cloudbeds</div>
-      ${linea('Terminal Front',f.terminal)}${linea('Openpay',f.openpay)}${tLine}${linea('Efectivo Front',f.efectivo)}
-      ${info('VCC agencias (informativo)',f.vcc.sistema)}
-      ${f.termRestEnFront?info('Cobrado en restaurante, registrado en Cloudbeds (fuera de Front)',f.termRestEnFront):''}
-      <div class="cuadre-cat">Restaurante · Poster</div>
-      ${linea('Terminal Restaurante',r.terminal)}${linea('Efectivo Restaurante',r.efectivo)}
-      ${r.cargoHab.capturado?info('Cargos a habitación (restados de tarjeta Poster)',r.cargoHab.capturado,' · tarjeta Poster total $'+money(r.cargoHab.posterTotal)):''}
-    </div>
-    <details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--blue)">Ver cada pago de Cloudbeds (${(c.pagos||[]).length})</summary>
-      <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Canal</th><th>Método</th><th>Huésped</th><th>Nota</th><th style="text-align:right">Monto</th></tr></thead><tbody>${pagos||'<tr><td colspan=5>Sin pagos</td></tr>'}</tbody></table></div></details>
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--blue)">Ver tickets de Poster con efectivo/tarjeta</summary>
-      <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Ticket</th><th>Hora</th><th style="text-align:right">Efectivo</th><th style="text-align:right">Tarjeta</th></tr></thead><tbody>${tickets||'<tr><td colspan=4>Sin tickets</td></tr>'}</tbody></table></div></details>
-    <div class="note">Si hay diferencia: busca el monto en estas listas. Un ticket de Poster que no está en tu jornal, o un pago con método mal elegido en Cloudbeds, aparece aquí con su número.</div>`;
+        <span style="font-weight:600;font-family:var(--disp)">${ok?'✅ Todo cuadra':'⚠️ Revisar diferencias'}</span>
+        <button class="cap-btn no-pdf" style="padding:6px 12px;font-size:12px" onclick="pdfDe('cqRes','Cuadre_CasaYuma',CQ.fecha)">PDF</button></div>
+      ${L('Terminales Front (T1 + T2)',R.front)}${R.front.ok?'':L('&nbsp;&nbsp;de eso, Amex',R.frontAmex)}
+      ${L('Terminal Restaurante (T3)',R.rest)}${L('Efectivo Front',R.efFront)}${L('Efectivo Restaurante',R.efRest)}
+      ${R.pendientes?`<div class="line"><span>🟡 Renglones en "Pendiente" o "Verificando"</span><span>${R.pendientes}</span></div>`:''}
+      ${R.pistas.length?`<div class="cuadre-cat">Pistas para encontrar la diferencia</div>${R.pistas.map(p=>`<div style="font-size:12.5px;padding:4px 0">👉 ${p}</div>`).join('')}`:''}
+    </div>`;
+}
+function tablaCQ(){
+  const f=document.getElementById('cqFiltro').value, R=CQ.resultado||{};
+  const malF=R.front&&!R.front.ok, malR=R.rest&&!R.rest.ok, malEF=(R.efFront&&!R.efFront.ok)||(R.efRest&&!R.efRest.ok);
+  let items=CQ.items.filter(it=>it.monto!==0||it.forma!=='SINPAGO');
+  if(f==='rev') items=items.filter(it=>it.estatus||it.cambiado||(malF&&it.forma==='T12')||(malR&&it.forma==='T3')||(malEF&&/^EF_/.test(it.forma))||(it.forma==='TRANSFER'&&it.estatus!=='Correcto - Validado'));
+  else if(f==='EF') items=items.filter(it=>/^EF_/.test(it.forma));
+  else if(f==='otros') items=items.filter(it=>['TRANSFER','OPENPAY','VCC','CARGOHAB','DEPOSITO','CORTESIA','USOCASA','CXC'].indexOf(it.forma)>-1);
+  else if(f!=='todos') items=items.filter(it=>it.forma===f);
+  const opF=sel=>Object.keys(CQ.formas).map(k=>`<option value="${k}"${k===sel?' selected':''}>${CQ.formas[k]}</option>`).join('');
+  const opE=sel=>['<option value="">—</option>'].concat(CQ.estatus.map(e=>`<option${e===sel?' selected':''}>${e}</option>`)).join('');
+  const filas=items.map(it=>{ const k=CQ.items.indexOf(it);
+    return `<tr${it.cambiado?' style="background:#fff6d6"':''}><td>${it.hora||'—'}</td><td>${it.origen}</td>
+      <td>${it.concepto}<div style="font-size:10px;color:var(--cactus)">${[it.ref,it.nota,it.usuario].filter(Boolean).join(' · ')}</div></td>
+      <td class="num">$${money(it.monto+(it.propTj||0))}</td>
+      <td><select onchange="detCQ(${k},'forma',this.value)">${opF(it.forma)}</select>${it.cambiado?'<div style="font-size:10px;color:var(--cactus)">auto: '+CQ.formas[it.auto]+'</div>':''}</td>
+      <td><select onchange="detCQ(${k},'estatus',this.value)">${opE(it.estatus)}</select></td>
+      <td><input type="text" value="${(it.sol||'').replace(/"/g,'&quot;')}" placeholder="Solución" onchange="detCQ(${k},'sol',this.value)" style="min-width:150px">${it.por?`<div style="font-size:10px;color:var(--cactus)">${it.por}</div>`:''}</td></tr>`; }).join('');
+  document.getElementById('cqTabla').innerHTML=items.length?`<div style="overflow-x:auto"><table class="aud"><thead><tr><th>Hora</th><th>Origen</th><th>Concepto</th><th style="text-align:right">Monto</th><th>Forma de pago</th><th>Estatus</th><th>Solución</th></tr></thead><tbody>${filas}</tbody></table></div>
+    <div class="note">La forma de pago ya viene llenada. Cámbiala solo si el dinero entró por otro lado (ej. un ticket del restaurante cobrado en la terminal de Front). Al terminar, vuelve a dar "Cuadrar".</div>`
+    :`<div class="note">${f==='rev'?'Nada que revisar ✓':'Sin renglones.'}</div>`;
+}
+async function detCQ(k,campo,valor){
+  const it=CQ.items[k]; if(campo==='forma') it.forma=valor; if(campo==='estatus') it.estatus=valor; if(campo==='sol') it.sol=valor;
+  const j=await apiPost({accion:'guardarDet',id:SESSION.id,pin:SESSION.pin,fecha:CQ.fecha,idItem:it.id,origen:it.origen,concepto:it.concepto,monto:it.monto,auto:it.auto,
+    forma:it.forma===it.auto?'':it.forma,estatus:it.estatus||'',sol:it.sol||''});
+  if(!j.ok){ alert(j.error); return; }
+  it.por=j.por; it.cambiado=it.forma!==it.auto;
+  if(campo==='forma') await cargarCuadre();     // recalcula lo esperado con la nueva asignación
 }
 function renderAjustes(){
   const allRows=DATA.ajustes.slice(1).filter(r=>r[5]);
@@ -680,13 +707,13 @@ function detalleCuadre(idx){
       <div class="line"><span>Débito otros</span><span>${m(r[3])}</span></div>
       <div class="line"><span><strong>Total terminal Front</strong></span><span><strong>${m(r[4])}</strong></span></div>
       <div class="cuadre-cat">Conciliación Front (vs Cloudbeds)</div>
-      ${estadoLinea('Terminal BBVA', m(totFront), resTF)}
-      ${estadoLinea('Openpay', m(openpay), resOP)}
+      ${estadoLinea('Terminales Front (T1+T2)', m(totFront), resTF)}
+      ${estadoLinea('Openpay (informativo)', m(openpay), '')}
       ${estadoLinea('Transferencias ('+(estT||'—')+')', m(transfer), '')}
       ${estadoLinea('VCC agencias', resVCC, '')}
       ${estadoLinea('Efectivo Front', m(arqF), resEF)}
       <div class="cuadre-cat">Conciliación Restaurante (vs Poster)</div>
-      ${estadoLinea('Terminal Rest', m(totRest), resTR)}
+      ${estadoLinea('Terminal Restaurante (T3)', m(totRest), resTR)}
       ${estadoLinea('Efectivo Rest', m(arqR), resER)}
     </div>`;
   document.getElementById('cuadreDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
