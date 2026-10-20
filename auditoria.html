@@ -273,9 +273,9 @@ select:focus{border-color:var(--blue)}
 </style>`;
 
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbzud9MZ1tAec1MFA5XQPFOEpNHSo_yxYkxg4I82D4YL2O0yfc9amIOj4BAp08lmpbg/exec',
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwCCOV67OLeA89YbZyZ0xYxH57Bu313wgRAyGtz8jtF8omp76NCknGsmt8PNs_hi0I/exec',
   USERS:[
-    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY016',n:'Darani Bonora'},
+    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
     {id:'CY039',n:'Jesus Israel Castillo Hernández'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
     {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
@@ -357,6 +357,8 @@ const ROOMS=25;
 // ── Daily Report v2: lee DAILY (neto) y DAILY_BRUTO por clave de columna, no por índice ──
 let CAP={N:{},B:{},keys:[]};
 function initDaily(j){
+  if(!j||!Array.isArray(j.cols)||!Array.isArray(j.neto)){
+    document.getElementById('dailyBody').innerHTML='<div class="errbox">El portal está conectado al backend VIEJO (no trae DAILY). Revisa que WEBAPP_URL sea la URL de la App web de la hoja nueva y que hayas implementado una versión nueva.</div>'; return; }
   const toObj=r=>{const o={};j.cols.forEach((c,i)=>o[c]=r[i]);return o;};
   const idx=(rows,dest)=>rows.forEach(r=>{const o=toObj(r);const f=String(o.fecha||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(f))dest[f]=o;});
   CAP={N:{},B:{},keys:[]}; idx(j.neto,CAP.N); idx(j.bruto,CAP.B);
@@ -369,7 +371,7 @@ function initDaily(j){
 }
 function fechaActualPos(){const k=document.getElementById('daySel').value;let p=-1;for(let i=0;i<CAP.keys.length;i++){if(CAP.keys[i]<=k)p=i;else break;}return p<0?0:p;}
 function cambiarDia(d){if(!CAP.keys.length)return;const p=Math.max(0,Math.min(CAP.keys.length-1,fechaActualPos()+d));document.getElementById('daySel').value=CAP.keys[p];renderDaily();}
-const SUM_KEYS=['vendidas','cortesia','usoCasa','intercambio','ocupSinUC','ocupados','hab','noShow','early','late','pet','miscOtros','spa','lav','transp','dayPassN','dayPass','activ','well','misc','shop','propinas','ajustes','totDiv','alim','beb','rest','pax','eventos','minibar','cigarros','totAB','totHotel','sinClasif','iva','ish','sisCB','exclCB','cbPoster','sisPoster','exclPoster'];
+const SUM_KEYS=['anulado','descPoster','abPoster','propPoster','habExtras','vendidas','cortesia','usoCasa','intercambio','ocupSinUC','ocupados','hab','noShow','early','late','pet','miscOtros','spa','lav','transp','dayPassN','dayPass','activ','well','misc','shop','propinas','ajustes','totDiv','alim','beb','rest','pax','eventos','minibar','cigarros','totAB','totHotel','sinClasif','iva','ish','sisCB','exclCB','cbPoster','sisPoster','exclPoster'];
 function acumular(src,fSel,modo){
   const a={dias:0}; SUM_KEYS.forEach(k=>a[k]=0);
   CAP.keys.forEach(k=>{const f=parseFecha(k); if(f.y!==fSel.y) return;
@@ -387,12 +389,12 @@ const PPTO_NOMBRE={ocupados:'Total cuartos ocupados',ocupPct:'% de Ocupación',a
 const SECCIONES=[
   ['Habitaciones',[['% Ocupación','ocupPct','p'],['ADR','adr','r'],['RevPAR','revpar','r'],
     ['Hab. vendidas','vendidas','i','sub'],['Cortesía','cortesia','i','sub'],['Uso casa','usoCasa','i','sub'],['Intercambio','intercambio','i','sub'],
-    ['Ocupados s/ uso casa','ocupSinUC','i'],['Total cuartos ocupados','ocupados','i','total'],['Ingreso habitaciones','hab','m','total']]],
+    ['Ocupados s/ uso casa','ocupSinUC','i'],['Total cuartos ocupados','ocupados','i','total'],['Ingreso habitaciones (tarifas)','hab','m','total'],['Otros cargos de habitación (extra person, upgrade…)','habExtras','m','sub']]],
   ['División cuartos',[['Spa','spa','m','sub'],['Lavandería','lav','m','sub'],['Transportación','transp','m','sub'],
     ['Day Pass','dayPass','m','sub'],['Day Pass (#)','dayPassN','i','sub2'],['Actividades','activ','m','sub'],['Wellness','well','m','sub'],
     ['Misceláneos','misc','m','sub'],['No-Show','noShow','m','sub2'],['Early Check-In','early','m','sub2'],['Late Check-Out','late','m','sub2'],
     ['Pet Fee','pet','m','sub2'],['Otros','miscOtros','m','sub2'],['Shop / Boutique','shop','m','sub'],
-    ['Propinas (informativo, no suma)','propinas','m','info'],['Ajustes y correcciones (informativo)','ajustes','m','info'],
+    ['Ajustes y correcciones (informativo)','ajustes','m','info'],['Cargos anulados (informativo, se cancelan)','anulado','m','info'],
     ['Total división cuartos','totDiv','m','total']]],
   ['Restaurante',[['Alimentos','alim','m','sub'],['Bebidas','beb','m','sub'],['Total restaurante','rest','m','total'],['No. Pax','pax','i'],['Cheque promedio','cheque','r']]],
   ['Eventos · Minibar · Cigarros',[['Eventos','eventos','m','sub'],['Minibar','minibar','m','sub'],['Cigarros','cigarros','m','sub']]],
@@ -428,11 +430,13 @@ function renderDaily(){
     <table class="aud"><tbody>
       <tr><td><strong>Cloudbeds · cargos del día (bruto)</strong></td><td class="num"><strong>$${money(b.sisCB)}</strong></td></tr>
       <tr><td>&nbsp;&nbsp;− Excluido (Paid Out, Paquetería)</td><td class="num">$${money(b.exclCB)}</td></tr>
-      <tr><td>&nbsp;&nbsp;= Entra al reporte (incluye propinas y ajustes informativos)</td><td class="num">$${money(b.sisCB-b.exclCB)}</td></tr>
+      <tr><td>&nbsp;&nbsp;= Entra al reporte (incluye conceptos informativos)</td><td class="num">$${money(b.sisCB-b.exclCB)}</td></tr>
       <tr><td class="dim">Restaurante cargado a habitación (ya contado en Poster)</td><td class="num dim">$${money(b.cbPoster)}</td></tr>
       <tr><td class="dim">IVA · ISH (no son ingreso)</td><td class="num dim">$${money(b.iva)} · $${money(b.ish)}</td></tr>
-      <tr><td><strong>Poster · ventas del día (bruto)</strong></td><td class="num"><strong>$${money(b.sisPoster)}</strong></td></tr>
-      <tr><td>&nbsp;&nbsp;− No-venta (desayuno incluido, cortesía, ignorar)</td><td class="num">$${money(b.exclPoster)}</td></tr>
+      <tr><td><strong>Poster · ingresos del día (bruto, ya con descuentos)</strong></td><td class="num"><strong>$${money(b.sisPoster)}</strong></td></tr>
+      <tr><td class="dim">&nbsp;&nbsp;Descuentos aplicados en Poster (ya restados)</td><td class="num dim">$${money(b.descPoster)}</td></tr>
+      <tr><td>&nbsp;&nbsp;− No es venta (desayuno incluido, cortesías, propinas)</td><td class="num">$${money(b.exclPoster+b.propPoster)}</td></tr>
+      <tr><td>&nbsp;&nbsp;= Restaurante + Eventos + Minibar + Cigarros (bruto)</td><td class="num">$${money(b.sisPoster-b.exclPoster-b.propPoster)} ${Math.abs((b.sisPoster-b.exclPoster-b.propPoster)-b.abPoster)<1?'<span class="sem-ok">✓</span>':'<span class="sem-bad">revisar</span>'}</td></tr>
     </tbody></table>
     <div class="note">Si algún concepto de Cloudbeds/Poster no coincide con tu reporte del sistema, compara contra estas líneas: son la suma exacta de lo que trae la API ese día.</div>` : '';
   const kpis=`<div class="kpis">
@@ -897,8 +901,8 @@ function pintarLibro(L){
   const canalRows=L.canales.map(c=>`<tr><td>${c.canal}</td><td class="num">${c.n}</td><td class="num">$${money(c.monto)}</td></tr>`).join('');
   // grupos por clasificación (de dónde viene cada peso)
   const grupoRows=L.grupos.map(g=>{
-    const excl=/excluir/.test(g.clasif);
-    return `<tr class="clickrow" onclick="filtrarLibro('${g.clasif.replace(/'/g,"\\'")}')" style="${excl?'opacity:.6':''}"><td>${g.clasif}</td><td class="num">${g.n}</td><td class="num">$${money(g.monto)}</td></tr>`;
+    const excl=g.destino!=='Ingreso';
+    return `<tr class="clickrow" onclick="filtrarLibro('${g.clasif.replace(/'/g,"\\'")}')" style="${excl?'opacity:.6':''}"><td>${g.clasif}<div style="font-size:10px;color:var(--cactus)">${g.destino}</div></td><td class="num">${g.n}</td><td class="num">$${money(g.monto)}</td></tr>`;
   }).join('');
   document.getElementById('libroBody').innerHTML=`
     <div style="padding:16px;background:var(--wool);border-radius:2px;margin-bottom:14px">
@@ -934,7 +938,7 @@ function pintarLibroTabla(){
     <td>${it.concepto}</td>
     <td style="text-align:center">${it.cat}</td>
     <td>${it.clasif}</td>
-    <td style="text-align:center">${it.codigo}</td>
+    <td style="font-size:11px">${it.destino}</td>
     <td style="text-align:center">${it.folio||'—'}</td>
     <td style="text-align:center">${it.hab}</td>
     <td style="text-align:center">${it.reserva}</td>
@@ -942,8 +946,8 @@ function pintarLibroTabla(){
   </tr>`).join('');
   document.getElementById('libroTabla').innerHTML=`
     <div class="section-eyebrow">Movimientos ${filtro!=='Todos'?'· '+filtro:'del día'} · ${items.length}</div>
-    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Hora</th><th>Concepto</th><th style="text-align:center">Categoría</th><th>Clasificación</th><th style="text-align:center">Código</th><th style="text-align:center">Folio</th><th style="text-align:center">Hab</th><th style="text-align:center">Reserva</th><th style="text-align:right">Monto</th></tr></thead><tbody>${filas}</tbody></table></div>
-    <div class="note">Jornal completo en vivo de Cloudbeds. Cada movimiento con su clasificación y código, para rastrear de dónde viene.</div>`;
+    <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Hora</th><th>Concepto</th><th style="text-align:center">Categoría</th><th>Clasificación</th><th>¿Suma al ingreso?</th><th style="text-align:center">Folio</th><th style="text-align:center">Hab</th><th style="text-align:center">Reserva</th><th style="text-align:right">Monto</th></tr></thead><tbody>${filas}</tbody></table></div>
+    <div class="note">Jornal completo en vivo de Cloudbeds, con la misma clasificación del Daily Report y la pestaña MOVIMIENTOS. Montos en bruto, como en Cloudbeds.</div>`;
 }
 function cargarAuditoria(){
   const fecha=document.getElementById('audFecha').value;
@@ -967,8 +971,8 @@ function pintarAuditoria(d){
       <strong style="font-family:var(--disp);font-size:19px">Auditoría del ${d.fecha}</strong>
       <div style="font-size:13px;color:var(--ink);margin-top:6px">Total negativo del día: <strong style="color:var(--bad)">$${money(d.total)}</strong> · ${d.items.length} movimientos</div>
       <div style="margin-top:8px;font-size:11.5px;color:var(--cactus);border-top:1px solid var(--line);padding-top:8px">
-        <div>De ese total: <strong>$${money(d.aoTotal)}</strong> son código 2000 neto de IVA → van a la columna <strong>Ajustes/Correcciones (AO)</strong> del reporte.</div>
-        <div>El resto ($${money(d.otrosTotal)} bruto: IVA, hospedaje, etc.) no va a AO.</div>
+        <div style="margin-bottom:4px">A dónde va cada peso negativo en el Daily Report:</div>
+        ${(d.resumen||[]).map(r=>`<div>• ${r.destino}: <strong>$${money(r.monto)}</strong> (${r.n})</div>`).join('')}
       </div>
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
     </div>
@@ -985,13 +989,12 @@ function pintarTablaAud(){
     const justCell=just
       ? `<div style="font-size:11px;color:var(--ok)">✓ ${just}<br><span style="color:var(--cactus)">${it.justificadoPor||''}</span></div>`
       : `<textarea class="just-input" id="ja_${it.idTx}" placeholder="¿Por qué?"></textarea><button class="just-btn" onclick="justificarAud('${it.idTx}')">Guardar</button>`;
-    const aoTag = it.vaAO ? ' <span style="font-size:9px;background:var(--gold);color:var(--ink);padding:1px 5px;border-radius:8px;letter-spacing:.04em">AO</span>' : '';
     return `<tr>
       <td>${it.hora}</td>
       <td>${it.usuario}</td>
       <td><span class="tipo-chip ${claseTipo(it.tipo)}">${it.tipo}</span></td>
       <td>${it.concepto}</td>
-      <td style="text-align:center">${it.codigo}${aoTag}</td>
+      <td>${it.categoria}<div style="font-size:10px;color:var(--cactus)">${it.destino}</div></td>
       <td style="text-align:center">${it.hab}</td>
       <td style="text-align:center">${it.reserva}</td>
       <td class="num" style="color:var(--bad);font-weight:600">$${money(it.monto)}</td>
@@ -999,9 +1002,9 @@ function pintarTablaAud(){
   }).join('');
   document.getElementById('audTabla').innerHTML=`
     <div style="overflow-x:auto"><table class="aud"><thead><tr>
-      <th>Hora</th><th>Usuario</th><th>Tipo</th><th>Concepto</th><th style="text-align:center">Código</th><th style="text-align:center">Hab</th><th style="text-align:center">Reserva</th><th style="text-align:right">Monto</th><th>Justificación (por qué)</th>
+      <th>Hora</th><th>Usuario</th><th>Tipo</th><th>Concepto</th><th>Categoría en el reporte</th><th style="text-align:center">Hab</th><th style="text-align:center">Reserva</th><th style="text-align:right">Monto</th><th>Justificación (por qué)</th>
     </tr></thead><tbody>${filas}</tbody></table></div>
-    <div class="note">Todo monto negativo del día. Cada movimiento aparece una vez con su tipo real. Datos en vivo de Cloudbeds.</div>`;
+    <div class="note">Todo monto negativo del día (sin contar pagos normales), con la misma clasificación del Daily Report. Una anulación que se cancela con su cargo no mueve ninguna categoría.</div>`;
 }
 async function justificarAud(idTx){
   const el=document.getElementById('ja_'+idTx); const texto=el.value.trim();
@@ -1016,56 +1019,6 @@ async function justificarAud(idTx){
     if(it){ it.justificacion=texto; it.justificadoPor=j.por||SESSION.nombre; }
     el.parentElement.innerHTML=`<div style="font-size:11px;color:var(--ok)">✓ ${texto}<br><span style="color:var(--cactus)">${j.por||SESSION.nombre}</span></div>`;
   }catch(e){ alert('No se pudo guardar.'); el.disabled=false; }
-}
-function renderHistorial(){
-  const rows=(DATA.cuadres||[]).slice(1).filter(r=>r[0]);
-  if(!rows.length){document.getElementById('historialBody').innerHTML='<div class="empty">Aún no hay cuadres capturados.</div>';return;}
-  rows.sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
-  window._HIST=rows;
-  const body=rows.map((r,idx)=>{
-    const fecha=String(r[0]).slice(0,10), por=r[14]||'—', general=r[23]||'';
-    const sem = general==='CUADRA' ? '<span class="badge sem-ok">🟢</span>' : general==='REVISAR' ? '<span class="badge sem-bad">🔴</span>' : '<span style="color:#c9c0a8">—</span>';
-    const estT=r[7]||'';
-    return `<tr class="clickrow" onclick="detalleCuadre(${idx})"><td>${fecha}</td><td>${por}</td><td>${estT}</td><td style="text-align:center">${sem}</td></tr>`;
-  }).join('');
-  document.getElementById('historialBody').innerHTML=`
-    <div class="section-eyebrow">Historial de cuadres</div>
-    <table class="aud"><thead><tr><th>Fecha</th><th>Capturado por</th><th>Transfer</th><th style="text-align:center">Cuadre</th></tr></thead>
-    <tbody>${body}</tbody></table>
-    <div class="note">Clic en un día para ver el desglose completo por canal.</div>
-    <div id="cuadreDetBody"></div>`;
-}
-function detalleCuadre(idx){
-  const r=window._HIST[idx]; if(!r)return;
-  const m=v=>'$'+money(num(v));
-  const fecha=String(r[0]).slice(0,10);
-  const estadoLinea=(lbl,cap,estado)=>{
-    const ico = estado==='OK'?'🟢': estado==='REVISAR'?'🔴':'🔵';
-    return `<div class="line"><span>${ico} ${lbl}</span><span>${cap}${estado?(' · '+estado):''}</span></div>`;
-  };
-  const totFront=num(r[4]), openpay=num(r[5]), transfer=num(r[6]), estT=r[7]||'', totRest=num(r[11]), arqF=num(r[12]), arqR=num(r[13]);
-  const resTF=r[17]||'', resOP=r[18]||'', resEF=r[19]||'', resVCC=r[20]||'', resTR=r[21]||'', resER=r[22]||'', general=r[23]||'';
-  const allOk = general==='CUADRA';
-  document.getElementById('cuadreDetBody').innerHTML=`
-    <div style="margin-top:18px;padding:16px;border-radius:2px;border:1px solid ${allOk?'var(--ok)':'var(--bad)'};background:${allOk?'#e0efe0':'#faf0ef'}">
-      <div style="font-weight:600;margin-bottom:4px;font-family:var(--disp)">${fecha} · ${allOk?'✅ Cuadra':'⚠️ Revisar'}</div>
-      <div style="font-size:11px;color:var(--cactus);margin-bottom:10px">Capturado por ${r[14]||'—'} · ${r[15]||''}</div>
-      <div class="cuadre-cat">Desglose terminal Front</div>
-      <div class="line"><span>Crédito otros</span><span>${m(r[1])}</span></div>
-      <div class="line"><span>Crédito AMEX</span><span>${m(r[2])}</span></div>
-      <div class="line"><span>Débito otros</span><span>${m(r[3])}</span></div>
-      <div class="line"><span><strong>Total terminal Front</strong></span><span><strong>${m(r[4])}</strong></span></div>
-      <div class="cuadre-cat">Conciliación Front (vs Cloudbeds)</div>
-      ${estadoLinea('Terminal BBVA', m(totFront), resTF)}
-      ${estadoLinea('Openpay', m(openpay), resOP)}
-      ${estadoLinea('Transferencias ('+(estT||'—')+')', m(transfer), '')}
-      ${estadoLinea('VCC agencias', resVCC, '')}
-      ${estadoLinea('Efectivo Front', m(arqF), resEF)}
-      <div class="cuadre-cat">Conciliación Restaurante (vs Poster)</div>
-      ${estadoLinea('Terminal Rest', m(totRest), resTR)}
-      ${estadoLinea('Efectivo Rest', m(arqR), resER)}
-    </div>`;
-  document.getElementById('cuadreDetBody').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // Control mensual: filas [fecha, cuadreGeneral, termFront, openpay, efvoFront, termRest, efvoRest, sinClasif]
