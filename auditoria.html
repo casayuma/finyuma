@@ -507,7 +507,6 @@ function pintarCQ(){
   const est=CQ.estados||{}, alertas=[]
     .concat((est.abiertos||[]).map(x=>`Ticket <strong>${x.ticket}</strong> sigue ABIERTO ($${money(x.monto)}).`))
     .concat((est.eliminados||[]).map(x=>`Ticket <strong>${x.ticket}</strong> fue ELIMINADO ($${money(x.monto)}). ¿Quién y por qué?`));
-  if(Math.abs(CQ.cargoHabCB-E.CARGOHAB)>1) alertas.push(`Poster mandó a habitaciones $${money(E.CARGOHAB)} pero Cloudbeds recibió $${money(CQ.cargoHabCB)}. Revisa cargos a habitación de otro día o no ligados.`);
   document.getElementById('cqBody').innerHTML=`
     ${alertas.length?`<div class="errbox" style="margin-bottom:14px">${alertas.map(a=>'⚠️ '+a).join('<br>')}</div>`:''}
     <div class="libro-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -536,7 +535,7 @@ function pintarCQ(){
     <div id="cqRes"></div>
     <div class="ctl" style="margin-top:20px"><label>Renglones</label><select id="cqFiltro" onchange="tablaCQ()">
       <option value="rev">Solo para revisar</option><option value="T12">Terminal Front</option><option value="T3">Terminal Restaurante</option>
-      <option value="EF">Efectivo</option><option value="otros">Transferencias, Openpay, VCC, cargos a hab.</option><option value="todos">Todos</option></select></div>
+      <option value="EF">Efectivo</option><option value="otros">Transferencias, Openpay, VCC, cargos a hab., registrados por Poster</option><option value="todos">Todos</option></select></div>
     <div id="cqTabla"></div>`;
   totCQ(); if(CQ.resultado) resCQ(CQ.resultado); tablaCQ();
 }
@@ -570,7 +569,7 @@ function tablaCQ(){
   let items=CQ.items.filter(it=>it.monto!==0||it.forma!=='SINPAGO');
   if(f==='rev') items=items.filter(it=>it.estatus||it.cambiado||(malF&&it.forma==='T12')||(malR&&it.forma==='T3')||(malEF&&/^EF_/.test(it.forma))||(it.forma==='TRANSFER'&&it.estatus!=='Correcto - Validado'));
   else if(f==='EF') items=items.filter(it=>/^EF_/.test(it.forma));
-  else if(f==='otros') items=items.filter(it=>['TRANSFER','OPENPAY','VCC','CARGOHAB','DEPOSITO','CORTESIA','USOCASA','CXC'].indexOf(it.forma)>-1);
+  else if(f==='otros') items=items.filter(it=>['TRANSFER','OPENPAY','VCC','CARGOHAB','DEPOSITO','CORTESIA','USOCASA','CXC','POSTER'].indexOf(it.forma)>-1);
   else if(f!=='todos') items=items.filter(it=>it.forma===f);
   const opF=sel=>Object.keys(CQ.formas).map(k=>`<option value="${k}"${k===sel?' selected':''}>${CQ.formas[k]}</option>`).join('');
   const opE=sel=>['<option value="">—</option>'].concat(CQ.estatus.map(e=>`<option${e===sel?' selected':''}>${e}</option>`)).join('');
