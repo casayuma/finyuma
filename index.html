@@ -221,10 +221,10 @@ function entrarApp(){
   document.getElementById('app').style.display='block';
   document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+rolLabel();
   // Deja la sesión disponible para pagos.html / requisiciones.html si viven en el mismo dominio/carpeta
-  try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
+  try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));localStorage.setItem('CY_FIN_SESSION_LS',JSON.stringify({s:SESSION,t:Date.now()}));}catch(e){}
   buildCards();
 }
-function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}location.reload();}
+function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');localStorage.removeItem('CY_FIN_SESSION_LS');}catch(e){}location.reload();}
 
 function buildCards(){
   const grid=document.getElementById('cardGrid');

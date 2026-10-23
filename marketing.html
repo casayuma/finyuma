@@ -84,11 +84,18 @@ textarea{min-height:140px;resize:vertical}
 <div id="gate" class="hidden"><div class="box">
   <h2 style="color:var(--blue);margin-bottom:4px">Casa Yuma</h2>
   <p style="font-size:12px;color:var(--cactus);margin-bottom:18px">Solicitudes de Marketing</p>
-  <div class="fld"><label>Número de colaborador</label><input id="gId" placeholder="CY000" autocomplete="off"></div>
-  <div class="fld"><label>PIN</label><input id="gPin" type="password" inputmode="numeric" maxlength="6" style="text-align:center;letter-spacing:.4em"></div>
-  <button class="btn" style="width:100%" onclick="gateLogin()">Entrar</button>
+  <div id="g1">
+    <div class="fld"><label>¿Quién eres?</label><select id="gSel" style="font-size:16px"><option value="">Cargando…</option></select></div>
+    <button class="btn" style="width:100%" onclick="gateId()">Continuar</button>
+  </div>
+  <div id="g2" class="hidden">
+    <div class="fld"><label id="gLbl">Tu PIN</label><input id="gPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" style="text-align:center;letter-spacing:.4em;font-size:22px"></div>
+    <div class="fld hidden" id="gPin2w"><label>Repite tu PIN</label><input id="gPin2" type="password" inputmode="numeric" maxlength="6" placeholder="••••" style="text-align:center;letter-spacing:.4em;font-size:22px"></div>
+    <button class="btn" style="width:100%" id="gBtn" onclick="gatePin()">Entrar</button>
+    <button class="btn ghost" style="width:100%;margin-top:8px" onclick="gateBack()">← No soy yo</button>
+  </div>
   <div class="msg err" id="gMsg"></div>
-  <p style="font-size:11px;color:var(--cactus);margin-top:10px">¿Primera vez? Crea tu PIN en el <a href="index.html">Portal de Finanzas</a>.</p>
+  <p style="font-size:11px;color:var(--cactus);margin-top:6px">¿Olvidaste tu PIN? Pídele a Administración que lo reinicie.</p>
 </div></div>
 
 <header>
@@ -162,25 +169,62 @@ const DIAS_MIN=5, MAX_MB=15;
 let S=null, DATA={solicitudes:[],archivos:[],historial:[],yo:{}}, REFS=[], TIPO='', FILTRO='activas', ABIERTA=null;
 
 // ===== Sesión =====
-(function init(){
-  try{S=JSON.parse(sessionStorage.getItem('CY_FIN_SESSION'));}catch(e){}
-  if(!S||!S.id)return document.getElementById('gate').classList.remove('hidden');
-  arrancar();
-})();
-async function gateLogin(){
-  const id=gId.value.trim().toUpperCase(),pin=gPin.value.trim();gMsg.textContent='Verificando…';
-  try{const r=await fetch(MAIN_URL+'?accion=entrar&id='+encodeURIComponent(id)+'&pin='+encodeURIComponent(pin));const j=await r.json();
-    if(!j.ok){gMsg.textContent=j.error||'PIN incorrecto';return;}
-    S={id,pin,nombre:j.nombre,nivel:j.nivel,departamento:j.departamento||''};
-    sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(S));gate.classList.add('hidden');arrancar();
-  }catch(e){gMsg.textContent='No se pudo conectar.';}
+// La sesión se comparte con el Portal (localStorage, 12 h) para que no pida PIN otra vez
+const SKEY='CY_FIN_SESSION', HORAS=12;
+function leerSesion(){
+  try{const l=JSON.parse(localStorage.getItem(SKEY+'_LS'));if(l&&l.s&&Date.now()-l.t<HORAS*36e5)return l.s;}catch(e){}
+  try{const x=JSON.parse(sessionStorage.getItem(SKEY));if(x&&x.id)return x;}catch(e){}
+  return null;
 }
-gPin.addEventListener('keydown',e=>{if(e.key==='Enter')gateLogin();});
-function salir(){sessionStorage.removeItem('CY_FIN_SESSION');location.href='index.html';}
+function guardarSesion(x){try{sessionStorage.setItem(SKEY,JSON.stringify(x));localStorage.setItem(SKEY+'_LS',JSON.stringify({s:x,t:Date.now()}));}catch(e){}}
+function borrarSesion(){try{sessionStorage.removeItem(SKEY);localStorage.removeItem(SKEY+'_LS');}catch(e){}}
+async function get(p){p._ts=Date.now();const r=await fetch(MAIN_URL+'?'+new URLSearchParams(p),{cache:'no-store'});return r.json();}
+let PEND=null;
+(function init(){
+  S=leerSesion();
+  if(S&&S.id&&S.pin)return arrancar();
+  gate.classList.remove('hidden');
+  get({accion:'listar_colaboradores'}).then(j=>{
+    const u=(j&&j.usuarios)||[];
+    gSel.innerHTML='<option value="">— Elige tu nombre —</option>'+u.map(x=>`<option value="${esc(x.id)}">${esc(x.nombre)}</option>`).join('');
+  }).catch(()=>{gSel.innerHTML='<option value="">Sin conexión — recarga la página</option>';});
+})();
+async function gateId(){
+  gMsg.textContent='';if(!gSel.value)return gMsg.textContent='Elige tu nombre.';
+  gMsg.className='msg';gMsg.textContent='Verificando…';
+  try{const j=await get({accion:'login',id:gSel.value});
+    if(!j.ok){gMsg.className='msg err';return gMsg.textContent=j.error||'No encontrado.';}
+    PEND=j;gMsg.textContent='';g1.classList.add('hidden');g2.classList.remove('hidden');
+    const n=(j.nombre||'').split(' ')[0];
+    gLbl.textContent=j.tienePin?'Tu PIN · '+n:'Crea tu PIN · '+n;
+    gPin2w.classList.toggle('hidden',!!j.tienePin);
+    gBtn.textContent=j.tienePin?'Entrar':'Crear PIN y entrar';
+    if(!j.tienePin){gMsg.className='msg';gMsg.textContent='Primera vez: elige un PIN de 4 a 6 números.';}
+    gPin.focus();
+  }catch(e){gMsg.className='msg err';gMsg.textContent='Sin conexión. Intenta de nuevo.';}
+}
+function gateBack(){g2.classList.add('hidden');g1.classList.remove('hidden');gPin.value=gPin2.value='';gMsg.textContent='';}
+async function gatePin(){
+  const pin=gPin.value.trim();gMsg.className='msg err';
+  if(!/^\d{4,6}$/.test(pin))return gMsg.textContent='El PIN son 4 a 6 números.';
+  gBtn.disabled=true;
+  try{let j;
+    if(PEND.tienePin)j=await get({accion:'entrar',id:PEND.id,pin});
+    else{if(pin!==gPin2.value.trim()){gBtn.disabled=false;return gMsg.textContent='Los PIN no coinciden.';}
+      j=await(await fetch(MAIN_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'crearPin',id:PEND.id,pin})})).json();}
+    if(!j.ok){gBtn.disabled=false;gPin.value='';gPin.focus();return gMsg.textContent=j.error||'PIN incorrecto.';}
+    S={id:PEND.id,pin,nombre:j.nombre||PEND.nombre,nivel:j.nivel||PEND.nivel,departamento:j.departamento||PEND.departamento||''};
+    guardarSesion(S);gate.classList.add('hidden');arrancar();
+  }catch(e){gMsg.textContent='Sin conexión. Intenta de nuevo.';}
+  gBtn.disabled=false;
+}
+gPin.addEventListener('keydown',e=>{if(e.key==='Enter')gatePin();});
+gPin2.addEventListener('keydown',e=>{if(e.key==='Enter')gatePin();});
+function salir(){borrarSesion();location.href='index.html';}
 
 async function api(body){
   const r=await fetch(MK_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({id:S.id,pin:S.pin},body))});
-  const j=await r.json(); if(!j.ok)throw new Error(j.error||'Error'); return j;
+  const j=await r.json(); if(!j.ok){if(/Sesión no válida/.test(j.error||'')){borrarSesion();location.reload();}throw new Error(j.error||'Error');} return j;
 }
 
 function arrancar(){
