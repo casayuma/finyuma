@@ -241,14 +241,18 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 </div>
 
 <script>
-// ————— El directorio de colaboradores YA NO se copia aquí a mano —————
-// El selector de nombres del login (#userSel) se llena en vivo desde la pestaña "Usuarios"
-// del Sheet (acción pública 'listar_colaboradores' en Codigo.gs). Para agregar, quitar o
-// reactivar a alguien del selector, solo edita esa pestaña (columna E: Activo) — no hace
-// falta tocar este archivo ni los otros dos (index.html, pagos.html).
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
   PAGOS_URL:'pagos.html',
+  USERS:[ // picker de nombres en el login — no da acceso por sí solo, solo precarga el ID (ver Usuarios en el Sheet)
+    {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY001',n:'Manuel Arturo Otazo Aponte'},
+    {id:'CY064',n:'Jorge Guillén Garbuno'},{id:'CY070',n:'América Arróniz'},{id:'CY999',n:'Growthbis'},
+    {id:'CY060',n:'Rainier Jetzahi Ramírez Vasquez'},{id:'CY005',n:'Horacio Muñoz Martínez'},
+    {id:'CY071',n:'José de Jesús Segoviano Farjas'},{id:'CY007',n:'Ricardo Ojeda Montuy'},
+    {id:'CY062',n:'Lizette Lopez Lopez'},{id:'CY018',n:'Plácido Maurilio García Pérez'},
+    {id:'CY019',n:'Miriam Lopez Sanchez'},{id:'CY025',n:'Egbert Cruz García'},
+    {id:'CY029',n:'Neri Angelina Contreras Pacheco'},{id:'CY031',n:'Margarita Díaz Canseco'},
+  ],
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
 const DEPARTAMENTOS=[
@@ -308,17 +312,7 @@ function rolLabel(){
   return 'Líder · '+(SESSION.departamento||'');
 }
 
-(function(){
-  const sel=document.getElementById('userSel');
-  sel.innerHTML='<option value="">Cargando…</option>';
-  apiGet({accion:'listar_colaboradores'}).then(j=>{
-    if(!j || !j.ok || !j.usuarios || !j.usuarios.length){ sel.innerHTML='<option value="">— escribe tu número abajo —</option>'; return; }
-    sel.innerHTML='';
-    j.usuarios.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.nombre;sel.appendChild(o);});
-    sel.onchange=()=>{document.getElementById('userId').value=sel.value;};
-    document.getElementById('userId').value=sel.value;
-  }).catch(()=>{ sel.innerHTML='<option value="">— escribe tu número abajo —</option>'; });
-})();
+(function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
 
 async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});return res.json();}
@@ -451,8 +445,11 @@ async function cargarCatalogo(){
 }
 
 // ————— Nueva requisición (carrito) —————
+let PEDIDO_TOKEN='', CL_TOKEN='';
+function nuevoToken(){ return SESSION.id+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
 function renderNueva(){
   CARRITO=[];
+  PEDIDO_TOKEN=nuevoToken();
   CATEGORIA_ACTIVA='';
   const hoy=new Date().toISOString().slice(0,10);
   const deptoOpts = esLiderNormal()
@@ -477,7 +474,7 @@ function renderNueva(){
           <div id="catListaBody"></div>
         </div>
 
-        <div class="section-eyebrow" style="margin-top:6px">Agregar artículo (búsqueda libre)</div>
+        <div class="section-eyebrow" style="margin-top:6px">Agregar artículo del catálogo</div>
         <div class="item-row">
           <div class="fld search-wrap"><label>Artículo</label>
             <input id="iBuscar" type="text" placeholder="Busca por nombre…" autocomplete="off"
@@ -492,15 +489,17 @@ function renderNueva(){
         </div>
         <div class="note" id="iPrevisualizacion"></div>
 
+        <button type="button" class="cap-btn ghost2" style="margin-top:4px" onclick="mostrarNuevoArticulo()">+ Solicitud especial (artículo fuera de catálogo)</button>
         <div id="nuevoArtBox" class="nuevo-art-box hidden">
-          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)">Este artículo no está en el catálogo — se guardará para que la próxima vez ya aparezca en la búsqueda.</div>
-          <div class="fld"><label>Nombre del artículo nuevo</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
+          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)"><b>Solicitud especial</b> — para algo que no se pide normalmente y no está en el catálogo. No se agrega al catálogo; Compras lo cotiza.</div>
+          <div class="fld cap-full"><label>¿Qué necesitas?</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
+          <div class="fld"><label>Cantidad</label><input id="naCantidad" type="number" step="1" min="1" value="1"></div>
           <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
-          <div class="fld"><label>Precio unitario (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
-          <div class="fld"><label>Departamento (opcional)</label><select id="naDepto" onchange="actualizarNaCategoriaVisible()"><option value="">Cualquier departamento</option>${DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('')}</select></div>
-          <div class="fld" id="naCategoriaWrap"><label>Categoría</label><select id="naCategoria"><option value="">(sin categoría)</option>${CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}">${c}</option>`).join('')}</select></div>
+          <div class="fld"><label>Precio estimado (opcional)</label><input id="naPrecio" type="number" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Proveedor sugerido (opcional)</label><input id="naProveedor" placeholder="Si lo conoces"></div>
+          <div class="fld cap-full"><label>Especificación / para qué es</label><input id="naEspec" placeholder="Marca, medida, modelo, motivo…"></div>
           <div class="row-actions">
-            <button class="cap-btn" style="padding:9px 16px" onclick="guardarNuevoArticulo()">Guardar y usar</button>
+            <button class="cap-btn" style="padding:9px 16px" onclick="agregarEspecial()">Agregar a la lista</button>
             <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
           </div>
         </div>
@@ -623,7 +622,7 @@ function buscarCatalogo(){
   } else {
     html+='<div class="sr-empty">Sin coincidencias en el catálogo.</div>';
   }
-  html+=`<div class="sr-item sr-nuevo" onmousedown="event.preventDefault();mostrarNuevoArticulo()">+ Agregar "${escapeHtml(q)}" como artículo nuevo</div>`;
+  html+=`<div class="sr-item sr-nuevo" onmousedown="event.preventDefault();mostrarNuevoArticulo()">+ No está — pedir "${escapeHtml(q)}" como solicitud especial</div>`;
   cont.innerHTML=html;
   cont.classList.remove('hidden');
 }
@@ -638,45 +637,29 @@ function elegirResultado(i){
   actualizarPrevisualizacion();
 }
 function mostrarNuevoArticulo(){
-  document.getElementById('iResultados').classList.add('hidden');
+  const r=document.getElementById('iResultados'); if(r) r.classList.add('hidden');
   document.getElementById('naNombre').value=document.getElementById('iBuscar').value.trim();
-  document.getElementById('naUnidad').value='';
-  document.getElementById('naPrecio').value='';
-  const deptoSel=document.getElementById('rDepto');
-  document.getElementById('naDepto').value = deptoSel ? deptoSel.value : '';
-  document.getElementById('naCategoria').value = CATEGORIA_ACTIVA || '';
-  actualizarNaCategoriaVisible();
+  ['naUnidad','naPrecio','naProveedor','naEspec'].forEach(id=>{document.getElementById(id).value='';});
+  document.getElementById('naCantidad').value='1';
   document.getElementById('nuevoArtBox').classList.remove('hidden');
   document.getElementById('naNombre').focus();
 }
-// El campo Categoría solo tiene sentido para los departamentos con categoría (Cocina, Restaurante)
-// — se oculta para el resto.
-function actualizarNaCategoriaVisible(){
-  const wrap=document.getElementById('naCategoriaWrap');
-  const depto=document.getElementById('naDepto').value;
-  if(!wrap) return;
-  wrap.style.display = DEPTOS_CON_CATEGORIA.includes(depto) ? '' : 'none';
-}
 function cancelarNuevoArticulo(){ document.getElementById('nuevoArtBox').classList.add('hidden'); }
-async function guardarNuevoArticulo(){
-  const nombre=document.getElementById('naNombre').value.trim();
-  if(!nombre){ alert('Escribe el nombre del artículo.'); return; }
-  const unidad=document.getElementById('naUnidad').value.trim();
-  const precioUnitario=num(document.getElementById('naPrecio').value)||0;
-  const departamento=document.getElementById('naDepto').value;
-  const categoria = DEPTOS_CON_CATEGORIA.includes(departamento) ? document.getElementById('naCategoria').value : '';
-  try{
-    const j=await apiPost({accion:'catalogo_crear',id:SESSION.id,pin:SESSION.pin,articulo:nombre,unidad,precioUnitario,departamento,categoria});
-    if(!j.ok){ alert(j.error); return; }
-    CATALOGO.push([j.id, nombre, unidad, precioUnitario, departamento, '', '', categoria]);
-    document.getElementById('iBuscar').value=nombre;
-    document.getElementById('iUnidad').value=unidad;
-    document.getElementById('iPrecio').value=precioUnitario||'';
-    ITEM_SELECCIONADO={catalogoId:j.id, articulo:nombre};
-    document.getElementById('nuevoArtBox').classList.add('hidden');
-    actualizarPrevisualizacion();
-    if(categoria && categoria===CATEGORIA_ACTIVA) renderListaCategoria();
-  }catch(e){ alert('No se pudo guardar el artículo nuevo.'); }
+// Solicitud especial: va directo a la lista del pedido marcada como ESPECIAL (CatalogoID),
+// NO se guarda en el catálogo. La especificación es obligatoria para que Compras sepa qué comprar.
+function agregarEspecial(){
+  const articulo=document.getElementById('naNombre').value.trim();
+  const espec=document.getElementById('naEspec').value.trim();
+  if(!articulo){ alert('Escribe qué necesitas.'); return; }
+  if(!espec){ alert('Agrega la especificación o para qué es — Compras la necesita para cotizar.'); return; }
+  const ok=agregarItemCarrito({articulo, catalogoId:'ESPECIAL', cantidad:num(document.getElementById('naCantidad').value)||1,
+    unidad:document.getElementById('naUnidad').value.trim(), precioUnitario:num(document.getElementById('naPrecio').value)||0});
+  if(!ok){ alert('Ese artículo ya está en tu lista.'); return; }
+  const it=CARRITO[CARRITO.length-1];
+  it.comentario=espec; it.proveedor=document.getElementById('naProveedor').value.trim();
+  document.getElementById('iBuscar').value='';
+  cancelarNuevoArticulo();
+  renderCarrito();
 }
 function actualizarPrevisualizacion(){
   const cant=num(document.getElementById('iCantidad').value)||0;
@@ -690,6 +673,7 @@ function agregarAlCarrito(){
   const unidad = document.getElementById('iUnidad').value.trim();
   const precioUnitario = num(document.getElementById('iPrecio').value)||0;
   if(!articulo){ alert('Escribe o elige un artículo.'); return; }
+  if(!ITEM_SELECCIONADO){ mostrarNuevoArticulo(); alert('Ese artículo no está en el catálogo. Elígelo de la lista o mándalo como solicitud especial.'); return; }
   const agregado=agregarItemCarrito({articulo, catalogoId, cantidad, unidad, precioUnitario});
   if(!agregado){ alert('Ese artículo ya está en tu lista. Si necesitas más cantidad, quítalo de la lista y agrégalo de nuevo con la cantidad correcta.'); return; }
   document.getElementById('iBuscar').value='';
@@ -709,7 +693,7 @@ function renderCarrito(){
   else {
     cont.innerHTML=CARRITO.map((it,idx)=>`
       <div class="cart-item" style="flex-wrap:wrap">
-        <div><div class="ci-name">${escapeHtml(it.articulo)}</div><div class="ci-meta">${it.cantidad} ${escapeHtml(it.unidad||'')} ${it.precioUnitario?('· $'+money(it.precioUnitario)+' c/u'):''}</div></div>
+        <div><div class="ci-name">${escapeHtml(it.articulo)}${it.catalogoId==='ESPECIAL'?' <span class="pill p-horario">Especial</span>':''}</div><div class="ci-meta">${it.cantidad} ${escapeHtml(it.unidad||'')} ${it.precioUnitario?('· $'+money(it.precioUnitario)+' c/u'):''}</div></div>
         <div><div class="ci-amt">${it.precioUnitario?('$'+money(it.subtotal)):'a definir'}</div><button class="ci-x" onclick="quitarDelCarrito(${idx})">Quitar</button></div>
         <div class="ci-extra">
           <input class="cat-inp" placeholder="Comentario (opcional)" value="${escapeHtml(it.comentario||'')}" oninput="CARRITO[${idx}].comentario=this.value">
@@ -742,7 +726,11 @@ async function enviarPedido(){
   const deptoSel=document.getElementById('rDepto');
   const departamento = esLiderNormal() ? SESSION.departamento : deptoSel.value;
   const msg=document.getElementById('nuevaMsg');
-  const body={accion:'requisiciones_crear',id:SESSION.id,pin:SESSION.pin,
+  const btnEnv=document.getElementById('btnEnviarPedido');
+  if(btnEnv.dataset.enviando) return;           // evita doble envío por doble clic
+  btnEnv.dataset.enviando='1'; btnEnv.disabled=true; btnEnv.textContent='Enviando…';
+  const liberar=()=>{ delete btnEnv.dataset.enviando; btnEnv.disabled=false; btnEnv.textContent='Enviar pedido'; };
+  const body={accion:'requisiciones_crear',id:SESSION.id,pin:SESSION.pin,clientToken:PEDIDO_TOKEN,
     departamento,
     urgencia:document.getElementById('rUrgencia').value,
     fechaRequerida:document.getElementById('rFecha').value,
@@ -753,23 +741,26 @@ async function enviarPedido(){
   msg.innerHTML='<div class="okmsg">Enviando…</div>';
   try{
     const j=await apiPost(body);
-    if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;return;}
+    if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;liberar();return;}
     msg.innerHTML=`<div class="okmsg">Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${esAprobador()?'"Pendientes"':'"Historial"'}.</div>`;
     renderNueva();
     if(esAprobador())cargarPendientes();
     document.getElementById('historialBody').dataset.loaded='';
-  }catch(e){msg.innerHTML='<div class="errbox">No se pudo enviar.</div>';}
+  }catch(e){msg.innerHTML='<div class="errbox">No se pudo confirmar el envío. Revisa en "Historial" antes de volver a enviar — si lo reenvías desde aquí no se duplica.</div>';liberar();}
 }
 
 // ————— Pendientes (solo full) — agrupadas por pedido, aprobación por artículo —————
 const SEL_PENDIENTES=new Set();
+let SEQ_PEND=0, SEQ_ACUM=0;
 async function cargarPendientes(){
+  const seq=++SEQ_PEND;
   SEL_PENDIENTES.clear();
   const el=document.getElementById('pendientesBody');
   await flushComentarios(el);
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,estatus:'Pendiente'});
+    if(seq!==SEQ_PEND) return; // llegó una recarga más nueva — ignorar esta
     if(!j.ok)throw new Error(j.error);
     const filas=j.filas||[];
     if(!filas.length){el.innerHTML='<div class="empty">No hay requisiciones pendientes de aprobación.</div>';return;}
@@ -874,8 +865,9 @@ async function flushComentarios(el){
 // Comentario y proveedor sugerido por artículo (columnas nuevas 25 y 26 de Requisiciones).
 function detalleItem(r){
   const com=r[24]||'', prov=r[25]||'';
-  if(!com && !prov) return '';
-  return `<div class="item-det">${prov?('Proveedor: '+escapeHtml(prov)):''}${prov&&com?' · ':''}${com?('“'+escapeHtml(com)+'”'):''}</div>`;
+  const esp = String(r[7])==='ESPECIAL' ? ' <span class="pill p-horario">Especial</span>' : '';
+  if(!com && !prov) return esp;
+  return esp+`<div class="item-det">${prov?('Proveedor: '+escapeHtml(prov)):''}${prov&&com?' · ':''}${com?('“'+escapeHtml(com)+'”'):''}</div>`;
 }
 // Agrupa por Fecha de solicitud (más reciente primero — las fechas vienen en formato ISO
 // aaaa-mm-dd, así que ordenan bien como texto) y, dentro de cada fecha, por pedido. Se usa en
@@ -988,7 +980,9 @@ function generarPago(articulo,subtotal,idPedido){
 const ESTATUS_ACUMULADOS=['Pendiente','Aprobado','Comprada'];
 const SEL_ACUM_COMPRAR=new Set(); // artículos Aprobado seleccionados para marcar Comprada
 const SEL_ACUM_RECIBIR=new Set(); // artículos Comprada seleccionados para marcar Recibida
+const ACUM_FILAS={}; // id → renglón, para actualizar en el lugar sin recargar todo
 async function cargarAcumulados(){
+  const seq=++SEQ_ACUM;
   SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
   const el=document.getElementById('acumuladosBody');
   await flushComentarios(el);
@@ -1001,8 +995,12 @@ async function cargarAcumulados(){
   el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
   try{
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin});
+    if(seq!==SEQ_ACUM) return; // llegó una recarga más nueva — ignorar esta
     if(!j.ok)throw new Error(j.error);
-    const filas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1);
+    // Respaldo anti-duplicado visual: un mismo ID de renglón solo se muestra una vez.
+    const vistos={};
+    const filas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1 && !vistos[r[0]] && (vistos[r[0]]=true));
+    filas.forEach(r=>{ ACUM_FILAS[r[0]]=r; });
     if(!filas.length){el.innerHTML='<div class="empty">No hay pedidos en curso por ahora.</div>';return;}
     const total=filas.reduce((s,r)=>s+num(r[11]),0);
     const bloques=agruparPorDepartamentoYPedido(filas);
@@ -1141,7 +1139,7 @@ function renderItemAcumulado(r){
     }
   }
   const accionCol = acciones.length ? `<div class="row-actions no-pdf">${acciones.join('')}</div>` : '–';
-  return `<tr>
+  return `<tr data-acum-id="${escapeHtml(String(id))}">
     <td>${checkbox}</td>
     <td>${articulo}${detalleItem(r)}</td>
     <td class="num">${cantidad}${unidad?' '+unidad:''}</td>
@@ -1169,39 +1167,48 @@ function toggleSeleccionarTodosAcum(tipo,checked){
   document.querySelectorAll(cls).forEach(c=>{c.checked=checked;});
   actualizarSeleccionAcumulados();
 }
-async function marcarCompradosSeleccionados(){
-  if(!SEL_ACUM_COMPRAR.size)return;
-  const ids=Array.from(SEL_ACUM_COMPRAR);
-  if(!confirm(`¿Marcar ${ids.length} artículo(s) como Comprados?`))return;
-  const btn=document.getElementById('btnCompradosSel'); if(btn){btn.disabled=true;btn.textContent='Marcando…';}
-  try{
-    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,accionEstatus:'marcarComprada'});
-    if(!j.ok){alert(j.error);}
-    cargarAcumulados();
-  }catch(e){alert('No se pudo procesar.');cargarAcumulados();}
+// Aplica el nuevo estatus en pantalla sin recargar la lista (rápido, no pierde el scroll ni las
+// franjas abiertas). Recibida = sale de "Pedidos acumulados", así que el renglón se quita.
+function aplicarEstatusLocal(id, accion){
+  const r=ACUM_FILAS[id];
+  document.querySelectorAll('tr[data-acum-id="'+CSS.escape(String(id))+'"]').forEach(tr=>{
+    if(accion==='marcarRecibida' || !r){ tr.remove(); return; }
+    r[16]='Comprada';
+    const t=document.createElement('tbody'); t.innerHTML=renderItemAcumulado(r);
+    tr.replaceWith(t.firstElementChild);
+  });
+  actualizarSeleccionAcumulados();
 }
-async function marcarRecibidosSeleccionados(){
-  if(!SEL_ACUM_RECIBIR.size)return;
-  const ids=Array.from(SEL_ACUM_RECIBIR);
-  if(!confirm(`¿Marcar ${ids.length} artículo(s) como Recibidos?`))return;
-  const btn=document.getElementById('btnRecibidosSel'); if(btn){btn.disabled=true;btn.textContent='Marcando…';}
+async function marcarLoteAcum(accion, set, btnId, etiqueta){
+  if(!set.size)return;
+  const ids=Array.from(set);
+  if(!confirm(`¿Marcar ${ids.length} artículo(s) como ${etiqueta}?`))return;
+  const btn=document.getElementById(btnId); const txt=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Marcando…';}
   try{
-    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,accionEstatus:'marcarRecibida'});
-    if(!j.ok){alert(j.error);}
-    cargarAcumulados();
-  }catch(e){alert('No se pudo procesar.');cargarAcumulados();}
+    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids,accionEstatus:accion});
+    if(!j.ok){ alert(j.error); }
+    else {
+      ids.forEach(id=>aplicarEstatusLocal(id,accion));
+      if(j.omitidos) alert(`${j.omitidos} artículo(s) no se pudieron marcar (ya cambiaron de estatus). Se actualizará la lista.`), cargarAcumulados();
+    }
+  }catch(e){ alert('Sin conexión — revisa tu señal. Se recargará la lista para ver qué sí se guardó.'); cargarAcumulados(); }
+  if(btn){btn.textContent=txt;}
+  actualizarSeleccionAcumulados();
 }
+function marcarCompradosSeleccionados(){ return marcarLoteAcum('marcarComprada', SEL_ACUM_COMPRAR, 'btnCompradosSel', 'Comprados'); }
+function marcarRecibidosSeleccionados(){ return marcarLoteAcum('marcarRecibida', SEL_ACUM_RECIBIR, 'btnRecibidosSel', 'Recibidos'); }
 async function marcarEstadoAcumulado(id,estado,btn){
-  // Deshabilitamos el botón al instante para que un doble clic (o un clic mientras la
-  // petición anterior todavía está en camino) no dispare la misma acción dos veces.
-  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.textContent='...'; }
+  // Botón deshabilitado al instante: un doble clic no dispara la acción dos veces.
+  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.textContent='…'; }
+  const restaurar=()=>{ if(btn){btn.disabled=false; btn.textContent=estado==='marcarComprada'?'Comprada':'Recibida';} };
   try{
     const j=await apiPost({accion:'requisiciones_actualizar',id:SESSION.id,pin:SESSION.pin,idItem:id,accionEstatus:estado});
-    if(!j.ok){alert(j.error); if(btn){btn.disabled=false; btn.textContent=estado==='marcarComprada'?'Comprada':'Recibida';} return;}
-    cargarAcumulados();
+    if(!j.ok){ alert(j.error); restaurar(); return; }
+    aplicarEstatusLocal(id, estado);
   }catch(e){
-    alert('No se pudo procesar.');
-    if(btn){btn.disabled=false; btn.textContent=estado==='marcarComprada'?'Comprada':'Recibida';}
+    alert('Sin conexión — no se confirmó. Intenta de nuevo (si ya se había guardado, no pasa nada).');
+    restaurar();
   }
 }
 async function borrarItemAcumulado(id){
@@ -1276,7 +1283,7 @@ function renderCompraLinea(){
           <div class="fld"><label>Fecha requerida</label><input id="clFecha" type="date" value="${hoy}"></div>
           <div class="fld cap-full"><label>Notas (opcional)</label><input id="clNotas" placeholder="Talla, color, alguna especificación…"></div>
         </div>
-        <button class="cap-btn" style="margin-top:14px" onclick="enviarCompraLinea()">Enviar solicitud</button>
+        <button class="cap-btn" id="btnEnviarCL" style="margin-top:14px" onclick="enviarCompraLinea()">Enviar solicitud</button>
         <div id="clMsg"></div>
       </div>
       <div class="cart-box">
@@ -1292,6 +1299,7 @@ function renderCompraLinea(){
 }
 async function enviarCompraLinea(){
   const msg=document.getElementById('clMsg');
+  if(!CL_TOKEN) CL_TOKEN=nuevoToken();
   const descripcion=document.getElementById('clDescripcion').value.trim();
   const link=document.getElementById('clLink').value.trim();
   const cantidad=num(document.getElementById('clCantidad').value)||1;
@@ -1302,10 +1310,15 @@ async function enviarCompraLinea(){
   const notas=document.getElementById('clNotas').value.trim();
   if(!descripcion){ msg.innerHTML='<div class="errbox">Escribe qué es lo que se quiere comprar.</div>'; return; }
   if(!link){ msg.innerHTML='<div class="errbox">Pega el link del producto.</div>'; return; }
+  const btnCL=document.getElementById('btnEnviarCL');
+  if(btnCL.disabled) return;
+  btnCL.disabled=true;
   msg.innerHTML='<div class="loading"><div class="spinner"></div>Enviando…</div>';
   try{
-    const j=await apiPost({accion:'compras_linea_crear',id:SESSION.id,pin:SESSION.pin,descripcion,link,cantidad,precioEstimado,departamento,urgencia,fechaRequerida,notas});
+    const j=await apiPost({accion:'compras_linea_crear',id:SESSION.id,pin:SESSION.pin,clientToken:CL_TOKEN,descripcion,link,cantidad,precioEstimado,departamento,urgencia,fechaRequerida,notas});
+    btnCL.disabled=false;
     if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
+    CL_TOKEN='';
     msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Gerencia General la va a pre-autorizar.</div>`;
     document.getElementById('clDescripcion').value='';
     document.getElementById('clLink').value='';
@@ -1314,7 +1327,7 @@ async function enviarCompraLinea(){
     document.getElementById('clNotas').value='';
     cargarComprasLinea();
     actualizarBadgeComprasLinea();
-  }catch(e){ msg.innerHTML='<div class="errbox">No se pudo enviar.</div>'; }
+  }catch(e){ btnCL.disabled=false; msg.innerHTML='<div class="errbox">No se pudo confirmar el envío. Si lo reenvías no se duplica.</div>'; }
 }
 // ————— Control de Compras en línea: filtro por estatus (desplegable con conteos) + búsqueda —————
 const CL_ESTATUS=['Pendiente','Pre-autorizada','Comprada','En camino','Entregada','Rechazada'];
@@ -1561,11 +1574,9 @@ async function cargarGasto(){
     ]);
     if(!j.ok)throw new Error(j.error);
     const filas=(j.filas||[]).filter(r=>['Aprobado','Comprada','Recibida'].indexOf(r[16])!==-1);
-    // Compras en línea ya comprometidas (Pre-autorizada/Comprada/En camino/Entregada) cuentan como
-    // gasto del depto, aunque no pasen por Requisiciones — mismo criterio de "ya no es reversible"
-    // que Aprobado/Comprada/Recibida (Pre-autorizada ya la aprobó Gerencia General, aunque Dirección
-    // General todavía no la compre).
-    const filasCL = jcl.ok ? (jcl.filas||[]).filter(r=>['Pre-autorizada','Comprada','En camino','Entregada'].indexOf(r[12])!==-1) : [];
+    // Compras en línea ya comprometidas (Comprada/En camino/Entregada) cuentan como gasto del depto,
+    // aunque no pasen por Requisiciones — mismo criterio de "ya no es reversible" que Aprobado/Comprada/Recibida.
+    const filasCL = jcl.ok ? (jcl.filas||[]).filter(r=>['Comprada','En camino','Entregada'].indexOf(r[12])!==-1) : [];
     if(verTodosDeptos()) renderGastoFull(el,filas,filasCL,mes);
     else renderGastoLider(el,filas,filasCL,mes);
   }catch(e){el.innerHTML=`<div class="errbox">${e.message}</div>`;}
@@ -1603,7 +1614,7 @@ function renderGastoFull(el,filas,filasCL,mes){
     <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Departamento</th><th>Gasto del mes</th></tr></thead><tbody>
       ${DEPARTAMENTOS.map(d=>`<tr><td><span class="dept-dot" style="background:${d.color}"></span>${d.nombre}</td><td class="num">$${money(totales[d.nombre]||0)}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de Requisiciones, más Compras en línea ya Pre-autorizadas/Compradas/En camino/Entregadas (no cuenta pendientes ni rechazadas).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de Requisiciones, más Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
 }
 function renderGastoLider(el,filas,filasCL,mes){
   const total=filas.reduce((s,r)=>s+num(r[11]),0);
@@ -1616,7 +1627,7 @@ function renderGastoLider(el,filas,filasCL,mes){
       ${Object.keys(porEstatus).map(k=>`<div class="kpi"><div class="k-lbl">${k}</div><div class="k-val" style="font-size:17px">$${money(porEstatus[k])}</div></div>`).join('')}
       ${totalCL>0?`<div class="kpi"><div class="k-lbl">Compras en línea</div><div class="k-val" style="font-size:17px">$${money(totalCL)}</div></div>`:''}
     </div>
-    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento, más tus Compras en línea ya Pre-autorizadas/Compradas/En camino/Entregadas (no cuenta pendientes ni rechazadas).</div>`;
+    <div class="note">Incluye artículos Aprobados, Comprados y Recibidos de tu departamento, más tus Compras en línea ya Compradas/En camino/Entregadas (no cuenta pendientes ni rechazados).</div>`;
 }
 
 // ————— Catálogo (administración — Superfull / Líder Compras) —————
