@@ -134,6 +134,26 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .cl-filtros select,.cl-filtros input{width:100%;font-size:13px;padding:8px 10px}
 @media(max-width:560px){.cl-filtros{grid-template-columns:1fr}}
 .cl-resumen{font-size:11px;color:var(--cactus);letter-spacing:.05em;padding:4px 0 6px;border-bottom:1px solid var(--line)}
+.pc-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pc-big{font-family:var(--disp);font-size:26px;font-weight:900;color:var(--cactus)}
+.pc-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px}
+.pc-chip{white-space:nowrap;border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;border-radius:24px;font-size:14px}
+.pc-chip.active{background:var(--cactus);color:#fff;border-color:var(--cactus)}
+.pc-sec{margin:18px 0 8px;display:flex;align-items:center;gap:10px}
+.pc-sec h3{font-size:19px;color:var(--cactus);flex:1}
+.pc-wa{background:#25D366;color:#fff;border:none;border-radius:20px;padding:8px 12px;font-size:12px}
+.pc-card{background:#fff;border:1px solid var(--line);border-left:6px solid var(--cactus);border-radius:8px;padding:14px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.pc-card.urg{border-left-color:var(--bad)}
+.pc-card.esp{border-left-color:var(--purple)}
+.pc-name{font-size:17px;font-weight:600;line-height:1.25}
+.pc-qty{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+.pc-qty small{font-size:14px;font-weight:500;color:var(--cactus)}
+.pc-meta{font-size:12.5px;color:var(--cactus);margin-top:4px;line-height:1.4}
+.pc-btn{min-width:120px;min-height:56px;border:none;border-radius:10px;background:var(--ok);color:#fff;font-size:16px;font-weight:600}
+.pc-card.marcando{background:#e0efe0}
+.pc-card.marcando .pc-btn{background:#fff;color:var(--bad);border:2px solid var(--bad)}
+@media(max-width:560px){.pc-card{grid-template-columns:1fr}.pc-btn{width:100%}}
+.pc-espera{background:#f2e6cf;color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
 .cart-total{display:flex;justify-content:space-between;padding-top:14px;font-size:16px;font-weight:600}
 .window-note{font-size:11.5px;padding:10px 12px;border-radius:2px;margin-top:14px}
 .window-ok{background:#e0efe0;color:var(--ok);border:1px solid var(--ok)}
@@ -235,6 +255,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
       <div id="gastoBody"><div class="empty">Elige un mes para ver el gasto.</div></div>
     </section>
     <section class="view" id="v-catalogo"><div id="catalogoBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
+    <section class="view" id="v-porcomprar"><div id="porcomprarBody"></div></section>
     <section class="view" id="v-acumulados"><div id="acumuladosBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-compraslinea"><div id="compraslineaBody"></div></section>
   </main>
@@ -269,18 +290,20 @@ const URGENCIAS=['Baja','Media','Alta','Urgente'];
 // Hoy las comparten Cocina y Restaurante (misma taxonomía, para que compartan catálogo/
 // proveedores de comida). Si algún día un departamento necesita categorías propias distintas,
 // aquí es donde se separarían por departamento.
-const CATEGORIAS_INSUMOS=['Limpieza','Pescados y Mariscos','Carnes','Fruta y Verdura','Lácteos','Abarrote','Comida de personal'];
-const DEPTOS_CON_CATEGORIA=['Cocina','Restaurante'];
-// Nombre completo + ejemplos de artículos de cada categoría, solo para mostrarse como ayuda
-// (tooltip) al elegir/asignar una categoría — el valor que se guarda en el Catálogo sigue siendo
-// el nombre corto de CATEGORIAS_INSUMOS, para no romper lo que ya está categorizado.
+const CATEGORIAS_INSUMOS=['Fruta y Verdura','Carnes y Lácteos','Barra','Abarrote','Pescados y Mariscos','Limpieza','Comida de personal'];
+// Categorías viejas (antes de oct-2026) → nuevas. Así lo ya capturado en el Catálogo cae solo en
+// su categoría nueva sin editar el Sheet (opcional: correr migrarCategorias() en Apps Script).
+const CATEGORIAS_ALIAS={'Carnes':'Carnes y Lácteos','Lácteos':'Carnes y Lácteos','Abarrotes':'Abarrote','Pescado y mariscos':'Pescados y Mariscos'};
+const DEPTOS_CON_CATEGORIA=['Cocina','Restaurante']; // Cocina y Barra (Restaurante) comparten las categorías
+function catNorm(c){ c=String(c||'').trim(); return (c in CATEGORIAS_ALIAS) ? CATEGORIAS_ALIAS[c] : c; }
+// Nombre completo + ejemplos (tooltip al elegir categoría). Se guarda el nombre corto.
 const CATEGORIAS_INFO={
+  'Fruta y Verdura':{nombre:'Frutas y verduras', ejemplos:'Aguacate, Ajo, Albahaca, Apio, Arúgula, Betabel, Brócoli, Chile, Huevo, etc.'},
+  'Carnes y Lácteos':{nombre:'Carnes, embutidos, lácteos y cremas', ejemplos:'Arrachera, Brisket, Molida 80/20, Chorizo, Costilla, Pork Belly, Quesillo, Manchego, Yogurt, Mantequilla, Philadelphia, etc.'},
+  'Barra':{nombre:'Insumos de barra', ejemplos:'Destilados, vinos, cervezas, refrescos, jarabes, mixers, garnish, hielo, etc.'},
+  'Abarrote':{nombre:'Abarrotes', ejemplos:'Aceites, harinas, granos, latas y condimentos.'},
+  'Pescados y Mariscos':{nombre:'Pescados y mariscos', ejemplos:'Almejas, Callo de Almeja, Camarones, Filete/Lonja de Vela, Pulpo, Tichinda, etc.'},
   'Limpieza':{nombre:'Insumos y productos de limpieza e higiene', ejemplos:'Bolsas, Cloro, Desincrustantes, Fibras, Guantes, Sanitas, Papel, Trapeadores, etc.'},
-  'Pescados y Mariscos':{nombre:'Mariscos y pescados', ejemplos:'Almejas, Callo de Almeja, Camarones, Filete/Lonja de Vela, Pulpo, Tichinda, etc.'},
-  'Carnes':{nombre:'Carnes y productos cárnicos', ejemplos:'Arrachera, Brisket, Molida 80/20, Chorizo, Chuleta, Costilla, Pork Belly, Queso Mozzarella, etc.'},
-  'Fruta y Verdura':{nombre:'Frutas y verduras', ejemplos:'Aguacate, Ajo, Albahaca, Apio, Arúgula, Betabel, Brócoli, Chapulines, Chile, Huevo, etc.'},
-  'Lácteos':{nombre:'Lácteos y cremas', ejemplos:'Quesillo, Manchego, Yogurt, Mantequilla, Philadelphia, Mascarpone, etc.'},
-  'Abarrote':{nombre:'Abarrotes', ejemplos:'Aceites, harinas y condimentos.'},
   'Comida de personal':{nombre:'Comida de personal', ejemplos:'Insumos destinados a la preparación de alimentos para colaboradores.'}
 };
 function tituloCategoria(cat){
@@ -290,6 +313,7 @@ function tituloCategoria(cat){
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const deptoColor=nombre=>{const d=DEPARTAMENTOS.find(x=>x.nombre===nombre);return d?d.color:'#72785E';};
+let CATALOGO_PROMISE=Promise.resolve();
 let SESSION=null,PENDING=null,CATALOGO=[],CARRITO=[],ITEM_SELECCIONADO=null,RESULTADOS_BUSQUEDA=[],CATEGORIA_ACTIVA='',ITEMS_CATEGORIA_ACTUAL=[];
 function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -382,8 +406,9 @@ function entrarApp(){
   document.getElementById('app').style.display='block';
   document.getElementById('whoLabel').textContent=SESSION.nombre+' · '+rolLabel();
   try{sessionStorage.setItem('CY_FIN_SESSION',JSON.stringify(SESSION));}catch(e){}
+  CATALOGO_PROMISE=cargarCatalogo();   // antes de buildTabs: "Por comprar" lo necesita para las categorías
   buildTabs();
-  cargarCatalogo().then(renderNueva);
+  CATALOGO_PROMISE.then(renderNueva);
   if(esAprobador())cargarPendientes();
   actualizarBadgeComprasLinea();
   // Fija/oculta el filtro de depto según el rol (líder normal solo ve el suyo)
@@ -400,11 +425,13 @@ const TABDEFS_FULL=[
   {id:'nueva',label:'Nueva requisición'},
   {id:'compraslinea',label:'Compras en línea'},
   {id:'pendientes',label:'Pendientes'},
+  {id:'porcomprar',label:'🛒 Por comprar'},
   {id:'acumulados',label:'Pedidos acumulados'},
   {id:'historial',label:'Historial'},
   {id:'gasto',label:'Gasto por depto'},
 ];
 const TABDEFS_COMPRAS=[
+  {id:'porcomprar',label:'🛒 Por comprar'},
   {id:'nueva',label:'Nueva requisición'},
   {id:'compraslinea',label:'Compras en línea'},
   {id:'acumulados',label:'Pedidos acumulados'},
@@ -437,6 +464,7 @@ function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach
   if(id==='catalogo') cargarCatalogoAdmin();
   if(id==='compraslinea') renderCompraLinea();
   if(id==='acumulados') cargarAcumulados();
+  if(id==='porcomprar') cargarPorComprar();
 }
 
 // ————— Catálogo —————
@@ -563,7 +591,7 @@ function renderListaCategoria(){
   const cont=document.getElementById('catListaBody');
   if(!cont) return;
   if(!CATEGORIA_ACTIVA){ cont.innerHTML=''; ITEMS_CATEGORIA_ACTUAL=[]; return; }
-  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===departamentoActual() && (c[7]||'')===CATEGORIA_ACTIVA)
+  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===departamentoActual() && catNorm(c[7])===CATEGORIA_ACTIVA)
     .sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'es'));
   if(!ITEMS_CATEGORIA_ACTUAL.length){
     cont.innerHTML='<div class="note">Todavía no hay artículos capturados en "'+escapeHtml(CATEGORIA_ACTIVA)+'".</div>';
@@ -971,6 +999,142 @@ function generarPago(articulo,subtotal,idPedido){
   window.open(CONFIG.PAGOS_URL+'?'+p.toString(),'_blank');
 }
 
+
+// ————— 🛒 POR COMPRAR — vista simple para Compras —————
+// Lista de lo que hay que comprar (solo artículos APROBADOS), juntando el mismo artículo de
+// varios pedidos/departamentos en una sola tarjeta con la cantidad total. Un toque en
+// "Comprado" marca TODOS los renglones de esa tarjeta como Comprada (mismo backend que
+// "Pedidos acumulados", control cruzado intacto). Hay 5 segundos para "Deshacer" antes de
+// guardar, para que un toque por error no cueste nada.
+let PC_GRUPOS=[], PC_FILTRO='', PC_TIMERS={};
+const PC_ESPERA_MS=5000;
+async function cargarPorComprar(){
+  const el=document.getElementById('porcomprarBody');
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  try{
+    await CATALOGO_PROMISE;
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin});
+    if(!j.ok) throw new Error(j.error);
+    const filas=j.filas||[];
+    const aprobados=filas.filter(r=>r[16]==='Aprobado');
+    const enEspera=filas.filter(r=>r[16]==='Pendiente').length;
+    const compradosHoy=filas.filter(r=>r[16]==='Comprada' && String(r[20]||'').slice(0,10)===new Date().toLocaleDateString('en-CA',{timeZone:'America/Mexico_City'})).length;
+    PC_GRUPOS=agruparPorComprar(aprobados);
+    el.dataset.espera=enEspera; el.dataset.hoy=compradosHoy;
+    renderPorComprar();
+  }catch(e){ el.innerHTML=`<div class="errbox">No se pudo cargar. Revisa tu señal y toca "Actualizar".<br><small>${escapeHtml(e.message)}</small></div>`; }
+}
+function seccionDe(r){
+  const cat = DEPTOS_CON_CATEGORIA.includes(r[5]) ? categoriaDeItem(r) : '';
+  return (cat && cat!=='Sin categoría') ? cat : r[5];
+}
+function agruparPorComprar(filas){
+  const map={};
+  filas.forEach(r=>{
+    const esp=String(r[7])==='ESPECIAL';
+    const sec=seccionDe(r);
+    const clave = esp ? 'E|'+r[0] : sec+'|'+(r[7]?('C'+r[7]):normaliza(r[6]))+'|'+normaliza(r[9]);
+    if(!map[clave]) map[clave]={clave, seccion:sec, articulo:r[6], unidad:r[9]||'', especial:esp, filas:[]};
+    map[clave].filas.push(r);
+  });
+  return Object.values(map).map(g=>{
+    g.cantidad=g.filas.reduce((s,r)=>s+num(r[8]),0);
+    g.total=g.filas.reduce((s,r)=>s+num(r[11]),0);
+    g.urgente=g.filas.some(r=>r[13]==='Urgente'||r[13]==='Alta');
+    const fechas=g.filas.map(r=>String(r[14]||'').slice(0,10)).filter(Boolean).sort();
+    g.paraCuando=fechas[0]||'';
+    const porDepto={}; g.filas.forEach(r=>{porDepto[r[5]]=(porDepto[r[5]]||0)+num(r[8]);});
+    g.deptos=porDepto;
+    g.proveedor=[...new Set(g.filas.map(r=>r[25]||r[22]).filter(Boolean))].join(', ');
+    g.notas=[...new Set(g.filas.map(r=>r[24]).filter(Boolean))].join(' · ');
+    return g;
+  });
+}
+function ordenSecciones(secs){
+  return secs.sort((a,b)=>{
+    const ia=CATEGORIAS_INSUMOS.indexOf(a), ib=CATEGORIAS_INSUMOS.indexOf(b);
+    return (ia===-1?99:ia)-(ib===-1?99:ib) || a.localeCompare(b,'es');
+  });
+}
+function fechaCorta(f){
+  if(!f) return '';
+  const [y,m,d]=f.split('-'); const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return Number(d)+' '+M[Number(m)-1];
+}
+function renderPorComprar(){
+  const el=document.getElementById('porcomprarBody');
+  const pend=PC_GRUPOS.filter(g=>!g.hecho);
+  const secs=ordenSecciones([...new Set(pend.map(g=>g.seccion))]);
+  if(PC_FILTRO && secs.indexOf(PC_FILTRO)===-1) PC_FILTRO='';
+  const espera=Number(el.dataset.espera||0), hoy=Number(el.dataset.hoy||0);
+  let html=`<div class="pc-top">
+      <div class="pc-big">${pend.length ? ('Te faltan '+pend.length) : '¡Todo comprado! ✓'}</div>
+      <button class="cap-btn ghost2" style="margin-left:auto;padding:10px 16px" onclick="cargarPorComprar()">↻ Actualizar</button>
+    </div>`;
+  if(hoy) html+=`<div class="note" style="margin:-6px 0 10px">Hoy ya marcaste ${hoy} artículo(s) como comprados.</div>`;
+  if(espera) html+=`<div class="pc-espera">⏳ ${espera} artículo(s) esperan aprobación — todavía no se compran.</div>`;
+  if(!pend.length){ el.innerHTML=html; return; }
+  html+=`<div class="pc-chips">
+      <button class="pc-chip ${!PC_FILTRO?'active':''}" onclick="PC_FILTRO='';renderPorComprar()">Todo (${pend.length})</button>
+      ${secs.map(sec=>`<button class="pc-chip ${PC_FILTRO===sec?'active':''}" onclick="PC_FILTRO=${escapeHtml(JSON.stringify(sec))};renderPorComprar()">${escapeHtml(sec)} (${pend.filter(g=>g.seccion===sec).length})</button>`).join('')}
+    </div>`;
+  (PC_FILTRO?[PC_FILTRO]:secs).forEach(sec=>{
+    const gs=pend.filter(g=>g.seccion===sec).sort((a,b)=>(b.urgente-a.urgente)||String(a.articulo).localeCompare(String(b.articulo),'es'));
+    html+=`<div class="pc-sec"><h3>${escapeHtml(sec)}</h3><button class="pc-wa" onclick="pcWhatsapp(${escapeHtml(JSON.stringify(sec))})">📲 Mandar lista</button></div>`;
+    html+=gs.map(g=>pcCard(g)).join('');
+  });
+  el.innerHTML=html;
+}
+function pcCard(g){
+  const marcando=!!PC_TIMERS[g.clave];
+  const deptos=Object.keys(g.deptos);
+  const deDonde = deptos.length>1 ? deptos.map(d=>d+' '+g.deptos[d]).join(' · ') : deptos[0];
+  const meta=[
+    deDonde,
+    g.paraCuando?('Para el '+fechaCorta(g.paraCuando)):'',
+    g.proveedor?('Proveedor: '+g.proveedor):'',
+    g.total?('~$'+money(g.total)):''
+  ].filter(Boolean).map(escapeHtml).join(' · ');
+  return `<div class="pc-card ${g.urgente?'urg':''} ${g.especial?'esp':''} ${marcando?'marcando':''}" id="pc_${escapeHtml(g.clave).replace(/[^a-zA-Z0-9_-]/g,'_')}">
+    <div>
+      <div class="pc-name">${escapeHtml(g.articulo)} ${g.urgente?'<span class="pill p-rech">Urgente</span>':''} ${g.especial?'<span class="pill p-horario">Especial</span>':''}</div>
+      <div class="pc-qty">${g.cantidad} <small>${escapeHtml(g.unidad)}</small></div>
+      <div class="pc-meta">${meta}</div>
+      ${g.notas?`<div class="pc-meta" style="color:var(--ink)">📝 ${escapeHtml(g.notas)}</div>`:''}
+      ${marcando?'<div class="pc-meta" style="color:var(--ok);font-weight:600">✓ Comprado — se guarda en unos segundos</div>':''}
+    </div>
+    <button class="pc-btn" onclick="pcToque(${escapeHtml(JSON.stringify(g.clave))})">${marcando?'↩ Deshacer':'✓ Comprado'}</button>
+  </div>`;
+}
+function pcToque(clave){
+  if(PC_TIMERS[clave]){ clearTimeout(PC_TIMERS[clave]); delete PC_TIMERS[clave]; renderPorComprar(); return; }
+  PC_TIMERS[clave]=setTimeout(()=>pcGuardar(clave), PC_ESPERA_MS);
+  renderPorComprar();
+}
+async function pcGuardar(clave){
+  const g=PC_GRUPOS.find(x=>x.clave===clave);
+  if(!g){ delete PC_TIMERS[clave]; return; }
+  try{
+    const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:g.filas.map(r=>r[0]),accionEstatus:'marcarComprada'});
+    delete PC_TIMERS[clave];
+    if(!j.ok){ alert('No se guardó "'+g.articulo+'". '+j.error); renderPorComprar(); return; }
+    g.hecho=true;
+    const el=document.getElementById('porcomprarBody'); el.dataset.hoy=Number(el.dataset.hoy||0)+g.filas.length;
+    renderPorComprar();
+  }catch(e){
+    delete PC_TIMERS[clave];
+    alert('Sin señal — "'+g.articulo+'" NO se guardó. Toca "Comprado" otra vez cuando tengas señal.');
+    renderPorComprar();
+  }
+}
+// Guarda de inmediato lo que esté en "Deshacer" si se cierra o cambia de página.
+window.addEventListener('pagehide',()=>{ Object.keys(PC_TIMERS).forEach(k=>{ clearTimeout(PC_TIMERS[k]); pcGuardar(k); }); });
+function pcWhatsapp(sec){
+  const gs=PC_GRUPOS.filter(g=>!g.hecho && g.seccion===sec);
+  const txt='*Casa Yuma — '+sec+'*\n'+gs.map(g=>'• '+g.articulo+': '+g.cantidad+' '+(g.unidad||'')+(g.notas?(' ('+g.notas+')'):'')).join('\n');
+  window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+}
+
 // ————— Pedidos acumulados (Líder Compras / Full / Superfull) — todos los deptos, en curso —————
 // Junta lo Pendiente + Aprobado + Comprado de TODOS los departamentos, separado por
 // departamento, para que Compras tenga en un solo lugar todo lo que sigue vivo. Control
@@ -1077,10 +1241,10 @@ function categoriaDeItem(r){
   const catalogoId=r[7], articulo=r[6];
   if(catalogoId){
     const c=CATALOGO.find(x=>String(x[0])===String(catalogoId));
-    if(c && c[7]) return c[7];
+    if(c && catNorm(c[7])) return catNorm(c[7]);
   }
   const porNombre=CATALOGO.find(x=>normaliza(x[1])===normaliza(articulo));
-  if(porNombre && porNombre[7]) return porNombre[7];
+  if(porNombre && catNorm(porNombre[7])) return catNorm(porNombre[7]);
   return 'Sin categoría';
 }
 function agruparPorCategoriaYPedido(filas){
@@ -1674,7 +1838,7 @@ function filtrarCatalogoAdmin(){
   const filas=CATALOGO_ADMIN_FILAS.filter(f=>{
     if(qn && normaliza(f[1]).indexOf(qn)===-1) return false;
     if(depto && f[4]!==depto) return false;
-    if(categoria && (f[6]||'')!==categoria) return false;
+    if(categoria && catNorm(f[6])!==categoria) return false;
     return true;
   });
   tbody.innerHTML=filas.map(f=>renderFilaCatalogoAdmin(f)).join('')||'<tr><td colspan="8" class="empty">Sin artículos que coincidan.</td></tr>';
@@ -1682,7 +1846,7 @@ function filtrarCatalogoAdmin(){
 function renderFilaCatalogoAdmin(f){
   const [id,articulo,unidad,precio,departamento,activo,categoria]=f;
   const deptoOpts='<option value="">Cualquier departamento</option>'+DEPARTAMENTOS.map(d=>`<option ${d.nombre===departamento?'selected':''}>${d.nombre}</option>`).join('');
-  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}" ${c===categoria?'selected':''}>${c}</option>`).join('');
+  const categoriaOpts='<option value="">(sin categoría)</option>'+CATEGORIAS_INSUMOS.map(c=>`<option title="${escapeHtml(tituloCategoria(c))}" ${c===catNorm(categoria)?'selected':''}>${c}</option>`).join('');
   return `<tr>
     <td>${id}</td>
     <td><input class="cat-inp" id="cArt_${id}" value="${escapeHtml(articulo)}"></td>
