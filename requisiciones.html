@@ -158,6 +158,16 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 #pendientesBody .aud td.num{white-space:nowrap}
 #pendientesBody .row-actions{flex-wrap:nowrap}
 .aud td.wrap{white-space:normal;min-width:140px;max-width:220px}
+.cl-steps{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--line)}
+.cl-step{color:#b7ae95;white-space:nowrap}.cl-step.ok{color:var(--ok)}.cl-step.cur{color:var(--ink);font-weight:700}.cl-step.rech{color:var(--bad);font-weight:700}
+.cl-line{flex:0 0 10px;height:1px;background:var(--line)}
+.cl-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.cl-btn{flex:1 1 140px;min-height:48px;border:none;border-radius:10px;background:var(--ok);color:#fff;font-size:15px;font-weight:600}
+.cl-btn.sec{background:#fff;color:var(--blue);border:2px solid var(--blue)}
+.cl-btn.undo{background:#fff;color:var(--bad);border:2px solid var(--bad)}
+.cl-rech{background:none;border:none;color:var(--bad);font-size:12px;text-decoration:underline;padding:8px}
+.cl-ok{flex:1 1 100%;color:var(--ok);font-weight:600;font-size:13px}
+.cl-card.marcando{background:#e0efe0}
 .cart-total{display:flex;justify-content:space-between;padding-top:14px;font-size:16px;font-weight:600}
 .window-note{font-size:11.5px;padding:10px 12px;border-radius:2px;margin-top:14px}
 .window-ok{background:#e0efe0;color:var(--ok);border:1px solid var(--ok)}
@@ -1405,11 +1415,7 @@ async function actualizarBadgeComprasLinea(){
     // Superfull: pendientes por comprar. El resto: lo que ya está en camino y solo falta recibir.
     // Superfull (Manu): pre-autorizadas por comprar. Full (Jorge): pendientes de pre-autorizar.
     // Resto: lo que ya está en camino y solo falta recibir.
-    const n = esSuperfull()
-      ? filas.filter(r=>r[12]==='Pre-autorizada').length
-      : (esAprobador()
-        ? filas.filter(r=>r[12]==='Pendiente').length
-        : filas.filter(r=>r[12]==='En camino').length);
+    const n = filas.filter(r=>tieneAccionCL(r[12],r[4])).length;
     btn.innerHTML = n>0 ? (base+' <span class="tab-badge">'+n+'</span>') : base;
   }catch(e){ btn.textContent=base; }
 }
@@ -1442,7 +1448,7 @@ function renderCompraLinea(){
   const hoy=new Date().toISOString().slice(0,10);
   document.getElementById('compraslineaBody').innerHTML=`
     <div class="section-eyebrow">Compras en línea</div>
-    <div class="note" style="margin-top:0;margin-bottom:14px">Pedidos en línea que facturen y estén justificados. Pega el link del producto. Flujo: <b>Líder solicita → Gerencia General pre-autoriza → Dirección General compra</b> → En camino → Entregada.</div>
+    <div class="note" style="margin-top:0;margin-bottom:14px">Pedidos en línea que facturen y estén justificados. Pega el link del producto. Flujo: <b>Solicitada → Comprada → (En camino) → Entregada</b>. Dirección General compra; el departamento marca "Ya llegó".</div>
     <div class="grid2">
       <div class="cap-form">
         <div class="cap-grid">
@@ -1491,7 +1497,7 @@ async function enviarCompraLinea(){
     btnCL.disabled=false;
     if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
     CL_TOKEN='';
-    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Gerencia General la va a pre-autorizar.</div>`;
+    msg.innerHTML=`<div class="okmsg">Solicitud ${j.id} enviada. Dirección General la va a revisar.</div>`;
     document.getElementById('clDescripcion').value='';
     document.getElementById('clLink').value='';
     document.getElementById('clCantidad').value='1';
@@ -1541,45 +1547,96 @@ function renderListaCL(){
   el.innerHTML=`<div class="cl-resumen">${filas.length} solicitud(es)${total?(' · ~$'+money(total)):''}</div>`+
     filas.slice().sort((a,b)=>mias(a)-mias(b)).map(r=>renderItemCompraLinea(r)).join('');
 }
+// oct-2026: sin GM. Con PREAUTORIZACION=false, Dirección General compra directo desde Pendiente.
+// Para volver a exigir pre-autorización: true aquí Y PREAUTORIZACION_REQUERIDA en Codigo.gs.
+const PREAUTORIZACION=false;
+const CL_PASOS=['Solicitada','Comprada','En camino','Entregada'];
+function pasoIdxCL(est){ return est==='Entregada'?3 : est==='En camino'?2 : est==='Comprada'?1 : 0; }
+// Botones de "siguiente paso" que le tocan a quien está viendo: [accion, etiqueta, principal?]
+function accionesCL(est,depto){
+  const a=[];
+  if(est==='Pendiente'){
+    if(esSuperfull()) a.push(['comprada','✓ Comprada',true]);
+    else if(PREAUTORIZACION && esAprobador()) a.push(['preautorizar','✓ Pre-autorizar',true]);
+  } else if(est==='Pre-autorizada'){
+    if(esSuperfull()) a.push(['comprada','✓ Comprada',true]);
+  } else if(est==='Comprada'){
+    if(puedeRecibirDepto(depto)) a.push(['entregada','✓ Ya llegó',true]);
+    if(esSuperfull()) a.push(['encamino','En camino',!puedeRecibirDepto(depto)]);
+  } else if(est==='En camino'){
+    if(puedeRecibirDepto(depto)) a.push(['entregada','✓ Ya llegó',true]);
+  }
+  return a;
+}
+function puedeRechazarCL(est){ return esAprobador() && (est==='Pendiente'||est==='Pre-autorizada'); }
+// "Por atender": Manu → lo que falta comprar; líder → lo que ya se compró y falta marcar "Ya llegó".
+// (Full/Superfull pueden marcar "Ya llegó" como respaldo, pero no se les cuenta como pendiente.)
+function tieneAccionCL(estatus,depto){
+  if(estatus==='Pendiente' || estatus==='Pre-autorizada') return accionesCL(estatus,depto).length>0;
+  if(estatus==='Comprada' || estatus==='En camino') return esLiderNormal() && puedeRecibirDepto(depto);
+  return false;
+}
+const CL_ACCION={
+  preautorizar:{api:'compras_linea_preautorizar', nuevo:'Pre-autorizada', txt:'Pre-autorizada'},
+  comprada:{api:'compras_linea_actualizar', nuevo:'Comprada', txt:'Comprada'},
+  encamino:{api:'compras_linea_marcar_en_camino', nuevo:'En camino', txt:'En camino'},
+  entregada:{api:'compras_linea_marcar_entregada', nuevo:'Entregada', txt:'Entregada'}
+};
+const CL_TIMERS={}; // id → {accion, timer}: 5 s para "Deshacer" antes de guardar
 function renderItemCompraLinea(r){
   const [id,fecha,solId,solNombre,depto,descripcion,link,cantidad,precioEstimado,urgencia,fechaRequerida,notas,estatus,fechaCompra,notaCompra,fechaEntregado,fechaEnCamino,fechaEstimadaLlegada]=r;
-  const pillClass = {'Entregada':'p-recibida','En camino':'p-encamino','Comprada':'p-comprada','Pre-autorizada':'p-aprob','Rechazada':'p-rech'}[estatus] || 'p-pend';
-  const {fecha:fechaFmt,hora:horaFmt} = formatFechaHoraCL(fecha);
-  let acciones='';
-  if(esAprobador() && estatus==='Pendiente'){
-    acciones=`<div class="row-actions" style="margin-top:6px"><button class="mini-btn ok" onclick="preautorizarCompraLinea('${id}')">Pre-autorizar</button><button class="mini-btn bad" onclick="rechazarCompraLinea('${id}')">Rechazar</button></div>`;
-  } else if(esSuperfull() && estatus==='Pre-autorizada'){
-    acciones=`<div class="row-actions" style="margin-top:6px"><button class="mini-btn ok" onclick="marcarCompraLineaComprada('${id}')">Marcar comprada</button><button class="mini-btn bad" onclick="rechazarCompraLinea('${id}')">Rechazar</button></div>`;
-  } else if(esSuperfull() && estatus==='Comprada'){
-    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEnCamino('${id}')">Marcar en camino</button>`;
-  } else if(estatus==='En camino' && (puedeRecibirDepto(depto))){
-    acciones=`<button class="mini-btn ok" style="margin-top:6px" onclick="marcarCompraLineaEntregada('${id}')">Marcar entregada</button>`;
+  const {fecha:fechaFmt} = formatFechaHoraCL(fecha);
+  const t=CL_TIMERS[id];
+  const rech = estatus==='Rechazada';
+  const idx=pasoIdxCL(t?CL_ACCION[t.accion].nuevo:estatus);
+  const pasos = rech ? `<div class="cl-steps"><span class="cl-step rech">✕ Rechazada</span></div>`
+    : `<div class="cl-steps">${CL_PASOS.map((p,i)=>`<span class="cl-step ${i<idx?'ok':''} ${i===idx?'cur':''}">${i<=idx?'●':'○'} ${p}</span>`).join('<span class="cl-line"></span>')}</div>`;
+  let botones='';
+  if(t){
+    botones=`<div class="cl-acts"><div class="cl-ok">✓ ${CL_ACCION[t.accion].txt} — se guarda en unos segundos</div>
+      <button class="cl-btn undo" onclick="clToque('${escapeHtml(String(id))}','${t.accion}')">↩ Deshacer</button></div>`;
+  } else {
+    const acts=accionesCL(estatus,depto);
+    if(acts.length || puedeRechazarCL(estatus)){
+      botones=`<div class="cl-acts">${acts.map(([acc,lbl,main])=>`<button class="cl-btn ${main?'':'sec'}" onclick="clToque('${escapeHtml(String(id))}','${acc}')">${lbl}</button>`).join('')}
+        ${puedeRechazarCL(estatus)?`<button class="cl-rech" onclick="rechazarCompraLinea('${escapeHtml(String(id))}')">Rechazar</button>`:''}</div>`;
+    }
   }
-  return `<div class="cart-item" style="flex-direction:column;align-items:flex-start;gap:4px">
-    <div style="display:flex;justify-content:space-between;width:100%;gap:8px;align-items:baseline">
-      <span class="pedido-cl-id">Pedido ${escapeHtml(String(id))}</span>
-      <span class="pill ${pillClass}">${estatus}</span>
+  return `<div class="cart-item cl-card ${t?'marcando':''}" style="flex-direction:column;align-items:stretch;gap:4px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+      <strong style="font-size:15px">${escapeHtml(descripcion)}</strong>
+      <span class="pedido-cl-id">${escapeHtml(String(id))}</span>
     </div>
-    <strong>${escapeHtml(descripcion)}</strong>
-    <div style="font-size:11.5px;color:var(--cactus)">${escapeHtml(solNombre)} · ${escapeHtml(depto)} · ${fechaFmt} · ${horaFmt} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}</div>
-    <a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:11.5px;word-break:break-all">${escapeHtml(link)}</a>
-    ${notas?`<div style="font-size:11px;color:var(--cactus)">${escapeHtml(notas)}</div>`:''}
-    ${notaCompra?`<div style="font-size:11px;color:${estatus==='Rechazada'?'var(--bad)':'var(--cactus)'}">${estatus==='Rechazada'?'Motivo del rechazo':'Nota de compra'}: ${escapeHtml(notaCompra)}</div>`:''}
-    ${fechaEstimadaLlegada?`<div style="font-size:11px;color:var(--blue)">Llegada estimada: ${escapeHtml(fechaEstimadaLlegada)}</div>`:''}
-    ${acciones}
+    <div style="font-size:12px;color:var(--cactus)">${escapeHtml(depto)} · ${escapeHtml(solNombre)} · ${fechaFmt} · cant. ${cantidad}${precioEstimado?(' · ~$'+money(precioEstimado)):''}${(urgencia==='Urgente'||urgencia==='Alta')?' · <b style="color:var(--bad)">'+escapeHtml(urgencia)+'</b>':''}</div>
+    <a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:12px;word-break:break-all">Ver producto ↗</a>
+    ${notas?`<div style="font-size:12px">📝 ${escapeHtml(notas)}</div>`:''}
+    ${notaCompra?`<div style="font-size:12px;color:${rech?'var(--bad)':'var(--cactus)'}">${rech?'Motivo':'Nota'}: ${escapeHtml(notaCompra)}</div>`:''}
+    ${fechaEstimadaLlegada?`<div style="font-size:12px;color:var(--blue)">Llegada estimada: ${escapeHtml(fechaEstimadaLlegada)}</div>`:''}
+    ${pasos}
+    ${botones}
   </div>`;
 }
-function tieneAccionCL(estatus,depto){
-  return (esAprobador() && estatus==='Pendiente') || (esSuperfull() && (estatus==='Pre-autorizada'||estatus==='Comprada')) || (estatus==='En camino' && puedeRecibirDepto(depto));
+function clToque(id, accion){
+  if(CL_TIMERS[id]){ clearTimeout(CL_TIMERS[id].timer); delete CL_TIMERS[id]; renderListaCL(); return; }
+  CL_TIMERS[id]={accion, timer:setTimeout(()=>clGuardar(id), 5000)};
+  renderListaCL();
 }
-async function preautorizarCompraLinea(idCompra){
-  if(!confirm('¿Pre-autorizar esta compra? Le llegará a Dirección General para comprarla.')) return;
+async function clGuardar(id){
+  const t=CL_TIMERS[id]; if(!t) return;
+  const cfg=CL_ACCION[t.accion];
   try{
-    const j=await apiPost({accion:'compras_linea_preautorizar',id:SESSION.id,pin:SESSION.pin,idCompra});
-    if(!j.ok){ alert(j.error); return; }
-    cargarComprasLinea(); actualizarBadgeComprasLinea();
-  }catch(e){ alert('No se pudo procesar.'); }
+    const j=await apiPost({accion:cfg.api,id:SESSION.id,pin:SESSION.pin,idCompra:id});
+    delete CL_TIMERS[id];
+    if(!j.ok){ alert(j.error); }
+    else { const r=CL_FILAS.find(x=>String(x[0])===String(id)); if(r) r[12]=cfg.nuevo; }
+  }catch(e){
+    delete CL_TIMERS[id];
+    alert('Sin señal — NO se guardó. Vuelve a tocar el botón cuando tengas señal.');
+  }
+  renderListaCL(); actualizarBadgeComprasLinea();
 }
+window.addEventListener('pagehide',()=>{ Object.keys(CL_TIMERS).forEach(id=>{ clearTimeout(CL_TIMERS[id].timer); clGuardar(id); }); });
+async function preautorizarCompraLinea(idCompra){ clToque(idCompra,'preautorizar'); }
 async function rechazarCompraLinea(idCompra){
   const resp=prompt('Motivo del rechazo:');
   if(resp===null) return;
@@ -1588,34 +1645,8 @@ async function rechazarCompraLinea(idCompra){
   try{
     const j=await apiPost({accion:'compras_linea_rechazar',id:SESSION.id,pin:SESSION.pin,idCompra,motivo});
     if(!j.ok){ alert(j.error); return; }
-    cargarComprasLinea(); actualizarBadgeComprasLinea();
-  }catch(e){ alert('No se pudo procesar.'); }
-}
-async function marcarCompraLineaComprada(idCompra){
-  const notaCompra=prompt('¿Alguna nota de la compra? (opcional: número de guía, confirmación, etc.)')||'';
-  try{
-    const j=await apiPost({accion:'compras_linea_actualizar',id:SESSION.id,pin:SESSION.pin,idCompra,notaCompra});
-    if(!j.ok){ alert(j.error); return; }
-    cargarComprasLinea();
-    actualizarBadgeComprasLinea();
-  }catch(e){ alert('No se pudo procesar.'); }
-}
-async function marcarCompraLineaEnCamino(idCompra){
-  const fechaEstimadaLlegada=prompt('¿Fecha estimada de llegada? (AAAA-MM-DD, opcional)')||'';
-  try{
-    const j=await apiPost({accion:'compras_linea_marcar_en_camino',id:SESSION.id,pin:SESSION.pin,idCompra,fechaEstimadaLlegada});
-    if(!j.ok){ alert(j.error); return; }
-    cargarComprasLinea();
-    actualizarBadgeComprasLinea();
-  }catch(e){ alert('No se pudo procesar.'); }
-}
-async function marcarCompraLineaEntregada(idCompra){
-  if(!confirm('¿Marcar esta compra como entregada?')) return;
-  try{
-    const j=await apiPost({accion:'compras_linea_marcar_entregada',id:SESSION.id,pin:SESSION.pin,idCompra});
-    if(!j.ok){ alert(j.error); return; }
-    cargarComprasLinea();
-    actualizarBadgeComprasLinea();
+    const r=CL_FILAS.find(x=>String(x[0])===String(idCompra)); if(r){ r[12]='Rechazada'; r[14]=motivo; }
+    renderListaCL(); actualizarBadgeComprasLinea();
   }catch(e){ alert('No se pudo procesar.'); }
 }
 
