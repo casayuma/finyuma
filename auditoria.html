@@ -140,12 +140,7 @@ select:focus{border-color:var(--blue)}
       <div class="ctl"><label for="audFecha">Fecha</label><input id="audFecha" type="date" onchange="cargarAuditoria()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarAuditoria()">Ver</button><button class="cap-btn" style="padding:9px 16px" onclick="pdfDe('auditoriaBody','Auditoria_CasaYuma',document.getElementById('audFecha').value)">PDF</button></div>
       <div id="auditoriaBody"><div class="empty">Elige una fecha para ver la auditoría del día.</div></div>
     </section>
-    <section class="view" id="v-libro">
-      <div class="ctl"><label for="libroFecha">Fecha</label><input id="libroFecha" type="date" onchange="cargarLibro()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarLibro()">Ver</button><button class="cap-btn" style="padding:9px 16px" onclick="pdfDe('libroBody','Libro_CasaYuma',document.getElementById('libroFecha').value,'landscape')">PDF</button></div>
-      <div id="libroBody"><div class="empty">Elige una fecha para ver el libro contable del día.</div></div>
-    </section>
     <section class="view" id="v-ajustes"><div id="ajustesBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
-    <section class="view" id="v-control"><div id="controlBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-ingpago">
       <div class="ctl">
         <label for="ivpDesde">Desde</label><input id="ivpDesde" type="date">
@@ -168,10 +163,6 @@ select:focus{border-color:var(--blue)}
         <button class="cap-btn no-pdf" style="padding:9px 16px" onclick="descargarPropinasExcel()">Descargar Excel</button>
       </div>
       <div id="propinasBody"><div class="empty">Elige una fecha (o rango) para ver el desglose de propinas.</div></div>
-    </section>
-    <section class="view" id="v-concil">
-      <div class="ctl"><label for="concilFecha">Fecha</label><input id="concilFecha" type="date" onchange="cargarConcil()"><button class="cap-btn" style="padding:9px 16px" onclick="cargarConcil()">Ver</button></div>
-      <div id="concilBody"><div class="empty">Elige una fecha para comparar lo guardado contra Cloudbeds y Poster en vivo.</div></div>
     </section>
   </main>
 </div>
@@ -273,7 +264,7 @@ select:focus{border-color:var(--blue)}
 </style>`;
 
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbzud9MZ1tAec1MFA5XQPFOEpNHSo_yxYkxg4I82D4YL2O0yfc9amIOj4BAp08lmpbg/exec',
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwCCOV67OLeA89YbZyZ0xYxH57Bu313wgRAyGtz8jtF8omp76NCknGsmt8PNs_hi0I/exec',
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
@@ -326,12 +317,9 @@ const TABDEFS=[
   {id:'captura',label:'Cuadre diario',levels:['capture','full','superfull']},
   {id:'historial',label:'Historial cuadres',levels:['full','superfull']},
   {id:'auditoria',label:'Auditoría del día',levels:['capture','full','superfull']},
-  {id:'libro',label:'Libro del día',levels:['capture','full','superfull']},
-  {id:'ajustes',label:'Ajustes por usuario',levels:['full','superfull']},
-  {id:'control',label:'Control mensual',levels:['full','superfull']},
+  {id:'ajustes',label:'Ajustes',levels:['full','superfull']},
   {id:'ingpago',label:'Ingreso vs Pago',levels:['capture','full','superfull']},
   {id:'propinas',label:'Propinas',levels:['full','superfull']},
-  {id:'concil',label:'Verificar día',levels:['superfull']},
 ];
 function buildTabs(){const tabs=document.getElementById('tabs');tabs.innerHTML='';const allowed=TABDEFS.filter(t=>t.levels.includes(SESSION.nivel));allowed.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.label;b.dataset.view=t.id;if(i===0)b.classList.add('active');b.onclick=()=>switchView(t.id,b);tabs.appendChild(b);});switchView(allowed[0].id,tabs.querySelector('button'));}
 function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');}
@@ -345,8 +333,6 @@ async function loadAll(){
   if(SESSION.nivel==='full'||SESSION.nivel==='superfull'){
     try{const j=await apiGet({accion:'ajustes',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.ajustes=j.filas;renderAjustes();}}
     catch(e){document.getElementById('ajustesBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
-    try{const j=await apiGet({accion:'control',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.control=j.filas;renderControl();}}
-    catch(e){document.getElementById('controlBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
     try{const j=await apiGet({accion:'cuadres',id:SESSION.id,pin:SESSION.pin});if(j.ok){DATA.cuadres=j.filas;renderHistorial();}}
     catch(e){document.getElementById('historialBody').innerHTML=`<div class="errbox">${e.message}</div>`;}
   }
@@ -481,7 +467,7 @@ function pdfDe(idEl, prefijo, fecha, orient){
 // El sistema pre-llena la forma de pago de todo; el auditor solo captura 3 vouchers + 2 arqueos
 // y revisa únicamente lo que no cuadra.
 let CQ=null;
-const TJ_LBL={DEB_BBVA:'Déb BBVA',DEB_VISA:'Déb Visa',DEB_MASTER:'Déb Master',DEB_AMEX:'Déb Amex',CRED_BBVA:'Créd BBVA',CRED_VISA:'Créd Visa',CRED_MASTER:'Créd Master',CRED_AMEX:'Créd Amex'};
+const TJ_LBL={CRED_BBVA:'Crédito BBVA',CRED_OTROS:'Crédito otros (Visa / Master)',CRED_AMEX:'Crédito Amex',DEB_BBVA:'Débito BBVA',DEB_OTROS:'Débito otros (Visa / Master)'};
 function renderCaptura(){
   const ayer=new Date(Date.now()-864e5-6*36e5).toISOString().slice(0,10);
   document.getElementById('capturaBody').innerHTML=`
@@ -506,43 +492,53 @@ function pintarCQ(){
     <div class="cap-sub">Total ${t}: <strong id="tot_${t}">$0.00</strong></div>`;
   const est=CQ.estados||{}, alertas=[]
     .concat((est.abiertos||[]).map(x=>`Ticket <strong>${x.ticket}</strong> sigue ABIERTO ($${money(x.monto)}).`))
-    .concat((est.eliminados||[]).map(x=>`Ticket <strong>${x.ticket}</strong> fue ELIMINADO ($${money(x.monto)}). ¿Quién y por qué?`));
+    .concat((est.eliminados||[]).map(x=>`Ticket <strong>${x.ticket}</strong> fue ELIMINADO ($${money(x.monto)}). ¿Quién y por qué?`))
+    .concat(CQ.cbFaltan?[`Cloudbeds no entregó ${CQ.cbFaltan} movimientos. Las cifras pueden estar incompletas: espera un minuto y vuelve a cargar.`]:[]);
+  const inp=(id,v,lbl)=>`<div class="fld"><label>${lbl}</label><input id="${id}" type="number" step="0.01" value="${v||''}" placeholder="0.00"></div>`;
   document.getElementById('cqBody').innerHTML=`
     ${alertas.length?`<div class="errbox" style="margin-bottom:14px">${alertas.map(a=>'⚠️ '+a).join('<br>')}</div>`:''}
     <div class="libro-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div><div class="section-eyebrow">Lo que dice el sistema · se cuadra</div>
+      <div><div class="section-eyebrow">Ingreso Front · lo que dice el sistema</div>
         <table class="aud"><tbody>
           ${fila('Terminales Front (T1 + T2)',E.T12,'incluye Amex $'+money(E.T12_AMEX))}
-          ${fila('Terminal Restaurante (T3)',E.T3,'incluye propinas con tarjeta $'+money(E.PROP_TJ))}
+          ${fila('Openpay',E.OPENPAY)}${fila('Transferencia',E.TRANSFER)}
           ${fila('Efectivo Front',E.EF_FRONT)}
+        </tbody></table></div>
+      <div><div class="section-eyebrow">Restaurante · lo que dice el sistema</div>
+        <table class="aud"><tbody>
+          ${fila('Ingreso restaurante (T3 sin propina)',E.T3-(E.PROP_T3||0))}
+          ${fila('Propina restaurante (tarjeta)',E.PROP_T3||0)}
+          ${fila('Total voucher T3',E.T3,'ingreso + propina')}
           ${fila('Efectivo Restaurante',E.EF_REST,'sin propinas en efectivo')}
         </tbody></table></div>
-      <div><div class="section-eyebrow">Informativo · no se cuadra en terminal</div>
-        <table class="aud"><tbody>
-          ${fila(F.VCC,E.VCC)}${fila(F.TRANSFER,E.TRANSFER)}${fila(F.OPENPAY,E.OPENPAY)}${E.DEPOSITO?fila(F.DEPOSITO,E.DEPOSITO):''}
-          ${fila(F.CARGOHAB,E.CARGOHAB)}${E.CORTESIA?fila(F.CORTESIA,E.CORTESIA):''}${E.USOCASA?fila(F.USOCASA,E.USOCASA):''}${E.CXC?fila(F.CXC,E.CXC):''}
-        </tbody></table></div>
     </div>
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--cactus)">Informativo (no se cuadra en terminal)</summary>
+      <table class="aud"><tbody>${fila(F.VCC,E.VCC)}${E.DEPOSITO?fila(F.DEPOSITO,E.DEPOSITO):''}${fila(F.CARGOHAB,E.CARGOHAB)}${E.CORTESIA?fila(F.CORTESIA,E.CORTESIA):''}${E.USOCASA?fila(F.USOCASA,E.USOCASA):''}${E.CXC?fila(F.CXC,E.CXC):''}</tbody></table></details>
     <div class="section-eyebrow" style="margin-top:20px">Captura del auditor${CQ.captura?` · última por ${CQ.captura.por} (${CQ.captura.cuando})`:''}</div>
     <div class="cap-form">
-      ${grid('T1','Voucher Terminal 1 · Front')}${grid('T2','Voucher Terminal 2 · Front')}${grid('T3','Voucher Terminal 3 · Restaurante')}
-      <div class="cap-h">Arqueos de efectivo (sin propinas)</div>
-      <div class="cap-grid"><div class="fld"><label>Efectivo Front</label><input id="cqArqF" type="number" step="0.01" value="${cap.arqFront||''}" placeholder="0.00"></div>
-        <div class="fld"><label>Efectivo Restaurante</label><input id="cqArqR" type="number" step="0.01" value="${cap.arqRest||''}" placeholder="0.00"></div></div>
+      <div class="cap-h" style="font-size:15px">Ingreso Front</div>
+      ${grid('T1','Voucher Terminal 1')}${grid('T2','Voucher Terminal 2')}
+      <div class="cap-grid">${inp('cqOpen',cap.openpay,'Openpay')}${inp('cqTransf',cap.transfer,'Transferencia')}${inp('cqArqF',cap.arqFront,'Efectivo Front (arqueo)')}</div>
+      <div class="cap-h" style="font-size:15px;margin-top:14px">Restaurante</div>
+      ${grid('T3','Voucher Terminal 3')}
+      <div class="cap-grid">${inp('cqPropR',cap.propRest,'Propina con tarjeta (reporte de meseros)')}${inp('cqArqR',cap.arqRest,'Efectivo Restaurante (arqueo, sin propinas)')}</div>
+      <div class="cap-sub">Ingreso restaurante = total T3 − propina: <strong id="ingR">$0.00</strong></div>
       <div class="fld cap-full"><label>Notas (opcional)</label><input id="cqNotas" type="text" value="${(cap.notas||'').replace(/"/g,'&quot;')}"></div>
       <button class="cap-btn" onclick="guardarCQ()">Cuadrar</button><div id="cqMsg"></div>
     </div>
     <div id="cqRes"></div>
     <div class="ctl" style="margin-top:20px"><label>Renglones</label><select id="cqFiltro" onchange="tablaCQ()">
       <option value="rev">Solo para revisar</option><option value="T12">Terminal Front</option><option value="T3">Terminal Restaurante</option>
-      <option value="EF">Efectivo</option><option value="otros">Transferencias, Openpay, VCC, cargos a hab., registrados por Poster</option><option value="todos">Todos</option></select></div>
+      <option value="EF">Efectivo</option><option value="otros">Openpay, transferencias, VCC, cargos a hab., Poster, anulados</option><option value="todos">Todos</option></select></div>
     <div id="cqTabla"></div>`;
+  document.getElementById('cqPropR').oninput=totCQ;
   totCQ(); if(CQ.resultado) resCQ(CQ.resultado); tablaCQ();
 }
-function totCQ(){ ['T1','T2','T3'].forEach(t=>{ let s=0; document.querySelectorAll(`input[data-t="${t}"]`).forEach(i=>s+=+i.value||0); const el=document.getElementById('tot_'+t); if(el) el.textContent='$'+money(s); }); }
+function totCQ(){ const S={}; ['T1','T2','T3'].forEach(t=>{ let s=0; document.querySelectorAll(`input[data-t="${t}"]`).forEach(i=>s+=+i.value||0); S[t]=s; const el=document.getElementById('tot_'+t); if(el) el.textContent='$'+money(s); });
+  const pr=document.getElementById('cqPropR'), ir=document.getElementById('ingR'); if(ir) ir.textContent='$'+money(S.T3-(+(pr&&pr.value)||0)); }
 async function guardarCQ(){
   const b={accion:'guardarCuadre',id:SESSION.id,pin:SESSION.pin,fecha:CQ.fecha,T1:{},T2:{},T3:{},
-    arqFront:document.getElementById('cqArqF').value||0,arqRest:document.getElementById('cqArqR').value||0,notas:document.getElementById('cqNotas').value||''};
+    arqFront:document.getElementById('cqArqF').value||0,arqRest:document.getElementById('cqArqR').value||0,openpay:document.getElementById('cqOpen').value||0,transfer:document.getElementById('cqTransf').value||0,propRest:document.getElementById('cqPropR').value||0,notas:document.getElementById('cqNotas').value||''};
   document.querySelectorAll('input[data-t]').forEach(i=>b[i.dataset.t][i.dataset.k]=+i.value||0);
   const msg=document.getElementById('cqMsg'); msg.innerHTML='<div class="loading" style="padding:12px"><div class="spinner"></div>Comparando…</div>';
   try{ const j=await apiPost(b); if(!j.ok){ msg.innerHTML=`<div class="errbox">${j.error}</div>`; return; }
@@ -557,8 +553,11 @@ function resCQ(R){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-weight:600;font-family:var(--disp)">${ok?'✅ Todo cuadra':'⚠️ Revisar diferencias'}</span>
         <button class="cap-btn no-pdf" style="padding:6px 12px;font-size:12px" onclick="pdfDe('cqRes','Cuadre_CasaYuma',CQ.fecha)">PDF</button></div>
+      <div class="cuadre-cat">Ingreso Front</div>
       ${L('Terminales Front (T1 + T2)',R.front)}${R.front.ok?'':L('&nbsp;&nbsp;de eso, Amex',R.frontAmex)}
-      ${L('Terminal Restaurante (T3)',R.rest)}${L('Efectivo Front',R.efFront)}${L('Efectivo Restaurante',R.efRest)}
+      ${R.openpay?L('Openpay',R.openpay):''}${R.transfer?L('Transferencia',R.transfer):''}${L('Efectivo Front',R.efFront)}
+      <div class="cuadre-cat">Restaurante</div>
+      ${R.ingRest?L('Ingreso restaurante',R.ingRest):''}${R.propRest?L('Propina restaurante',R.propRest):''}${L('Total T3',R.rest)}${L('Efectivo Restaurante',R.efRest)}
       ${R.pendientes?`<div class="line"><span>🟡 Renglones en "Pendiente" o "Verificando"</span><span>${R.pendientes}</span></div>`:''}
       ${R.pistas.length?`<div class="cuadre-cat">Pistas para encontrar la diferencia</div>${R.pistas.map(p=>`<div style="font-size:12.5px;padding:4px 0">👉 ${p}</div>`).join('')}`:''}
     </div>`;
@@ -569,7 +568,7 @@ function tablaCQ(){
   let items=CQ.items.filter(it=>it.monto!==0||it.forma!=='SINPAGO');
   if(f==='rev') items=items.filter(it=>it.estatus||it.cambiado||(malF&&it.forma==='T12')||(malR&&it.forma==='T3')||(malEF&&/^EF_/.test(it.forma))||(it.forma==='TRANSFER'&&it.estatus!=='Correcto - Validado'));
   else if(f==='EF') items=items.filter(it=>/^EF_/.test(it.forma));
-  else if(f==='otros') items=items.filter(it=>['TRANSFER','OPENPAY','VCC','CARGOHAB','DEPOSITO','CORTESIA','USOCASA','CXC','POSTER'].indexOf(it.forma)>-1);
+  else if(f==='otros') items=items.filter(it=>['TRANSFER','OPENPAY','VCC','CARGOHAB','DEPOSITO','CORTESIA','USOCASA','CXC','POSTER','ANULADO'].indexOf(it.forma)>-1);
   else if(f!=='todos') items=items.filter(it=>it.forma===f);
   const opF=sel=>Object.keys(CQ.formas).map(k=>`<option value="${k}"${k===sel?' selected':''}>${CQ.formas[k]}</option>`).join('');
   const opE=sel=>['<option value="">—</option>'].concat(CQ.estatus.map(e=>`<option${e===sel?' selected':''}>${e}</option>`)).join('');
@@ -603,12 +602,40 @@ function renderAjustes(){
   const usuarios=Array.from(new Set(allRows.map(r=>String(r[5]).trim()))).sort();
   const optsUser=['<option value="Todos">Todos los usuarios</option>'].concat(usuarios.map(u=>`<option value="${u}">${u}</option>`)).join('');
   document.getElementById('ajustesBody').innerHTML=`
+    <div class="ctl"><label>Origen</label><select id="ajOrigen" onchange="cambiarOrigenAj()"><option value="cb">Ajustes Cloudbeds</option><option value="po">Ajustes Poster</option></select></div>
+    <div id="ajPoster" style="display:none">
+      <div class="ctl"><label>Desde</label><input id="ajpDesde" type="date"><label>Hasta</label><input id="ajpHasta" type="date">
+        <button class="cap-btn" style="padding:9px 16px" onclick="cargarAjPoster()">Ver</button></div>
+      <div id="ajPosterBody"><div class="empty">Elige un rango (máx. 2 meses) para ver descuentos, cortesías y tickets eliminados en Poster.</div></div>
+    </div>
+    <div id="ajCB">
     <div class="ctl">
       <label>Mes</label><select id="ajMes" onchange="pintarAjustes()">${optsMes}</select>
       <label>Usuario</label><select id="ajUser" onchange="pintarAjustes()">${optsUser}</select>
     </div>
-    <div id="ajustesTabla"></div>`;
+    <div id="ajustesTabla"></div></div>`;
   pintarAjustes();
+}
+function cambiarOrigenAj(){ const po=document.getElementById('ajOrigen').value==='po';
+  document.getElementById('ajPoster').style.display=po?'':'none'; document.getElementById('ajCB').style.display=po?'none':'';
+  if(po&&!document.getElementById('ajpDesde').value){ const h=new Date(), d=new Date(h.getFullYear(),h.getMonth(),1), f=x=>x.toISOString().slice(0,10);
+    document.getElementById('ajpDesde').value=f(d); document.getElementById('ajpHasta').value=f(new Date(h.getTime()-864e5)); } }
+async function cargarAjPoster(){
+  const box=document.getElementById('ajPosterBody'); box.innerHTML='<div class="loading"><div class="spinner"></div>Consultando Poster…</div>';
+  try{ const j=await apiGet({accion:'ajustesPoster',id:SESSION.id,pin:SESSION.pin,desde:document.getElementById('ajpDesde').value,hasta:document.getElementById('ajpHasta').value});
+    if(!j.ok||j.res.error){ box.innerHTML=`<div class="errbox">${j.error||j.res.error}</div>`; return; }
+    const F=j.res.filas; if(!F.length){ box.innerHTML='<div class="empty">Sin descuentos, cortesías ni tickets eliminados en Poster.</div>'; return; }
+    const M={}, T={}; let tot=0;
+    F.forEach(x=>{ if(!M[x.mesero])M[x.mesero]={n:0,m:0}; M[x.mesero].n++; M[x.mesero].m+=x.monto; const k=x.tipo.replace(/ \d.*%$/,' %');
+      if(!T[x.tipo])T[x.tipo]={n:0,m:0}; T[x.tipo].n++; T[x.tipo].m+=x.monto; tot+=x.monto; });
+    const tabla=(O,h)=>`<table class="aud"><thead><tr><th>${h}</th><th style="text-align:right">#</th><th style="text-align:right">Monto</th></tr></thead><tbody>${Object.keys(O).sort((a,b)=>O[b].m-O[a].m).map(k=>`<tr><td>${k}</td><td class="num">${O[k].n}</td><td class="num">$${money(O[k].m)}</td></tr>`).join('')}</tbody></table>`;
+    box.innerHTML=`<div style="padding:14px 16px;background:var(--wool);border-radius:2px;margin-bottom:14px"><strong style="font-family:var(--disp);font-size:18px">Ajustes Poster · $${money(tot)}</strong>
+      <div style="font-size:12px;color:var(--cactus);margin-top:4px">${F.length} tickets · montos con IVA, como en Poster</div></div>
+      <div class="libro-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div><div class="section-eyebrow">Por mesero</div>${tabla(M,'Mesero')}</div><div><div class="section-eyebrow">Por tipo</div>${tabla(T,'Tipo')}</div></div>
+      <div class="section-eyebrow" style="margin-top:20px">Detalle</div>
+      <div style="overflow-x:auto"><table class="aud"><thead><tr><th>Fecha</th><th>Hora</th><th>Ticket</th><th>Mesero</th><th>Tipo</th><th>Comentario</th><th style="text-align:right">Monto</th></tr></thead><tbody>
+      ${F.map(x=>`<tr><td>${x.fecha}</td><td>${x.hora||'—'}</td><td>${x.ticket}</td><td>${x.mesero}</td><td>${x.tipo}</td><td style="font-size:11px">${x.comentario||''}</td><td class="num">$${money(x.monto)}</td></tr>`).join('')}</tbody></table></div>`;
+  }catch(e){ box.innerHTML='<div class="errbox">No se pudo consultar.</div>'; }
 }
 function pintarAjustes(){
   const mes=document.getElementById('ajMes').value;
