@@ -1,7 +1,7 @@
 {
   "name": "casayuma-bitacora-functions",
   "description": "Login por PIN, guardado de horarios, y sincronización de nómina/ocupación para la Bitácora de Turnos de Casa Yuma.",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
