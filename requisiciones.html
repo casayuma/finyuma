@@ -1162,7 +1162,25 @@ function pcWhatsapp(sec){
 const ESTATUS_ACUMULADOS=['Pendiente','Aprobado','Comprada'];
 const SEL_ACUM_COMPRAR=new Set(); // artículos Aprobado seleccionados para marcar Comprada
 const SEL_ACUM_RECIBIR=new Set(); // artículos Comprada seleccionados para marcar Recibida
-const ACUM_FILAS={}; // id → renglón, para actualizar en el lugar sin recargar todo
+const ACUM_FILAS={};
+const DIAS_COMPRADA_VIGENTE=7; // días que un artículo "Comprada" se queda visible en Pedidos acumulados
+let ACUM_VIEJOS=[];
+let ACUM_MODO='atender'; // 'atender' = solo lo que me toca · 'todo' = todo lo que sigue en curso
+// Lo que "me toca" en Pedidos acumulados: Compras → lo Aprobado (por comprar).
+// Full/Superfull → Aprobado y Comprado (comprar / recibir como respaldo).
+function meTocaAcum(r){ return esLiderCompras() ? r[16]==='Aprobado' : (r[16]==='Aprobado' || r[16]==='Comprada'); }
+// Marca como Recibida (cierra) todo lo comprado hace más de DIAS_COMPRADA_VIGENTE días. Solo
+// Full/Superfull. Queda en Historial como Recibida, con la fecha de hoy.
+async function cerrarCompradasViejas(btn){
+  if(!ACUM_VIEJOS.length) return;
+  if(!confirm(`¿Cerrar ${ACUM_VIEJOS.length} artículo(s) comprados hace más de ${DIAS_COMPRADA_VIGENTE} días? Pasan a Historial como "Recibida".`)) return;
+  if(btn){btn.disabled=true;btn.textContent='Cerrando…';}
+  try{
+    const j=await apiPost({accion:'requisiciones_cerrar_viejas',id:SESSION.id,pin:SESSION.pin,idItems:ACUM_VIEJOS});
+    if(!j.ok) alert(j.error);
+  }catch(e){ alert('Sin conexión — no se cerraron. Intenta de nuevo.'); }
+  cargarAcumulados();
+} // id → renglón, para actualizar en el lugar sin recargar todo
 async function cargarAcumulados(){
   const seq=++SEQ_ACUM;
   SEL_ACUM_COMPRAR.clear(); SEL_ACUM_RECIBIR.clear();
@@ -1181,25 +1199,47 @@ async function cargarAcumulados(){
     if(!j.ok)throw new Error(j.error);
     // Respaldo anti-duplicado visual: un mismo ID de renglón solo se muestra una vez.
     const vistos={};
-    const filas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1 && !vistos[r[0]] && (vistos[r[0]]=true));
+    const filasTodas=(j.filas||[]).filter(r=>ESTATUS_ACUMULADOS.indexOf(r[16])!==-1 && !vistos[r[0]] && (vistos[r[0]]=true));
+    let filas;
+    // Limpieza (oct-2026): lo Comprado hace más de DIAS_COMPRADA_VIGENTE días y que nadie marcó
+    // "Recibida" ya no estorba aquí — se oculta y se ofrece cerrarlo de un toque (pasa a Historial).
+    const limite=new Date(Date.now()-DIAS_COMPRADA_VIGENTE*864e5).toLocaleDateString('en-CA',{timeZone:'America/Mexico_City'});
+    const esViejo=r=>r[16]==='Comprada' && String(r[20]||r[2]||'').slice(0,10) < limite;
+    ACUM_VIEJOS=filasTodas.filter(esViejo).map(r=>r[0]);
+    filas=filasTodas.filter(r=>!esViejo(r));
+    const enEsperaAprob=filas.filter(r=>r[16]==='Pendiente').length;
+    const esperandoRecibir=filas.filter(r=>r[16]==='Comprada').length;
+    const totalEnCurso=filas.length;
+    if(ACUM_MODO==='atender') filas=filas.filter(meTocaAcum);
     filas.forEach(r=>{ ACUM_FILAS[r[0]]=r; });
-    if(!filas.length){el.innerHTML='<div class="empty">No hay pedidos en curso por ahora.</div>';return;}
+    const avisos=[];
+    if(enEsperaAprob) avisos.push(`⏳ ${enEsperaAprob} artículo(s) esperan aprobación${esAprobador()?' (ver "Pendientes")':''} — todavía no se compran.`);
+    if(esperandoRecibir && (esLiderCompras() || ACUM_MODO==='todo')) avisos.push(`📦 ${esperandoRecibir} artículo(s) ya comprados esperan que su departamento los marque "Recibida".`);
+    const modoHtml=`<div class="pc-chips" style="margin-bottom:10px">
+        <button class="pc-chip ${ACUM_MODO==='atender'?'active':''}" onclick="ACUM_MODO='atender';cargarAcumulados()">${esLiderCompras()?'Por comprar':'Por atender'} (${filasTodas.filter(r=>!esViejo(r)&&meTocaAcum(r)).length})</button>
+        <button class="pc-chip ${ACUM_MODO==='todo'?'active':''}" onclick="ACUM_MODO='todo';cargarAcumulados()">Todo en curso (${totalEnCurso})</button>
+      </div>`+avisos.map(a=>`<div class="pc-espera">${a}</div>`).join('');
+    const avisoViejos = ACUM_VIEJOS.length ? `<div class="pc-espera" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        🧹 ${ACUM_VIEJOS.length} artículo(s) comprados hace más de ${DIAS_COMPRADA_VIGENTE} días siguen sin marcarse "Recibida" — ya no se muestran aquí.
+        ${(esAprobador()||esLiderCompras())?`<button class="mini-btn ok" style="margin-left:auto" onclick="cerrarCompradasViejas(this)">Cerrar y mandar a Historial</button>`:''}
+      </div>` : '';
+    if(!filas.length){el.innerHTML=avisoViejos+modoHtml+`<div class="empty">${ACUM_MODO==='atender'?'Nada pendiente por atender. ✓':'No hay pedidos en curso por ahora.'}</div>`;return;}
     const total=filas.reduce((s,r)=>s+num(r[11]),0);
     const bloques=agruparPorDepartamentoYPedido(filas);
     const totalPedidos=bloques.reduce((s,b)=>s+totalGruposBloque(b),0);
-    el.innerHTML=`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${totalPedidos} pedido(s) · $${money(total)})</div>
+    el.innerHTML=avisoViejos+modoHtml+`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${totalPedidos} pedido(s) · $${money(total)})</div>
       <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina y Restaurante, además, viene desglosado por categoría. Dentro de cada departamento (y de cada categoría) los pedidos se separan por fecha, con los más recientes primero.</div>
       <div class="bulk-bar" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="chkTodosComprar" onchange="toggleSeleccionarTodosAcum('comprar',this.checked)"> Todos los aprobados
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+${esLiderCompras()?'':`        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="chkTodosRecibir" onchange="toggleSeleccionarTodosAcum('recibir',this.checked)"> Todos los comprados
-        </label>
+        </label>`}
         <span id="contadorSelAcum" style="font-size:12.5px;color:var(--cactus)">0 seleccionados</span>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
           <button class="mini-btn info" id="btnCompradosSel" disabled onclick="marcarCompradosSeleccionados()">Marcar comprados</button>
-          <button class="mini-btn ok" id="btnRecibidosSel" disabled onclick="marcarRecibidosSeleccionados()">Marcar recibidos</button>
+${esLiderCompras()?'':`          <button class="mini-btn ok" id="btnRecibidosSel" disabled onclick="marcarRecibidosSeleccionados()">Marcar recibidos</button>`}
         </div>
       </div>
       ${bloques.map(b=>{
