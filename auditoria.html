@@ -264,7 +264,7 @@ select:focus{border-color:var(--blue)}
 </style>`;
 
 const CONFIG={
-  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbzud9MZ1tAec1MFA5XQPFOEpNHSo_yxYkxg4I82D4YL2O0yfc9amIOj4BAp08lmpbg/exec',
+  WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwCCOV67OLeA89YbZyZ0xYxH57Bu313wgRAyGtz8jtF8omp76NCknGsmt8PNs_hi0I/exec',
   USERS:[
     {id:'CY035',n:'Aida Carrillo Patiño'},{id:'CY037',n:'Omar Emiliano de la Tejera Zamorano'},
     {id:'CY038',n:'Rodolfo Ramirez Pérez'},{id:'CY057',n:'Arleth Paola Anicacio Antúnez'},
@@ -493,7 +493,7 @@ function pintarCQ(){
   const est=CQ.estados||{}, alertas=[]
     .concat((est.abiertos||[]).map(x=>`Ticket <strong>${x.ticket}</strong> sigue ABIERTO ($${money(x.monto)}).`))
     .concat((est.eliminados||[]).map(x=>`Ticket <strong>${x.ticket}</strong> fue ELIMINADO ($${money(x.monto)}). ¿Quién y por qué?`))
-    .concat(CQ.cbFaltan?[`Cloudbeds no entregó ${CQ.cbFaltan} movimientos. Las cifras pueden estar incompletas: espera un minuto y vuelve a cargar.`]:[]);
+    .concat(CQ.cbFaltan?[`Cloudbeds respondió de forma inestable (${CQ.cbFaltan} movimientos llegaron tarde). Vuelve a cargar; si persiste, avisa.`]:[]);
   const inp=(id,v,lbl)=>`<div class="fld"><label>${lbl}</label><input id="${id}" type="number" step="0.01" value="${v||''}" placeholder="0.00"></div>`;
   document.getElementById('cqBody').innerHTML=`
     ${alertas.length?`<div class="errbox" style="margin-bottom:14px">${alertas.map(a=>'⚠️ '+a).join('<br>')}</div>`:''}
