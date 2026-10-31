@@ -14,13 +14,13 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { defineSecret, defineString } = require("firebase-functions/params");
+const { defineString } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 
 const { computeLoginUsers } = require("./departments");
 const { DEFAULT_DEPARTMENTS } = require("./seed");
 const { fetchNominaDepartments } = require("./nomina");
-const { fetchReservations, computeOccupancyMetrics } = require("./cloudbeds");
+const { fetchOccupancyFromSheet } = require("./dashboardSheet");
 const { mxTodayISO, addDaysISO, mondayOfISO } = require("./dates");
 
 initializeApp();
@@ -143,40 +143,34 @@ exports.syncNomina = onSchedule(
   }
 );
 
-const CLOUDBEDS_TOKEN = defineSecret("CLOUDBEDS_TOKEN");
-const CLOUDBEDS_PROPERTY_ID = defineString("CLOUDBEDS_PROPERTY_ID", { default: "" });
-
 // Cuántas semanas COMPLETAS además de la actual se calculan cada corrida —
 // para que un líder pueda ver la ocupación esperada al armar el horario de
 // semanas que todavía no llegan (antes solo existía el dato de "esta
-// semana", y navegar a futuro se quedaba sin nada). 8 = ~2 meses de margen.
+// semana", y navegar a futuro se quedaba sin nada). 8 = ~2 meses de
+// margen. Nota: solo las primeras ~2 semanas traen dato real — ver
+// dashboardSheet.js.
 const OCC_WEEKS_AHEAD = 8;
 
+// syncOcupacion YA NO le pide su propio token a Cloudbeds (ver
+// dashboardSheet.js para el porqué: dos sistemas renovando el mismo
+// refresh token se invalidan uno al otro). En vez de eso, lee la
+// ocupación que el proyecto Apps Script "Dashboard" ya mantiene fresca en
+// la hoja "Dashboard Status Hotel".
 exports.syncOcupacion = onSchedule(
-  // Con 9 semanas de por medio (en vez de 1) la consulta a Cloudbeds y la
-  // escritura a Firestore tardan más — timeoutSeconds default (60s) se
-  // quedaba corto y la función se cortaba a la mitad. 240s da margen de
-  // sobra sin acercarse a los 5 minutos entre corridas.
-  { schedule: "every 5 minutes", secrets: [CLOUDBEDS_TOKEN], timeoutSeconds: 240 },
+  { schedule: "every 5 minutes", timeoutSeconds: 240 },
   async () => {
-    const token = CLOUDBEDS_TOKEN.value();
-    const propertyId = CLOUDBEDS_PROPERTY_ID.value();
-    if (!token || !propertyId) { logger.info("Faltan credenciales de Cloudbeds — se omite."); return; }
-
     const todayIso = mxTodayISO();
     const firstWeekStart = mondayOfISO(todayIso);
     const totalWeeks = OCC_WEEKS_AHEAD + 1;
     const totalDays = totalWeeks * 7;
-    const rangeEnd = addDaysISO(firstWeekStart, totalDays);
     const days = [];
     for (let i = 0; i < totalDays; i++) days.push(addDaysISO(firstWeekStart, i));
 
     let m;
     try {
-      const reservations = await fetchReservations(token, propertyId, firstWeekStart, rangeEnd);
-      m = await computeOccupancyMetrics(token, propertyId, reservations, days, firstWeekStart, rangeEnd);
+      m = await fetchOccupancyFromSheet(days);
     } catch (err) {
-      logger.error("Error consultando Cloudbeds, no se modificó el historial: " + err);
+      logger.error("Error leyendo la hoja 'Dashboard Status Hotel', no se modificó el historial: " + err);
       return;
     }
 
@@ -189,12 +183,10 @@ exports.syncOcupacion = onSchedule(
         writes.push(db.collection("occupancy").doc(weekStart).set({
           weekStart,
           pct: m.pct.slice(start, end),
-          arrivals: m.arrivals.slice(start, end),
-          departures: m.departures.slice(start, end),
-          // reservationsConsidered es del horizonte completo (no por semana
-          // individual) — solo es un dato de diagnóstico, no se muestra en
-          // el dashboard.
-          reservationsConsidered: m.considered,
+          // arrivals/departures ya no están disponibles leyendo de la hoja
+          // de Dashboard (no trae detalle por huésped) — se omiten a
+          // propósito; el dashboard ya sabe no dibujar las flechas ↑/↓
+          // cuando faltan.
           totalRooms: m.totalRooms,
           updatedAt,
         }));
@@ -204,6 +196,6 @@ exports.syncOcupacion = onSchedule(
       logger.error("Error guardando ocupación en Firestore: " + err);
       return;
     }
-    logger.info("Ocupación actualizada — " + totalWeeks + " semanas desde " + firstWeekStart + " — semana actual pct=[" + m.pct.slice(0,7).join(",") + "]");
+    logger.info("Ocupación actualizada (vía hoja Dashboard) — " + totalWeeks + " semanas desde " + firstWeekStart + " — semana actual pct=[" + m.pct.slice(0, 7).join(",") + "]");
   }
 );
