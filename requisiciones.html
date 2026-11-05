@@ -131,6 +131,9 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 @media(max-width:560px){.cart-item .ci-extra{grid-template-columns:1fr}}
 .item-det{font-size:10.5px;color:var(--cactus);margin-top:2px;white-space:normal}
 .cl-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.cl-filtros input{grid-column:1/-1}
+.cl-depto-h{display:flex;align-items:center;gap:6px;margin:14px 0 2px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--cactus);border-bottom:2px solid var(--line);padding-bottom:4px}
+.cl-depto-h span.n{font-weight:400;letter-spacing:0;margin-left:auto}
 .cl-filtros select,.cl-filtros input{width:100%;font-size:13px;padding:8px 10px}
 @media(max-width:560px){.cl-filtros{grid-template-columns:1fr}}
 .cl-resumen{font-size:11px;color:var(--cactus);letter-spacing:.05em;padding:4px 0 6px;border-bottom:1px solid var(--line)}
@@ -1508,6 +1511,7 @@ function renderCompraLinea(){
         <h3>${(esAprobador()||esLiderCompras()) ? 'Todas las solicitudes' : 'Mis solicitudes'}</h3>
         <div class="cl-filtros">
           <select id="clFiltro" onchange="CL_FILTRO=this.value;renderListaCL()"></select>
+          <select id="clDeptoFiltro" onchange="CL_DEPTO=this.value;renderListaCL()"></select>
           <input id="clBuscar" type="text" placeholder="Buscar artículo, persona, depto…" oninput="renderListaCL()">
         </div>
         <div id="compraslineaListaBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div>
@@ -1570,22 +1574,39 @@ function pasaFiltroCL(r,f){
   if(f==='todas') return true;
   return est===f;
 }
+let CL_DEPTO=''; // '' = todos los departamentos
 function renderListaCL(){
   const el=document.getElementById('compraslineaListaBody');
   const sel=document.getElementById('clFiltro');
+  const selD=document.getElementById('clDeptoFiltro');
   if(!el||!sel) return;
-  const cuenta=f=>CL_FILAS.filter(r=>pasaFiltroCL(r,f)).length;
+  const cuenta=f=>CL_FILAS.filter(r=>pasaFiltroCL(r,f) && (!CL_DEPTO || r[4]===CL_DEPTO)).length;
   const opciones=[['atender','⚡ Por atender (me toca)'],['curso','En curso'],...CL_ESTATUS.map(e=>[e,e]),['todas','Todas']];
   sel.innerHTML=opciones.map(([v,l])=>`<option value="${v}" ${v===CL_FILTRO?'selected':''}>${l} (${cuenta(v)})</option>`).join('');
+  // Departamento: los que existen en las solicitudes (con conteo según el filtro de estatus).
+  if(selD){
+    const deptos=[...new Set(DEPARTAMENTOS.map(d=>d.nombre).concat(CL_FILAS.map(r=>r[4]).filter(Boolean)))];
+    const cD=d=>CL_FILAS.filter(r=>pasaFiltroCL(r,CL_FILTRO) && (!d || r[4]===d)).length;
+    selD.innerHTML=`<option value="">Todos los departamentos (${cD('')})</option>`+
+      deptos.filter(d=>cD(d)>0 || d===CL_DEPTO).map(d=>`<option value="${escapeHtml(d)}" ${d===CL_DEPTO?'selected':''}>${escapeHtml(d)} (${cD(d)})</option>`).join('');
+  }
   const q=normaliza((document.getElementById('clBuscar')||{}).value||'');
-  const filas=CL_FILAS.filter(r=>pasaFiltroCL(r,CL_FILTRO))
+  const filas=CL_FILAS.filter(r=>pasaFiltroCL(r,CL_FILTRO) && (!CL_DEPTO || r[4]===CL_DEPTO))
     .filter(r=>!q || normaliza([r[0],r[3],r[4],r[5],r[11],r[14]].join(' ')).indexOf(q)!==-1);
   if(!CL_FILAS.length){ el.innerHTML='<div class="cart-empty">Todavía no hay solicitudes.</div>'; return; }
   if(!filas.length){ el.innerHTML='<div class="cart-empty">Nada en este filtro.</div>'; return; }
   const total=filas.reduce((s,r)=>s+num(r[7])*num(r[8]),0);
   const mias=r=>tieneAccionCL(r[12],r[4])?0:1;
+  // Agrupado por departamento (orden fijo de DEPARTAMENTOS), cada uno con su conteo y monto.
+  const orden=d=>{const k=DEPARTAMENTOS.findIndex(x=>x.nombre===d);return k===-1?99:k;};
+  const grupos={}; filas.forEach(r=>{(grupos[r[4]]=grupos[r[4]]||[]).push(r);});
+  const deptosOrd=Object.keys(grupos).sort((a,b)=>orden(a)-orden(b)||a.localeCompare(b,'es'));
   el.innerHTML=`<div class="cl-resumen">${filas.length} solicitud(es)${total?(' · ~$'+money(total)):''}</div>`+
-    filas.slice().sort((a,b)=>mias(a)-mias(b)).map(r=>renderItemCompraLinea(r)).join('');
+    deptosOrd.map(d=>{
+      const g=grupos[d].slice().sort((a,b)=>mias(a)-mias(b));
+      const t=g.reduce((s,r)=>s+num(r[7])*num(r[8]),0);
+      return `<div class="cl-depto-h"><span class="dept-dot" style="background:${deptoColor(d)}"></span>${escapeHtml(d)}<span class="n">${g.length}${t?(' · ~$'+money(t)):''}</span></div>`+g.map(r=>renderItemCompraLinea(r)).join('');
+    }).join('');
 }
 // oct-2026: sin GM. Con PREAUTORIZACION=false, Dirección General compra directo desde Pendiente.
 // Para volver a exigir pre-autorización: true aquí Y PREAUTORIZACION_REQUERIDA en Codigo.gs.
