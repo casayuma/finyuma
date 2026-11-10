@@ -356,7 +356,10 @@ function rolLabel(){
 (function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
 
-async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});return res.json();}
+async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});const j=await res.json();
+  // Respaldo del filtro del servidor: Compras nunca ve artículos sin aprobar.
+  if(params.accion==='requisiciones_list' && j && Array.isArray(j.filas) && esLiderCompras()) j.filas=j.filas.filter(r=>r[16]!=='Pendiente');
+  return j;}
 async function apiPost(body){const res=await fetch(CONFIG.WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});return res.json();}
 
 // ————— Ventana de días/horario (America/Mexico_City) —————
@@ -797,6 +800,13 @@ async function enviarPedido(){
 // ————— Pendientes (solo full) — agrupadas por pedido, aprobación por artículo —————
 const SEL_PENDIENTES=new Set();
 let SEQ_PEND=0, SEQ_ACUM=0;
+// Número en la pestaña "Pendientes" = pedidos sin aprobar (nov-2026). Se actualiza al entrar y
+// cada 5 minutos mientras la app esté abierta.
+function badgePendientes(n){
+  const b=document.querySelector('nav.tabs button[data-view="pendientes"]');
+  if(b) b.innerHTML='Pendientes'+(n>0?' <span class="tab-badge" style="background:var(--bad);color:#fff">'+n+'</span>':'');
+}
+setInterval(()=>{ if(SESSION && esAprobador() && !document.getElementById('v-pendientes').classList.contains('active')) cargarPendientes(); }, 5*60*1000);
 async function cargarPendientes(){
   const seq=++SEQ_PEND;
   SEL_PENDIENTES.clear();
@@ -809,8 +819,9 @@ async function cargarPendientes(){
     if(seq!==SEQ_PEND) return; // llegó una recarga más nueva — ignorar esta
     if(!j.ok)throw new Error(j.error);
     const filas=j.filas||[];
-    if(!filas.length){el.innerHTML='<div class="empty">No hay requisiciones pendientes de aprobación.</div>';return;}
+    if(!filas.length){badgePendientes(0);el.innerHTML='<div class="empty">No hay requisiciones pendientes de aprobación.</div>';return;}
     const grupos=agruparPorPedido(filas);
+    badgePendientes(grupos.length);
     el.innerHTML=`<div class="section-eyebrow">Pendientes de aprobación (${filas.length} artículo(s) en ${grupos.length} pedido(s))</div>
       <div class="bulk-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
@@ -1231,7 +1242,7 @@ async function cargarAcumulados(){
     const bloques=agruparPorDepartamentoYPedido(filas);
     const totalPedidos=bloques.reduce((s,b)=>s+totalGruposBloque(b),0);
     el.innerHTML=avisoViejos+modoHtml+`<div class="section-eyebrow">Pedidos acumulados (${filas.length} artículo(s) en ${totalPedidos} pedido(s) · $${money(total)})</div>
-      <div class="note" style="margin-top:0;margin-bottom:14px">Incluye Pendientes, Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina y Restaurante, además, viene desglosado por categoría. Dentro de cada departamento (y de cada categoría) los pedidos se separan por fecha, con los más recientes primero.</div>
+      <div class="note" style="margin-top:0;margin-bottom:14px">${esLiderCompras()?'Solo ves artículos YA APROBADOS — lo que no está aprobado no aparece y no se compra. ':''}Incluye ${esLiderCompras()?'':'Pendientes, '}Aprobados y Comprados de todos los departamentos — el histórico completo está en "Historial". Compras marca "Comprada"; cada departamento marca "Recibida" cuando le llega, y ahí desaparece de esta lista. En Cocina y Restaurante, además, viene desglosado por categoría. Dentro de cada departamento (y de cada categoría) los pedidos se separan por fecha, con los más recientes primero.</div>
       <div class="bulk-bar" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--sand,#f4efe6);border-radius:10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="chkTodosComprar" onchange="toggleSeleccionarTodosAcum('comprar',this.checked)"> Todos los aprobados
