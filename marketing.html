@@ -180,14 +180,22 @@ function guardarSesion(x){try{sessionStorage.setItem(SKEY,JSON.stringify(x));loc
 function borrarSesion(){try{sessionStorage.removeItem(SKEY);localStorage.removeItem(SKEY+'_LS');}catch(e){}}
 async function get(p){p._ts=Date.now();const r=await fetch(MAIN_URL+'?'+new URLSearchParams(p),{cache:'no-store'});return r.json();}
 let PEND=null;
+// Lista de nombres: primero del backend de Marketing (no depende de Code.gs), luego del de Finanzas
+async function cargarNombres(){
+  const fuentes=[MK_URL+'?accion=mk_colaboradores', MAIN_URL+'?accion=listar_colaboradores'];
+  for(const f of fuentes){
+    try{const j=await (await fetch(f+'&_ts='+Date.now(),{cache:'no-store'})).json();if(j&&j.ok&&j.usuarios&&j.usuarios.length)return j.usuarios;}catch(e){}
+  }
+  return [];
+}
 (function init(){
   S=leerSesion();
   if(S&&S.id&&S.pin)return arrancar();
   gate.classList.remove('hidden');
-  get({accion:'listar_colaboradores'}).then(j=>{
-    const u=(j&&j.usuarios)||[];
+  cargarNombres().then(u=>{
+    if(!u.length){gSel.innerHTML='<option value="">No cargó la lista — recarga la página</option>';return;}
     gSel.innerHTML='<option value="">— Elige tu nombre —</option>'+u.map(x=>`<option value="${esc(x.id)}">${esc(x.nombre)}</option>`).join('');
-  }).catch(()=>{gSel.innerHTML='<option value="">Sin conexión — recarga la página</option>';});
+  });
 })();
 async function gateId(){
   gMsg.textContent='';if(!gSel.value)return gMsg.textContent='Elige tu nombre.';

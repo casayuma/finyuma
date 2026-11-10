@@ -122,6 +122,8 @@ main{max-width:1080px;margin:0 auto;padding:40px 20px 80px}
 // falta tocar este archivo ni los otros dos (pagos.html, requisiciones.html).
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
+  // Backend de Marketing: de aquí sale la lista de nombres del login (no depende de Code.gs)
+  NOMBRES_URL:'https://script.google.com/macros/s/AKfycbxb88H_P3xfk68-a2QOu0BYSsdpwCKOx6usYDs2WOC7dDFmumiEW2TSTRSHhurLZvc/exec?accion=mk_colaboradores',
   AUDITORIA_URL:'auditoria.html', // nombre/ubicación del archivo de Auditoría que ya tienes
 };
 
@@ -173,7 +175,10 @@ function rolLabel(){
 (function(){
   const sel=document.getElementById('userSel');
   sel.innerHTML='<option value="">Cargando…</option>';
-  apiGet({accion:'listar_colaboradores'}).then(j=>{
+  fetch(CONFIG.NOMBRES_URL+'&_ts='+Date.now(),{cache:'no-store'}).then(r=>r.json())
+  .then(j=>(j&&j.ok&&j.usuarios&&j.usuarios.length)?j:apiGet({accion:'listar_colaboradores'}))
+  .catch(()=>apiGet({accion:'listar_colaboradores'}))
+  .then(j=>{
     if(!j || !j.ok || !j.usuarios || !j.usuarios.length){ sel.innerHTML='<option value="">— escribe tu número abajo —</option>'; return; }
     sel.innerHTML='';
     j.usuarios.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.nombre;sel.appendChild(o);});
