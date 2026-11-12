@@ -527,10 +527,11 @@ function renderNueva(){
           <div class="fld search-wrap"><label>Artículo</label>
             <input id="iBuscar" type="text" placeholder="Busca por nombre…" autocomplete="off"
               oninput="buscarCatalogo()" onfocus="buscarCatalogo()"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); if(RESULTADOS_BUSQUEDA.length){elegirResultado(0);document.getElementById('iCantidad').focus();} else agregarAlCarrito();}"
               onblur="setTimeout(function(){var c=document.getElementById('iResultados');if(c)c.classList.add('hidden');},150)">
             <div id="iResultados" class="search-results hidden"></div>
           </div>
-          <div class="fld"><label>Cantidad</label><input id="iCantidad" type="number" step="1" min="1" value="1" oninput="actualizarPrevisualizacion()"></div>
+          <div class="fld"><label>Cantidad</label><input id="iCantidad" type="number" step="1" min="1" value="1" oninput="actualizarPrevisualizacion()" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarAlCarrito();document.getElementById('iBuscar').focus();}"></div>
           <div class="fld"><label>Unidad</label><input id="iUnidad" placeholder="pza, litro…"></div>
           <div class="fld"><label>Precio unitario</label><input id="iPrecio" type="number" step="0.01" placeholder="0.00" oninput="actualizarPrevisualizacion()"></div>
           <button class="cap-btn ghost2" onclick="agregarAlCarrito()">+ Agregar</button>
@@ -539,7 +540,7 @@ function renderNueva(){
 
         <button type="button" class="cap-btn ghost2" style="margin-top:4px" onclick="mostrarNuevoArticulo()">+ Solicitud especial (artículo fuera de catálogo)</button>
         <div id="nuevoArtBox" class="nuevo-art-box hidden">
-          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)"><b>Solicitud especial</b> — para algo que no se pide normalmente y no está en el catálogo. No se agrega al catálogo; Compras lo cotiza.</div>
+          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)"><b>No encontramos ese artículo en el catálogo.</b> Pídelo como <b>solicitud especial</b> — para algo que no se pide normalmente y no está en el catálogo. No se agrega al catálogo; Compras lo cotiza.</div>
           <div class="fld cap-full"><label>¿Qué necesitas?</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
           <div class="fld"><label>Cantidad</label><input id="naCantidad" type="number" step="1" min="1" value="1"></div>
           <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
@@ -568,7 +569,8 @@ function renderNueva(){
 }
 // ¿Ya está este artículo en el carrito? (por catalogoId o por nombre normalizado)
 function yaEnCarrito(catalogoId, articulo){
-  return CARRITO.some(it => (catalogoId && it.catalogoId===catalogoId) || normaliza(it.articulo)===normaliza(articulo));
+  // 'ESPECIAL' no es un ID real (todas las especiales lo comparten) — ahí solo se compara el nombre.
+  return CARRITO.some(it => (catalogoId && catalogoId!=='ESPECIAL' && it.catalogoId===catalogoId) || normaliza(it.articulo)===normaliza(articulo));
 }
 // Agrega un renglón directo al carrito (usado tanto por la búsqueda libre como por las
 // pestañas de categoría). Devuelve true si se agregó, false si ya estaba repetido.
@@ -682,6 +684,7 @@ function elegirResultado(i){
   document.getElementById('iPrecio').value=c[3]||'';
   ITEM_SELECCIONADO={catalogoId:c[0], articulo:c[1]};
   document.getElementById('iResultados').classList.add('hidden');
+  setTimeout(()=>{const q=document.getElementById('iCantidad'); if(q){q.focus(); q.select();}},0);
   actualizarPrevisualizacion();
 }
 function mostrarNuevoArticulo(){
@@ -721,7 +724,22 @@ function agregarAlCarrito(){
   const unidad = document.getElementById('iUnidad').value.trim();
   const precioUnitario = num(document.getElementById('iPrecio').value)||0;
   if(!articulo){ alert('Escribe o elige un artículo.'); return; }
-  if(!ITEM_SELECCIONADO){ mostrarNuevoArticulo(); alert('Ese artículo no está en el catálogo. Elígelo de la lista o mándalo como solicitud especial.'); return; }
+  if(!ITEM_SELECCIONADO){
+    // Si escribió el nombre sin tocar la sugerencia: buscarlo solo en el catálogo.
+    const qn=normaliza(articulo);
+    const exacto=CATALOGO.find(c=>normaliza(c[1])===qn);
+    const parecidos=CATALOGO.filter(c=>normaliza(c[1]).indexOf(qn)!==-1);
+    const c = exacto || (parecidos.length===1 ? parecidos[0] : null);
+    if(c){
+      ITEM_SELECCIONADO={catalogoId:c[0], articulo:c[1]};
+      document.getElementById('iBuscar').value=c[1];
+      if(!document.getElementById('iUnidad').value) document.getElementById('iUnidad').value=c[2]||'';
+      if(!document.getElementById('iPrecio').value) document.getElementById('iPrecio').value=c[3]||'';
+      return agregarAlCarrito();
+    }
+    if(parecidos.length>1){ buscarCatalogo(); document.getElementById('iBuscar').focus(); return; } // que elija de la lista
+    mostrarNuevoArticulo(); return; // de verdad no existe → solicitud especial (sin alerta)
+  }
   const agregado=agregarItemCarrito({articulo, catalogoId, cantidad, unidad, precioUnitario});
   if(!agregado){ alert('Ese artículo ya está en tu lista. Si necesitas más cantidad, quítalo de la lista y agrégalo de nuevo con la cantidad correcta.'); return; }
   document.getElementById('iBuscar').value='';
