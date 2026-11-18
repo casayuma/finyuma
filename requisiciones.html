@@ -353,7 +353,18 @@ function rolLabel(){
   return 'Líder · '+(SESSION.departamento||'');
 }
 
-(function(){const sel=document.getElementById('userSel');CONFIG.USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);});sel.onchange=()=>{document.getElementById('userId').value=sel.value;};document.getElementById('userId').value=sel.value;})();
+// Selector del login: se llena en vivo desde la pestaña Usuarios (acción pública
+// 'listar_colaboradores'); si no hay conexión, usa la lista fija de CONFIG.USERS como respaldo.
+(function(){
+  const sel=document.getElementById('userSel');
+  const llenar=lista=>{ sel.innerHTML=''; lista.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.n;sel.appendChild(o);}); document.getElementById('userId').value=sel.value; };
+  sel.onchange=()=>{document.getElementById('userId').value=sel.value;};
+  llenar(CONFIG.USERS);
+  fetch(CONFIG.WEBAPP_URL+'?accion=listar_colaboradores&_ts='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(j=>{
+    if(j && j.ok && Array.isArray(j.usuarios) && j.usuarios.length)
+      llenar(j.usuarios.map(u=>({id:u.id,n:u.nombre})).sort((a,b)=>a.n.localeCompare(b.n,'es')));
+  }).catch(()=>{});
+})();
 (function(){const sel=document.getElementById('hDepto');DEPARTAMENTOS.forEach(d=>{const o=document.createElement('option');o.value=d.nombre;o.textContent=d.nombre;sel.appendChild(o);});})();
 
 async function apiGet(params){params=Object.assign({},params,{_ts:Date.now()});const qs=Object.keys(params).map(k=>k+'='+encodeURIComponent(params[k])).join('&');const res=await fetch(CONFIG.WEBAPP_URL+'?'+qs,{cache:'no-store'});const j=await res.json();
