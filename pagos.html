@@ -126,6 +126,23 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .monto-wrap{display:flex;gap:6px}.monto-wrap input{flex:1;min-width:0}.monto-wrap select{width:92px}
 .file-in{font-size:13px!important;padding:8px!important;background:var(--paper)!important}
 .mon{font-size:.75em;color:var(--purple);font-weight:600}
+.mon-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:3px;vertical-align:middle;white-space:nowrap}
+.mon-MXN{background:#ece6d4;color:#5b5b4c}
+.mon-USD{background:#1e7a3c;color:#fff}
+.mon-EUR{background:#1f4e9c;color:#fff}
+.amt{font-weight:700;white-space:nowrap}.amt-USD{color:#1e7a3c}.amt-EUR{color:#1f4e9c}
+.mon-USD-txt{color:#1e7a3c}.mon-EUR-txt{color:#1f4e9c}
+.mon-bg-USD{background:#eaf5ee!important;border-color:#1e7a3c!important}
+.mon-bg-EUR{background:#e9eef8!important;border-color:#1f4e9c!important}
+.pcard.fx{border-left-width:6px}
+.pay-big{border:2px solid var(--line);padding:14px;border-radius:3px;margin-bottom:12px;text-align:center;background:var(--paper)}
+.pay-amt{font-size:28px;font-weight:700;margin-top:6px}.pay-amt small{font-size:15px}
+.pay-warn{background:#fff3cd;border:1px solid #b5892a;color:#6d4f0f;padding:8px 10px;font-size:13px;border-radius:2px;margin-top:8px}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:4px 0 12px;text-transform:none;letter-spacing:0;color:var(--ink)}
+.mon-seg label{font-size:12px}
+.mon-simb{display:flex;align-items:center;padding:0 12px;border:1px solid var(--line);background:var(--paper);font-weight:700}
+.monto-wrap.mon-bd-USD .mon-simb,.monto-wrap.mon-bd-USD input{border-color:#1e7a3c;border-width:2px}
+.monto-wrap.mon-bd-EUR .mon-simb,.monto-wrap.mon-bd-EUR input{border-color:#1f4e9c;border-width:2px}
 .tabla-mini{font-size:12.5px;border-collapse:collapse;width:100%;max-width:520px}
 .tabla-mini td{padding:5px 8px;border-bottom:1px solid var(--line)}
 .tabla-mini td.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -329,7 +346,7 @@ const LOADING='<div class="loading"><div class="spinner"></div>Cargando…</div>
 async function cargarTodo(){
   ['concentradoBody','porpagarBody','miasBody','historialBody','proveedoresBody','nuevaBody'].forEach(i=>{document.getElementById(i).innerHTML=LOADING;});
   // La captura espera a tener proveedores (Matriz) y categorías; los pagos cargan en paralelo.
-  await Promise.all([cargarPagos(),Promise.all([cargarProveedores(),cargarCats()]).then(()=>{renderNueva();applyPrefillFromURL();})]);
+  await Promise.all([cargarPagos(),Promise.all([cargarProveedores(),cargarCats()]).then(()=>{renderNueva();applyPrefillFromURL();revisarVersion();})]);
 }
 async function cargarPagos(){
   try{
@@ -359,17 +376,22 @@ function fReqHtml(f){
   const h=hoyMX(); const cls=f<h?'venc':(f<=addDias(h,2)?'venc':'');
   return `<span class="${cls}">${esc(f)}</span>`;
 }
-function clabeTxt(r){return r[C.forma]==='Transferencia'&&r[C.clabe]?`CLABE ${esc(r[C.clabe])}${r[C.banco]?' · '+esc(r[C.banco]):''}`:esc(r[C.forma]);}
+function ctaLbl(c){return /^(\d{18}|\d{16})$/.test(String(c))?(String(c).length===16?'Tarjeta':'CLABE'):'Cuenta';}
+function clabeTxt(r){return r[C.forma]==='Transferencia'&&r[C.clabe]?`${ctaLbl(r[C.clabe])} ${esc(r[C.clabe])}${r[C.banco]?' · '+esc(r[C.banco]):''}`:esc(r[C.forma]);}
 function kpi(lbl,val,sub){return `<div class="kpi"><div class="k-lbl">${lbl}</div><div class="k-val">${val}</div>${sub?`<div class="k-sub">${sub}</div>`:''}</div>`;}
 function suma(arr){return arr.reduce((a,r)=>a+num(r[C.monto]),0);}
 // Montos con moneda: nunca se suman pesos con dólares/euros; se muestran por separado.
 function monDe(r){return r[C.mon]||'MXN';}
-function fmtR(r){const m=monDe(r);return '$'+money(r[C.monto])+(m!=='MXN'?' <b class="mon">'+m+'</b>':'');}
+const MON_NOMBRE={MXN:'PESOS',USD:'DÓLARES',EUR:'EUROS'};
+const MON_SIMB={MXN:'$',USD:'US$',EUR:'€'};
+function monBadge(m){return `<span class="mon-badge mon-${m}">${m}${m!=='MXN'?' · '+MON_NOMBRE[m]:''}</span>`;}
+// Siempre con su moneda: pesos en sobrio, dólares/euros con etiqueta de color imposible de pasar por alto.
+function fmtR(r){const m=monDe(r);return `<span class="amt amt-${m}">${MON_SIMB[m]||'$'}${money(r[C.monto])}</span> ${monBadge(m)}`;}
 function sumaTxt(arr){
   const t={};arr.forEach(r=>{const m=monDe(r);t[m]=(t[m]||0)+num(r[C.monto]);});
   const ks=Object.keys(t).sort((a,b)=>a==='MXN'?-1:b==='MXN'?1:a.localeCompare(b));
   if(!ks.length)return '$0.00';
-  return ks.map(m=>'$'+money(t[m])+(ks.length>1||m!=='MXN'?' <span class="mon">'+m+'</span>':'')).join('<br>');
+  return ks.map(m=>`<span class="amt amt-${m}">${MON_SIMB[m]||'$'}${money(t[m])}</span> ${monBadge(m)}`).join('<br>');
 }
 
 // ————— Concentrado (Dirección autoriza; Admin/Full solo ven) —————
@@ -458,11 +480,12 @@ function renderPorPagar(){
   const paga=puedePagar();
   let html=`<div class="kpis">${kpi('Por pagar',sumaTxt(aut),aut.length+' autorizado(s)')}${kpi('Efectivo a preparar',sumaTxt(aut.filter(r=>r[C.forma]==='Efectivo')))}${kpi('Pagados sin factura',sinFact.length,sumaTxt(sinFact))}</div>`;
   if(!aut.length)html+='<div class="empty">Nada autorizado pendiente de pago.</div>';
-  else html+=`<div class="cards">${aut.map(r=>`<div class="pcard ${r[C.urg]==='Urgente'?'urg':''}">
+  else html+=`<div class="cards">${aut.map(r=>`<div class="pcard ${r[C.urg]==='Urgente'?'urg':''} ${monDe(r)!=='MXN'?'fx mon-bg-'+monDe(r):''}">
       <div><h3>${esc(r[C.prov])}</h3><div class="sub">${esc(r[C.id])} · ${esc(r[C.concepto])} · ${esc(r[C.depto]||'')} · solicitó ${esc(r[C.solNom])}</div>
       <div class="sub">Requerido ${fReqHtml(r[C.fReq])} ${r[C.urg]==='Urgente'?'· <b class="venc">URGENTE</b>':''} · autorizó ${esc(r[C.autPor])}</div>${docs(r)}</div>
       <div class="monto">${fmtR(r)}<div class="sub" style="text-align:right">${esc(r[C.forma])}</div></div>
-      <div class="bank">${r[C.forma]==='Transferencia'?`<span>CLABE <b>${esc(r[C.clabe])}</b> <button class="copy" onclick="copiar('${esc(r[C.clabe])}',this)">Copiar</button></span><span>${esc(r[C.banco]||'Banco no indicado')}</span>`:`<span>Pago en ${esc(r[C.forma]).toLowerCase()}</span>`}<span>${r[C.rfc]?'RFC '+esc(r[C.rfc]):'Sin RFC'}</span>
+      ${monDe(r)!=='MXN'?`<div class="pay-warn" style="grid-column:1/-1">⚠ Pagar en <b>${MON_NOMBRE[monDe(r)]} (${monDe(r)})</b> — no en pesos</div>`:''}
+      <div class="bank">${r[C.forma]==='Transferencia'?`<span>${ctaLbl(r[C.clabe])} <b>${esc(r[C.clabe])}</b> <button class="copy" onclick="copiar('${esc(r[C.clabe])}',this)">Copiar</button></span><span>${esc(r[C.banco]||'Banco no indicado')}</span>`:`<span>Pago en ${esc(r[C.forma]).toLowerCase()}</span>`}<span>${r[C.rfc]?'RFC '+esc(r[C.rfc]):'Sin RFC'}</span>
       ${paga?`<button class="mini-btn ok" style="margin-left:auto" onclick="modalPagar('${esc(r[C.id])}')">Registrar pago</button>`:''}</div>
     </div>`).join('')}</div>`;
   if(sinFact.length)html+=`<div class="section-eyebrow">Pagados · falta factura (${sinFact.length})</div>
@@ -502,7 +525,12 @@ function campoArchivo(id,label,actual,accept){
 
 function modalPagar(id){
   const r=PAGOS.find(x=>x[C.id]===id);
-  abrirModal(`<h2>Registrar pago ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · <b>${fmtR(r)}</b> · ${clabeTxt(r)}</p>
+  const m=monDe(r);
+  abrirModal(`<h2>Registrar pago ${esc(id)}</h2>
+    <div class="pay-big mon-bg-${m}"><div>${monBadge(m)}</div><div class="pay-amt">${MON_SIMB[m]}${money(r[C.monto])} <small>${m}</small></div>
+      ${m!=='MXN'?`<div class="pay-warn">⚠ Este pago es en <b>${MON_NOMBRE[m]}</b>, no en pesos. No conviertas el monto.</div>`:''}</div>
+    <p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · ${clabeTxt(r)}</p>
+    ${m!=='MXN'?`<label class="chk"><input type="checkbox" id="mMonOk"> Confirmo que pagué <b>${MON_SIMB[m]}${money(r[C.monto])} ${m}</b> (${MON_NOMBRE[m]})</label>`:''}
     <div class="fld"><label>Fecha de pago</label><input id="mFecha" type="date" value="${hoyMX()}"></div>
     <div class="fld"><label>Referencia / folio de transferencia</label><input id="mRef" placeholder="Ej. 0123456"></div>
     ${campoArchivo('mCompFile','Comprobante de pago (PDF o foto)')}
@@ -511,6 +539,8 @@ function modalPagar(id){
 }
 async function pagar(id){
   try{
+    const chk=document.getElementById('mMonOk');
+    if(chk&&!chk.checked){modalErr('Confirma la moneda del pago antes de guardar.');return;}
     const archivos=await leerArchivos([['mCompFile','comprobante']]);
     const body={idPago:id,fechaPago:val('mFecha'),referenciaPago:val('mRef'),archivos};
     if(!body.referenciaPago&&!archivos.length){modalErr('Escribe la referencia o adjunta el comprobante.');return;}
@@ -574,7 +604,8 @@ function renderNueva(){
           `<select id="pDepto" onchange="document.getElementById('pCategoria').innerHTML=opcionesCat(this.value)"><option value="">— Elige —</option>${(CATS?CATS.deptos:[]).map(d=>`<option${d===deptoIni?' selected':''}>${esc(d)}</option>`).join('')}</select>`}</div>
         <div class="fld"><label>Categoría</label><select id="pCategoria">${opcionesCat(deptoIni,r?r[C.cat]:'')}</select></div>
         <div class="fld cap-full"><label>Concepto</label><input id="pConcepto" placeholder="Ej. Reparación de bomba de alberca" value="${v('concepto')}"></div>
-        <div class="fld"><label>Monto total (con IVA)</label><div class="monto-wrap"><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${v('monto')}"><select id="pMoneda">${MONEDAS.map(m=>`<option${m===mon?' selected':''}>${m}</option>`).join('')}</select></div></div>
+        <div class="fld cap-full"><label>Moneda</label><div class="seg mon-seg">${MONEDAS.map(m=>`<label><input type="radio" name="pMoneda" value="${m}" ${m===mon?'checked':''} onchange="pintarMoneda()"><span>${m} · ${MON_NOMBRE[m]}</span></label>`).join('')}</div></div>
+        <div class="fld"><label id="lblMonto">Monto total (con IVA)</label><div class="monto-wrap"><span id="monSimb" class="mon-simb">$</span><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${v('monto')}"></div></div>
         <div class="fld"><label>Forma de pago</label><select id="pForma">${FORMAS_PAGO.map(c=>`<option${r&&r[C.forma]===c?' selected':''}>${c}</option>`).join('')}</select></div>
         <div class="fld"><label>¿Para cuándo se debe pagar?</label><input id="pFecha" type="date" value="${r?esc(r[C.fReq]):addDias(hoyMX(),3)}"></div>
         <div class="fld"><label>Urgencia</label><select id="pUrgencia"><option>Normal</option><option${r&&r[C.urg]==='Urgente'?' selected':''}>Urgente</option></select></div>
@@ -588,7 +619,14 @@ function renderNueva(){
       ${r?'<button class="cap-btn sec" style="margin-left:8px" onclick="EDITANDO=null;renderNueva();switchView(\'mias\')">Cancelar</button>':''}
       <div id="nuevaMsg"></div>
     </div>`;
-  onProveedor();
+  onProveedor();pintarMoneda();
+}
+function monedaSel(){const r=document.querySelector('input[name=pMoneda]:checked');return r?r.value:'MXN';}
+function pintarMoneda(){
+  const m=monedaSel(),l=document.getElementById('lblMonto');if(!l)return;
+  l.innerHTML=`Monto total en <b class="mon-${m}-txt">${MON_NOMBRE[m]} (${m})</b>, con IVA`;
+  document.getElementById('monSimb').textContent=MON_SIMB[m];
+  document.querySelector('.monto-wrap').className='monto-wrap mon-bd-'+m;
 }
 function provPorId(id){return id?PROVEEDORES_CACHE.find(p=>p[0]===id):null;}
 function provPorNombre(n){const k=norm(n);return k?PROVEEDORES_CACHE.find(p=>norm(p[1])===k||norm(p[3])===k):null;}
@@ -644,10 +682,11 @@ async function enviarPago(){
   if(!val('pConcepto')||monto<=0){msg.innerHTML='<div class="errbox">Concepto y monto son obligatorios.</div>';return;}
   if(!SESSION.departamento&&!val('pDepto')){msg.innerHTML='<div class="errbox">Elige el departamento.</div>';return;}
   if(!EDITANDO && !ventanaAbiertaMX() && !esDireccion()){msg.innerHTML='<div class="errbox">Fuera de horario: se reciben de sábado 00:00 a miércoles 12:00 pm.</div>';return;}
+  if(monedaSel()!=='MXN'&&!confirm('Esta solicitud es en '+MON_NOMBRE[monedaSel()]+' ('+monedaSel()+'): '+MON_SIMB[monedaSel()]+money(monto)+'. ¿Es correcto?'))return;
   btn.disabled=true;
   try{
     const archivos=await leerArchivos([['pCotFile','cotizacion'],['pFactFile','factura']]);
-    const body={proveedorId:p[0],proveedor:p[1],concepto:val('pConcepto'),monto,moneda:val('pMoneda'),formaPago:val('pForma'),
+    const body={proveedorId:p[0],proveedor:p[1],concepto:val('pConcepto'),monto,moneda:monedaSel(),formaPago:val('pForma'),
       categoria:val('pCategoria'),departamento:deptoActual(),fechaRequerida:val('pFecha'),urgencia:val('pUrgencia'),
       factura:val('pFactura'),notas:val('pNotas'),archivos};
     msg.innerHTML='<div class="okmsg">Enviando'+(archivos.length?' y subiendo '+archivos.length+' archivo(s)':'')+'…</div>';
@@ -737,16 +776,29 @@ function csvHistorial(){
 
 // ————— Proveedores (= "Property Vendor List" de la Matriz) —————
 let CATS=null;
+let ERR_MATRIZ='';
 async function cargarCats(){
-  try{const j=await apiGet({accion:'pagos_categorias_list',id:SESSION.id,pin:SESSION.pin});if(j.ok)CATS=j;}catch(e){}
+  try{const j=await apiGet({accion:'pagos_categorias_list',id:SESSION.id,pin:SESSION.pin});if(j.ok){CATS=j;if(j.aviso)ERR_MATRIZ=j.aviso;}else ERR_MATRIZ=j.error||'';}
+  catch(e){ERR_MATRIZ='Sin conexión con el servidor.';}
   if(!CATS)CATS={porCodigo:{},general:['OTROS'],deptoCodigo:{},deptos:[]};
+}
+// Avisa si el servidor (Apps Script) publicado no es la versión que esta página espera.
+const VERSION_ESPERADA='pagos-v3.1';
+async function revisarVersion(){
+  let v='';try{const j=await apiGet({accion:'version'});v=j&&j.version||'';}catch(e){}
+  if(v===VERSION_ESPERADA&&!ERR_MATRIZ)return;
+  const txt=v!==VERSION_ESPERADA
+    ? 'El servidor (Apps Script) tiene una versión anterior'+(v?' ('+esc(v)+')':'')+'. Implementar → Administrar implementaciones → ✏️ → Nueva versión.'
+    : 'No se pudo leer la Matriz Proveedores: '+esc(ERR_MATRIZ)+' — en Apps Script corre “diagnosticoPagos” y acepta permisos.';
+  document.querySelector('main').insertAdjacentHTML('afterbegin',`<div class="errbox">⚠ ${veTodo()?txt:'Hay un problema con el sistema de pagos. Avisa a Administración.'}</div>`);
 }
 async function cargarProveedores(){
   try{
     const j=await apiGet({accion:'proveedores_list',id:SESSION.id,pin:SESSION.pin});
     if(!j.ok)throw new Error(j.error);
     PROVEEDORES_CACHE=j.filas||[];
-  }catch(e){document.getElementById('proveedoresBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`;return;}
+    if(!j.fuente)ERR_MATRIZ=ERR_MATRIZ||'el servidor devolvió la lista vieja (no la Matriz).';
+  }catch(e){ERR_MATRIZ=e.message||'error';document.getElementById('proveedoresBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`;return;}
   onProveedor();
   renderProveedores();
 }
