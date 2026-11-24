@@ -1774,6 +1774,7 @@ async function rechazarCompraLinea(idCompra){
 }
 
 // ————— Historial / Mis solicitudes —————
+let HIST_FILAS=[];
 const ESTATUS_PILL={Pendiente:'p-pend',Aprobado:'p-aprob',Comprada:'p-comprada',Recibida:'p-recibida',Rechazado:'p-rech'};
 async function cargarHistorial(){
   const el=document.getElementById('historialBody');
@@ -1785,7 +1786,7 @@ async function cargarHistorial(){
   try{
     const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,desde,hasta,estatus,departamento});
     if(!j.ok)throw new Error(j.error);
-    const filas=j.filas||[];
+    const filas=j.filas||[]; HIST_FILAS=filas;
     renderHistorialKpis(filas);
     if(!filas.length){el.innerHTML='<div class="empty">Sin resultados para ese filtro.</div>';return;}
     const grupos=agruparPorPedido(filas);
@@ -1814,6 +1815,11 @@ function renderItemHistorial(r,pedidoId){
   if(estatus==='Comprada' && (puedeRecibirDepto(depto))){
     acciones.push(`<button class="mini-btn ok" onclick="marcarEstado('${id}','marcarRecibida')">Recibida</button>`);
   }
+  // nov-2026: Cocina puede editar (cantidad/comentario) o borrar lo que ya envió mientras siga Pendiente.
+  if(puedeEditarPropio(depto, estatus)){
+    acciones.push(`<button class="mini-btn info" onclick="mostrarEditarPropio('${id}',${Number(cantidad)||1})">Editar</button>`);
+    acciones.push(`<button class="mini-btn bad" onclick="borrarPropio('${id}','${escapeHtml(articulo).replace(/'/g,'&#39;')}')">Borrar</button>`);
+  }
   if(esSuperfull()){
     if(estatus!=='Pendiente') acciones.push(`<button class="mini-btn bad" onclick="revertirItem('${id}')">Revertir</button>`);
     acciones.push(`<button class="mini-btn info" onclick="mostrarEditarItem('${id}',${cantidad},'${escapeHtml(unidad||'')}',${precioUnitario||0})">Editar</button>`);
@@ -1826,6 +1832,33 @@ function renderItemHistorial(r,pedidoId){
     <td><span class="pill ${pillClass}">${estatus}</span>${estatus==='Rechazado'&&motivoRech?`<div style="font-size:10.5px;color:var(--cactus);margin-top:3px">${motivoRech}</div>`:''}</td>
     <td>${aprobadoPor||'–'}</td><td>${accionCol}<div id="ed_${id}" class="no-pdf"></div></td>
   </tr>`;
+}
+const DEPTOS_EDITAN_PROPIO=['Cocina'];   // igual que en Codigo.gs
+function puedeEditarPropio(depto, estatus){
+  return estatus==='Pendiente' && !esSuperfull() && DEPTOS_EDITAN_PROPIO.includes(SESSION.departamento) && depto===SESSION.departamento;
+}
+function mostrarEditarPropio(id,cantidad){
+  const fila=(HIST_FILAS||[]).find(r=>String(r[0])===String(id));
+  const coment=fila ? (fila[24]||'') : '';
+  const box=document.getElementById('ed_'+id);
+  box.innerHTML=`<div class="edit-box">
+    <div class="fld"><label>Cantidad</label><input class="cat-inp" id="epCant_${id}" type="number" min="0" step="any" value="${cantidad}"></div>
+    <div class="fld"><label>Comentario para Compras</label><input class="cat-inp" id="epCom_${id}" value="${escapeHtml(coment)}"></div>
+    <div class="row-actions">
+      <button class="mini-btn ok" onclick="guardarPropio('${id}')">Guardar</button>
+      <button class="mini-btn bad" onclick="document.getElementById('ed_${id}').innerHTML=''">Cancelar</button>
+    </div>
+  </div>`;
+}
+async function guardarPropio(id){
+  const cantidad=num(document.getElementById('epCant_'+id).value);
+  if(!(cantidad>0)){alert('La cantidad debe ser mayor a 0.');return;}
+  const comentario=document.getElementById('epCom_'+id).value.trim();
+  try{const j=await apiPost({accion:'requisiciones_propio',id:SESSION.id,pin:SESSION.pin,idItem:id,op:'editar',cantidad,comentario});if(!j.ok){alert(j.error);return;}cargarHistorial();}catch(e){alert('No se pudo guardar.');}
+}
+async function borrarPropio(id,articulo){
+  if(!confirm('¿Borrar "'+articulo+'" de tu pedido? No se puede deshacer.'))return;
+  try{const j=await apiPost({accion:'requisiciones_propio',id:SESSION.id,pin:SESSION.pin,idItem:id,op:'borrar'});if(!j.ok){alert(j.error);return;}cargarHistorial();}catch(e){alert('No se pudo borrar.');}
 }
 async function revertirItem(id){
   if(!confirm('¿Regresar este artículo a Pendiente? Se borra quién lo aprobó/rechazó y sus fechas.'))return;
