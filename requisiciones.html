@@ -570,15 +570,13 @@ function renderNueva(){
         </div>
         <div class="note" id="iPrevisualizacion"></div>
 
-        <button type="button" class="cap-btn ghost2" style="margin-top:4px" onclick="mostrarNuevoArticulo()">+ Solicitud especial (artículo fuera de catálogo)</button>
+        <button type="button" class="cap-btn ghost2" style="margin-top:4px" onclick="mostrarNuevoArticulo()">¿No encuentras un artículo?</button>
         <div id="nuevoArtBox" class="nuevo-art-box hidden">
-          <div class="fld cap-full" style="font-size:12px;color:var(--cactus)"><b>No encontramos ese artículo en el catálogo.</b> Pídelo como <b>solicitud especial</b> — para algo que no se pide normalmente y no está en el catálogo. No se agrega al catálogo; Compras lo cotiza.</div>
-          <div class="fld cap-full"><label>¿Qué necesitas?</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP"></div>
-          <div class="fld"><label>Cantidad</label><input id="naCantidad" type="number" step="1" min="1" value="1"></div>
-          <div class="fld"><label>Unidad</label><input id="naUnidad" placeholder="pza, litro…"></div>
-          <div class="fld cap-full"><label>Especificación / para qué es</label><input id="naEspec" placeholder="Marca, medida, modelo, motivo…"></div>
+          <div class="fld cap-full" style="font-size:12.5px;color:var(--ink)"><b>Ese artículo no está en el catálogo.</b><br>Las requisiciones solo aceptan artículos del catálogo. Para algo fuera de catálogo tienes dos opciones:</div>
+          <div class="fld cap-full"><label>¿Qué necesitas? (para el correo)</label><input id="naNombre" placeholder="Ej. Bomba de alberca 1HP, cantidad y para qué es"></div>
           <div class="row-actions">
-            <button class="cap-btn" style="padding:9px 16px" onclick="agregarEspecial()">Agregar a la lista</button>
+            <button class="cap-btn sec" style="padding:9px 16px" onclick="irPagosProveedores()">Ir a Pagos a Proveedores ↗</button>
+            <button class="cap-btn" style="padding:9px 16px" onclick="correoDireccionEspecial()">✉ Mandar correo a Dirección</button>
             <button class="cap-btn ghost2" onclick="cancelarNuevoArticulo()">Cancelar</button>
           </div>
         </div>
@@ -707,7 +705,7 @@ function buscarCatalogo(){
   } else {
     html+='<div class="sr-empty">Sin coincidencias en el catálogo.</div>';
   }
-  html+=`<div class="sr-item sr-nuevo" onmousedown="event.preventDefault();mostrarNuevoArticulo()">+ No está — pedir "${escapeHtml(q)}" como solicitud especial</div>`;
+  html+=`<div class="sr-item sr-nuevo" onmousedown="event.preventDefault();mostrarNuevoArticulo()">¿No está "${escapeHtml(q)}"? Ver opciones</div>`;
   cont.innerHTML=html;
   cont.classList.remove('hidden');
 }
@@ -722,30 +720,25 @@ function elegirResultado(i){
   setTimeout(()=>{const q=document.getElementById('iCantidad'); if(q){q.focus(); q.select();}},0);
   actualizarPrevisualizacion();
 }
+// nov-2026: ya no se meten "solicitudes especiales" en requisiciones. Lo que no está en el catálogo
+// se pide por Pagos a Proveedores o por correo a Dirección.
+const EMAIL_DIRECCION_ESPECIAL='manuel.otazo@casayuma.com';
 function mostrarNuevoArticulo(){
   const r=document.getElementById('iResultados'); if(r) r.classList.add('hidden');
   document.getElementById('naNombre').value=document.getElementById('iBuscar').value.trim();
-  ['naUnidad','naEspec'].forEach(id=>{document.getElementById(id).value='';});
-  document.getElementById('naCantidad').value='1';
   document.getElementById('nuevoArtBox').classList.remove('hidden');
   document.getElementById('naNombre').focus();
 }
 function cancelarNuevoArticulo(){ document.getElementById('nuevoArtBox').classList.add('hidden'); }
-// Solicitud especial: va directo a la lista del pedido marcada como ESPECIAL (CatalogoID),
-// NO se guarda en el catálogo. La especificación es obligatoria para que Compras sepa qué comprar.
-function agregarEspecial(){
-  const articulo=document.getElementById('naNombre').value.trim();
-  const espec=document.getElementById('naEspec').value.trim();
-  if(!articulo){ alert('Escribe qué necesitas.'); return; }
-  if(!espec){ alert('Agrega la especificación o para qué es — Compras la necesita para cotizar.'); return; }
-  const ok=agregarItemCarrito({articulo, catalogoId:'ESPECIAL', cantidad:num(document.getElementById('naCantidad').value)||1,
-    unidad:document.getElementById('naUnidad').value.trim(), precioUnitario:0});
-  if(!ok){ alert('Ese artículo ya está en tu lista.'); return; }
-  const it=CARRITO[CARRITO.length-1];
-  it.comentario=espec;
-  document.getElementById('iBuscar').value='';
-  cancelarNuevoArticulo();
-  renderCarrito();
+function irPagosProveedores(){ window.open(CONFIG.PAGOS_URL,'_blank'); }
+function correoDireccionEspecial(){
+  const que=(document.getElementById('naNombre').value||'').trim();
+  const depto=departamentoActual();
+  const asunto='Artículo fuera de catálogo · '+depto+(que?(' · '+que):'');
+  const cuerpo='Hola Manu,\n\nNecesito un artículo que no está en el catálogo de requisiciones:\n\n'+
+    '• Artículo: '+(que||'(describir)')+'\n• Cantidad: \n• Para qué es: \n• Proveedor sugerido (si lo sé): \n\n'+
+    (SESSION?SESSION.nombre:'')+' · '+depto;
+  window.location.href='mailto:'+EMAIL_DIRECCION_ESPECIAL+'?subject='+encodeURIComponent(asunto)+'&body='+encodeURIComponent(cuerpo);
 }
 function actualizarPrevisualizacion(){
   const cant=num(document.getElementById('iCantidad').value)||0;
