@@ -123,6 +123,9 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 .ac-item.on,.ac-item:hover{background:#f7eef3}
 .ac-new{color:var(--purple);font-weight:600}
 .ac-empty{padding:8px 12px;font-size:12px;color:var(--cactus)}
+.monto-wrap{display:flex;gap:6px}.monto-wrap input{flex:1;min-width:0}.monto-wrap select{width:92px}
+.file-in{font-size:13px!important;padding:8px!important;background:var(--paper)!important}
+.mon{font-size:.75em;color:var(--purple);font-weight:600}
 .tabla-mini{font-size:12.5px;border-collapse:collapse;width:100%;max-width:520px}
 .tabla-mini td{padding:5px 8px;border-bottom:1px solid var(--line)}
 .tabla-mini td.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -203,11 +206,11 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
 const CONFIG={
   WEBAPP_URL:'https://script.google.com/macros/s/AKfycbwaQK50qEOFGvYxoy3wpS17uPzru1BQAs0TYwnEeD50M1fe3UfNWqcy1AwN1wDOlqM/exec',
 };
-const CATEGORIAS=['Alimentos y Bebidas','Mantenimiento','Amenities e Insumos','Servicios (luz/agua/internet)','Honorarios y Nómina externa','Marketing','Eventos','Construcción / Obra','Otros'];
+const MONEDAS=['MXN','USD','EUR'];
 const FORMAS_PAGO=['Transferencia','Efectivo','Cheque','Tarjeta'];
 const ESTATUS_PILL={Pendiente:'p-pend',Autorizado:'p-aprob',Pagado:'p-pagado',Rechazado:'p-rech',Cancelado:'p-cancel'};
 // Índices de columna de la hoja Pagos (ver Codigo.gs)
-const C={id:0,fSol:1,solId:2,solNom:3,prov:4,cat:5,concepto:6,monto:7,forma:9,fReq:10,factura:11,liga:12,urg:13,est:14,autPor:15,fAut:16,motivo:17,fPago:18,ref:19,notas:20,depto:21,provId:22,rfc:23,clabe:24,banco:25,cot:26,comp:27,pagPor:28};
+const C={id:0,fSol:1,solId:2,solNom:3,prov:4,cat:5,concepto:6,monto:7,mon:8,forma:9,fReq:10,factura:11,liga:12,urg:13,est:14,autPor:15,fAut:16,motivo:17,fPago:18,ref:19,notas:20,depto:21,provId:22,rfc:23,clabe:24,banco:25,cot:26,comp:27,pagPor:28};
 
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
@@ -314,9 +317,7 @@ function entrarApp(){
   document.getElementById('hHasta').value=hoyMX();
   // Pestaña inicial según rol: Dirección → Concentrado, Administración → Por pagar, Líder → Nueva
   switchView(esDireccion()?'concentrado':(puedePagar()?'porpagar':'nueva'));
-  renderNueva();
   cargarTodo();
-  applyPrefillFromURL();
 }
 function logout(){try{sessionStorage.removeItem('CY_FIN_SESSION');}catch(e){}location.reload();}
 function switchView(id){
@@ -326,8 +327,9 @@ function switchView(id){
 const LOADING='<div class="loading"><div class="spinner"></div>Cargando…</div>';
 
 async function cargarTodo(){
-  ['concentradoBody','porpagarBody','miasBody','historialBody','proveedoresBody'].forEach(i=>{document.getElementById(i).innerHTML=LOADING;});
-  await Promise.all([cargarPagos(),cargarProveedores()]);
+  ['concentradoBody','porpagarBody','miasBody','historialBody','proveedoresBody','nuevaBody'].forEach(i=>{document.getElementById(i).innerHTML=LOADING;});
+  // La captura espera a tener proveedores (Matriz) y categorías; los pagos cargan en paralelo.
+  await Promise.all([cargarPagos(),Promise.all([cargarProveedores(),cargarCats()]).then(()=>{renderNueva();applyPrefillFromURL();})]);
 }
 async function cargarPagos(){
   try{
@@ -360,6 +362,15 @@ function fReqHtml(f){
 function clabeTxt(r){return r[C.forma]==='Transferencia'&&r[C.clabe]?`CLABE ${esc(r[C.clabe])}${r[C.banco]?' · '+esc(r[C.banco]):''}`:esc(r[C.forma]);}
 function kpi(lbl,val,sub){return `<div class="kpi"><div class="k-lbl">${lbl}</div><div class="k-val">${val}</div>${sub?`<div class="k-sub">${sub}</div>`:''}</div>`;}
 function suma(arr){return arr.reduce((a,r)=>a+num(r[C.monto]),0);}
+// Montos con moneda: nunca se suman pesos con dólares/euros; se muestran por separado.
+function monDe(r){return r[C.mon]||'MXN';}
+function fmtR(r){const m=monDe(r);return '$'+money(r[C.monto])+(m!=='MXN'?' <b class="mon">'+m+'</b>':'');}
+function sumaTxt(arr){
+  const t={};arr.forEach(r=>{const m=monDe(r);t[m]=(t[m]||0)+num(r[C.monto]);});
+  const ks=Object.keys(t).sort((a,b)=>a==='MXN'?-1:b==='MXN'?1:a.localeCompare(b));
+  if(!ks.length)return '$0.00';
+  return ks.map(m=>'$'+money(t[m])+(ks.length>1||m!=='MXN'?' <span class="mon">'+m+'</span>':'')).join('<br>');
+}
 
 // ————— Concentrado (Dirección autoriza; Admin/Full solo ven) —————
 let CONC_DEPTO='';
@@ -376,15 +387,15 @@ function renderConcentrado(){
   Object.keys(SEL).forEach(k=>{if(!pend.find(r=>r[C.id]===k))delete SEL[k];});
   const dir=esDireccion();
   let html=`<div class="kpis">
-    ${kpi('Por autorizar','$'+money(suma(pend)),pend.length+' solicitud(es)')}
-    ${kpi('Urgentes','$'+money(suma(urg)),urg.length+' solicitud(es)')}
-    ${kpi('Autorizado por pagar','$'+money(suma(aut)),aut.length+' en Administración')}
-    ${kpi('Pagado este mes','$'+money(suma(pagMes)),pagMes.length+' pago(s)')}
+    ${kpi('Por autorizar',sumaTxt(pend),pend.length+' solicitud(es)')}
+    ${kpi('Urgentes',sumaTxt(urg),urg.length+' solicitud(es)')}
+    ${kpi('Autorizado por pagar',sumaTxt(aut),aut.length+' en Administración')}
+    ${kpi('Pagado este mes',sumaTxt(pagMes),pagMes.length+' pago(s)')}
   </div>`;
   if(!pend.length){
     html+='<div class="empty">No hay solicitudes por autorizar. 🎉</div>';
   }else{
-    html+=`<div class="ctl"><label>Departamento</label><select onchange="CONC_DEPTO=this.value;renderConcentrado()"><option value="">Todos (${pend.length})</option>${deptos.map(d=>{const n=pend.filter(r=>(r[C.depto]||'—')===d);return `<option value="${esc(d)}"${d===CONC_DEPTO?' selected':''}>${esc(d)} · ${n.length} · $${money(suma(n))}</option>`;}).join('')}</select>
+    html+=`<div class="ctl"><label>Departamento</label><select onchange="CONC_DEPTO=this.value;renderConcentrado()"><option value="">Todos (${pend.length})</option>${deptos.map(d=>{const n=pend.filter(r=>(r[C.depto]||'—')===d);return `<option value="${esc(d)}"${d===CONC_DEPTO?' selected':''}>${esc(d)} · ${n.length} · ${sumaTxt(n).replace(/<br>/g,' + ').replace(/<[^>]+>/g,'')}</option>`;}).join('')}</select>
       ${dir?'':'<span class="sub">Solo Dirección autoriza. Vista de consulta.</span>'}</div>
     <div style="overflow-x:auto"><table class="aud"><thead><tr>
       ${dir?`<th><input type="checkbox" onchange="selTodos(this.checked)" ${vis.length&&vis.every(r=>SEL[r[C.id]])?'checked':''}></th>`:''}
@@ -396,17 +407,17 @@ function renderConcentrado(){
       <td>${esc(r[C.concepto])}<div class="sub">${esc(r[C.id])} · ${esc(r[C.cat])}</div>${r[C.notas]?`<div class="sub">“${esc(r[C.notas])}”</div>`:''}</td>
       <td class="hide-sm">${esc(r[C.depto]||'—')}<div class="sub">${esc(r[C.solNom])} · ${esc(r[C.fSol])}</div></td>
       <td>${docs(r)}</td>
-      <td class="num"><b>$${money(r[C.monto])}</b></td>
+      <td class="num"><b>${fmtR(r)}</b></td>
       ${dir?`<td><div class="row-actions"><button class="mini-btn ok" onclick="autorizar(['${esc(r[C.id])}'])">Autorizar</button><button class="mini-btn bad" onclick="modalRechazo('${esc(r[C.id])}')">Rechazar</button></div></td>`:''}
     </tr>`).join('')}</tbody></table></div>`;
     if(dir){
       const ids=Object.keys(SEL);const sel=pend.filter(r=>SEL[r[C.id]]);
-      html+=`<div class="selbar ${ids.length?'':'hidden'}"><span>${ids.length} seleccionada(s)</span><b>$${money(suma(sel))}</b><button class="cap-btn" onclick="autorizar(Object.keys(SEL))">Autorizar seleccionadas</button></div>`;
+      html+=`<div class="selbar ${ids.length?'':'hidden'}"><span>${ids.length} seleccionada(s)</span><b>${sumaTxt(sel)}</b><button class="cap-btn" onclick="autorizar(Object.keys(SEL))">Autorizar seleccionadas</button></div>`;
     }
   }
   if(aut.length){
     html+=`<div class="section-eyebrow">Autorizado · esperando pago de Administración (${aut.length})</div>
-      <table class="tabla-mini">${aut.sort((a,b)=>String(a[C.fReq]).localeCompare(String(b[C.fReq]))).map(r=>`<tr><td>${esc(r[C.id])}</td><td>${esc(r[C.prov])}</td><td>${fReqHtml(r[C.fReq])}</td><td class="num">$${money(r[C.monto])}</td></tr>`).join('')}</table>`;
+      <table class="tabla-mini">${aut.sort((a,b)=>String(a[C.fReq]).localeCompare(String(b[C.fReq]))).map(r=>`<tr><td>${esc(r[C.id])}</td><td>${esc(r[C.prov])}</td><td>${fReqHtml(r[C.fReq])}</td><td class="num">${fmtR(r)}</td></tr>`).join('')}</table>`;
   }
   el.innerHTML=html;
 }
@@ -415,7 +426,7 @@ function selTodos(on){PAGOS.filter(r=>r[C.est]==='Pendiente'&&(!CONC_DEPTO||(r[C
 async function autorizar(ids){
   const filas=PAGOS.filter(r=>ids.indexOf(r[C.id])!==-1);
   if(!filas.length)return;
-  if(!confirm(`¿Autorizar ${filas.length} pago(s) por $${money(suma(filas))}?`))return;
+  if(!confirm(`¿Autorizar ${filas.length} pago(s) por ${sumaTxt(filas).replace(/<[^>]+>/g,'')}?`))return;
   try{
     const j=await api('pagos_autorizar',{idPagos:ids,accionEstatus:'autorizar'});
     if(!j.ok){alert(j.error);return;}
@@ -426,7 +437,7 @@ async function autorizar(ids){
 }
 function modalRechazo(id){
   const r=PAGOS.find(x=>x[C.id]===id);
-  abrirModal(`<h2>Rechazar ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · $${money(r[C.monto])}</p>
+  abrirModal(`<h2>Rechazar ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · ${fmtR(r)}</p>
     <div class="fld"><label>Motivo (lo verá quien solicitó)</label><textarea id="mMotivo" rows="3"></textarea></div>
     <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" style="background:var(--bad)" onclick="rechazar('${esc(id)}')">Rechazar</button></div>`);
   document.getElementById('mMotivo').focus();
@@ -445,95 +456,164 @@ function renderPorPagar(){
   const aut=PAGOS.filter(r=>r[C.est]==='Autorizado').sort((a,b)=>(a[C.urg]==='Urgente'?0:1)-(b[C.urg]==='Urgente'?0:1)||String(a[C.fReq]||'9').localeCompare(String(b[C.fReq]||'9')));
   const sinFact=PAGOS.filter(r=>r[C.est]==='Pagado'&&!r[C.factura]&&!r[C.liga]);
   const paga=puedePagar();
-  let html=`<div class="kpis">${kpi('Por pagar','$'+money(suma(aut)),aut.length+' autorizado(s)')}${kpi('Efectivo a preparar','$'+money(suma(aut.filter(r=>r[C.forma]==='Efectivo'))))}${kpi('Pagados sin factura',sinFact.length,'$'+money(suma(sinFact)))}</div>`;
+  let html=`<div class="kpis">${kpi('Por pagar',sumaTxt(aut),aut.length+' autorizado(s)')}${kpi('Efectivo a preparar',sumaTxt(aut.filter(r=>r[C.forma]==='Efectivo')))}${kpi('Pagados sin factura',sinFact.length,sumaTxt(sinFact))}</div>`;
   if(!aut.length)html+='<div class="empty">Nada autorizado pendiente de pago.</div>';
   else html+=`<div class="cards">${aut.map(r=>`<div class="pcard ${r[C.urg]==='Urgente'?'urg':''}">
       <div><h3>${esc(r[C.prov])}</h3><div class="sub">${esc(r[C.id])} · ${esc(r[C.concepto])} · ${esc(r[C.depto]||'')} · solicitó ${esc(r[C.solNom])}</div>
       <div class="sub">Requerido ${fReqHtml(r[C.fReq])} ${r[C.urg]==='Urgente'?'· <b class="venc">URGENTE</b>':''} · autorizó ${esc(r[C.autPor])}</div>${docs(r)}</div>
-      <div class="monto">$${money(r[C.monto])}<div class="sub" style="text-align:right">${esc(r[C.forma])}</div></div>
+      <div class="monto">${fmtR(r)}<div class="sub" style="text-align:right">${esc(r[C.forma])}</div></div>
       <div class="bank">${r[C.forma]==='Transferencia'?`<span>CLABE <b>${esc(r[C.clabe])}</b> <button class="copy" onclick="copiar('${esc(r[C.clabe])}',this)">Copiar</button></span><span>${esc(r[C.banco]||'Banco no indicado')}</span>`:`<span>Pago en ${esc(r[C.forma]).toLowerCase()}</span>`}<span>${r[C.rfc]?'RFC '+esc(r[C.rfc]):'Sin RFC'}</span>
       ${paga?`<button class="mini-btn ok" style="margin-left:auto" onclick="modalPagar('${esc(r[C.id])}')">Registrar pago</button>`:''}</div>
     </div>`).join('')}</div>`;
   if(sinFact.length)html+=`<div class="section-eyebrow">Pagados · falta factura (${sinFact.length})</div>
-    <table class="tabla-mini">${sinFact.map(r=>`<tr><td>${esc(r[C.id])}</td><td>${esc(r[C.prov])}</td><td>${esc(r[C.solNom])}</td><td class="num">$${money(r[C.monto])}</td><td><button class="linkbtn" onclick="modalFactura('${esc(r[C.id])}')">+ Factura</button></td></tr>`).join('')}</table>`;
+    <table class="tabla-mini">${sinFact.map(r=>`<tr><td>${esc(r[C.id])}</td><td>${esc(r[C.prov])}</td><td>${esc(r[C.solNom])}</td><td class="num">${fmtR(r)}</td><td><button class="linkbtn" onclick="modalFactura('${esc(r[C.id])}')">+ Factura</button></td></tr>`).join('')}</table>`;
   el.innerHTML=html;
 }
 function copiar(t,btn){navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>{btn.textContent='✓';setTimeout(()=>btn.textContent='Copiar',1200);});}
+// ————— Archivos: se leen en el navegador y viajan al servidor, que los guarda en Drive —————
+// Fotos grandes se reducen (1600 px, JPEG) para que suban rápido desde el celular.
+const MAX_MB=10;
+function leerArchivo(inputId, tipo){
+  const inp=document.getElementById(inputId);
+  const f=inp&&inp.files&&inp.files[0];
+  if(!f)return Promise.resolve(null);
+  return new Promise((ok,mal)=>{
+    const fin=(blob,nombre)=>{
+      if(blob.size>MAX_MB*1024*1024){mal(new Error(f.name+' pesa más de '+MAX_MB+' MB.'));return;}
+      const fr=new FileReader();
+      fr.onload=()=>ok({tipo,nombre:nombre||f.name,mime:blob.type||'application/octet-stream',data:String(fr.result).split(',')[1]});
+      fr.onerror=()=>mal(new Error('No se pudo leer '+f.name));
+      fr.readAsDataURL(blob);
+    };
+    if(/^image\/(jpeg|png|webp|heic)/i.test(f.type) && f.size>1.5*1024*1024){
+      const img=new Image(),url=URL.createObjectURL(f);
+      img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+        c.toBlob(b=>fin(b||f,f.name.replace(/\.\w+$/,'')+'.jpg'),'image/jpeg',0.82);};
+      img.onerror=()=>{URL.revokeObjectURL(url);fin(f);};
+      img.src=url;
+    }else fin(f);
+  });
+}
+async function leerArchivos(pares){const out=[];for(const [id,tipo] of pares){const a=await leerArchivo(id,tipo);if(a)out.push(a);}return out;}
+function campoArchivo(id,label,actual,accept){
+  return `<div class="fld"><label>${label}</label><input id="${id}" type="file" accept="${accept||'application/pdf,image/*,.xml'}" class="file-in">${actual?`<div class="sub" style="margin-top:4px">Ya adjunta: ${link(actual,'ver archivo')} · elige otro solo si quieres reemplazarla</div>`:''}</div>`;
+}
+
 function modalPagar(id){
   const r=PAGOS.find(x=>x[C.id]===id);
-  abrirModal(`<h2>Registrar pago ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · <b>$${money(r[C.monto])}</b> · ${clabeTxt(r)}</p>
+  abrirModal(`<h2>Registrar pago ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · <b>${fmtR(r)}</b> · ${clabeTxt(r)}</p>
     <div class="fld"><label>Fecha de pago</label><input id="mFecha" type="date" value="${hoyMX()}"></div>
     <div class="fld"><label>Referencia / folio de transferencia</label><input id="mRef" placeholder="Ej. 0123456"></div>
-    <div class="fld"><label>Liga al comprobante (Drive)</label><input id="mComp" placeholder="https://drive.google.com/..."></div>
-    <p class="sub" style="margin-bottom:10px">Llena al menos la referencia o el comprobante.</p>
+    ${campoArchivo('mCompFile','Comprobante de pago (PDF o foto)')}
+    <p class="sub" style="margin-bottom:10px">Llena al menos la referencia o adjunta el comprobante.</p>
     <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" onclick="pagar('${esc(id)}')">Marcar pagado</button></div>`);
 }
 async function pagar(id){
-  const body={idPago:id,fechaPago:val('mFecha'),referenciaPago:val('mRef'),comprobante:val('mComp')};
-  if(!body.referenciaPago&&!body.comprobante){modalErr('Escribe la referencia o pega el comprobante.');return;}
-  const j=await api('pagos_pagar',body).catch(()=>({ok:false,error:'No se pudo procesar.'}));
-  if(!j.ok){modalErr(j.error);return;}
-  cerrarModal();cargarPagos();
+  try{
+    const archivos=await leerArchivos([['mCompFile','comprobante']]);
+    const body={idPago:id,fechaPago:val('mFecha'),referenciaPago:val('mRef'),archivos};
+    if(!body.referenciaPago&&!archivos.length){modalErr('Escribe la referencia o adjunta el comprobante.');return;}
+    document.getElementById('mMsg').innerHTML='<div class="okmsg">Guardando'+(archivos.length?' y subiendo comprobante':'')+'…</div>';
+    const j=await api('pagos_pagar',body);
+    if(!j.ok){modalErr(j.error);return;}
+    cerrarModal();cargarPagos();
+  }catch(e){modalErr(e.message||'No se pudo procesar.');}
 }
 function modalFactura(id){
   const r=PAGOS.find(x=>x[C.id]===id);
-  abrirModal(`<h2>Factura de ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · $${money(r[C.monto])}</p>
+  abrirModal(`<h2>Factura de ${esc(id)}</h2><p class="sub" style="margin-bottom:12px">${esc(r[C.prov])} · ${fmtR(r)}</p>
     <div class="fld"><label>Folio / UUID CFDI</label><input id="mFact" value="${esc(r[C.factura])}"></div>
-    <div class="fld"><label>Liga a la factura (Drive)</label><input id="mLiga" value="${esc(r[C.liga])}" placeholder="https://drive.google.com/..."></div>
+    ${campoArchivo('mFactFile','Factura (PDF, XML o foto)',r[C.liga])}
     <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" onclick="guardarFactura('${esc(id)}')">Guardar</button></div>`);
 }
 async function guardarFactura(id){
-  const j=await api('pagos_factura',{idPago:id,factura:val('mFact'),liga:val('mLiga')}).catch(()=>({ok:false,error:'No se pudo guardar.'}));
-  if(!j.ok){modalErr(j.error);return;}
-  cerrarModal();cargarPagos();
+  try{
+    const archivos=await leerArchivos([['mFactFile','factura']]);
+    if(!val('mFact')&&!archivos.length){modalErr('Escribe el folio o adjunta la factura.');return;}
+    document.getElementById('mMsg').innerHTML='<div class="okmsg">Guardando…</div>';
+    const j=await api('pagos_factura',{idPago:id,factura:val('mFact'),archivos});
+    if(!j.ok){modalErr(j.error);return;}
+    cerrarModal();cargarPagos();
+  }catch(e){modalErr(e.message||'No se pudo guardar.');}
 }
 
 // ————— Nueva solicitud / editar —————
+// Departamento = el de la sesión (Usuarios). Solo quien no tiene depto (Dirección/Full) lo elige.
+// Categorías = pestaña "Listas" de la Matriz según el depto; si no hay lista, la general.
+let PROV_SEL='';
+function deptoActual(){return SESSION.departamento||val('pDepto')||'';}
+function catsPara(depto){
+  if(!CATS)return ['OTROS'];
+  const cod=CATS.deptoCodigo[norm(depto)];
+  return (cod&&CATS.porCodigo[cod])||CATS.general;
+}
+function opcionesCat(depto,sel){
+  const l=catsPara(depto).slice();if(sel&&l.indexOf(sel)===-1)l.unshift(sel);
+  return l.map(c=>`<option${c===sel?' selected':''}>${esc(c)}</option>`).join('');
+}
 function renderNueva(){
   const r=EDITANDO;
   const ab=ventanaAbiertaMX()||esDireccion();
   const v=(k,d)=>r?esc(r[C[k]]):(d||'');
+  PROV_SEL=r?String(r[C.provId]||''):'';
+  const deptoFijo=SESSION.departamento;
+  const deptoIni=r?(r[C.depto]||deptoFijo||''):(deptoFijo||'');
+  const mon=r?(r[C.mon]||'MXN'):'MXN';
   document.getElementById('nuevaBody').innerHTML=`
     <div class="section-eyebrow">${r?'Editar solicitud '+esc(r[C.id]):'Nueva solicitud de pago'}</div>
     ${r?'':(ab?`<div class="banner ok">Recepción de solicitudes abierta · de sábado 00:00 a miércoles 12:00 pm.</div>`:`<div class="banner warn">Fuera de horario. Las solicitudes se reciben de <b>sábado (00:00) a miércoles 12:00 pm</b>. Puedes llenarla, pero no se enviará hasta que abra la ventana.</div>`)}
     <div class="cap-form">
       <div class="cap-grid">
         <div class="fld cap-full"><label>Proveedor</label>
-          <div class="ac-wrap"><input id="pProveedor" placeholder="Escribe 2-3 letras para buscar…" value="${v('prov')}" oninput="onProveedor(true)" onfocus="mostrarSug()" onblur="setTimeout(ocultarSug,180)" onkeydown="teclaSug(event)" autocomplete="off">
+          <div class="ac-wrap"><input id="pProveedor" placeholder="Nombre, razón social o RFC…" value="${v('prov')}" oninput="PROV_SEL='';onProveedor(true)" onfocus="mostrarSug()" onblur="setTimeout(ocultarSug,180)" onkeydown="teclaSug(event)" autocomplete="off">
           <div id="provSug" class="ac-list hidden"></div></div>
           <div id="provInfo"></div>
         </div>
+        <div class="fld"><label>Departamento</label>${deptoFijo?`<input value="${esc(deptoFijo)}" disabled>`:
+          `<select id="pDepto" onchange="document.getElementById('pCategoria').innerHTML=opcionesCat(this.value)"><option value="">— Elige —</option>${(CATS?CATS.deptos:[]).map(d=>`<option${d===deptoIni?' selected':''}>${esc(d)}</option>`).join('')}</select>`}</div>
+        <div class="fld"><label>Categoría</label><select id="pCategoria">${opcionesCat(deptoIni,r?r[C.cat]:'')}</select></div>
         <div class="fld cap-full"><label>Concepto</label><input id="pConcepto" placeholder="Ej. Reparación de bomba de alberca" value="${v('concepto')}"></div>
-        <div class="fld"><label>Monto total (MXN, con IVA)</label><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${v('monto')}"></div>
+        <div class="fld"><label>Monto total (con IVA)</label><div class="monto-wrap"><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${v('monto')}"><select id="pMoneda">${MONEDAS.map(m=>`<option${m===mon?' selected':''}>${m}</option>`).join('')}</select></div></div>
         <div class="fld"><label>Forma de pago</label><select id="pForma">${FORMAS_PAGO.map(c=>`<option${r&&r[C.forma]===c?' selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="fld"><label>Categoría</label><select id="pCategoria">${CATEGORIAS.map(c=>`<option${r&&r[C.cat]===c?' selected':''}>${c}</option>`).join('')}</select></div>
         <div class="fld"><label>¿Para cuándo se debe pagar?</label><input id="pFecha" type="date" value="${r?esc(r[C.fReq]):addDias(hoyMX(),3)}"></div>
         <div class="fld"><label>Urgencia</label><select id="pUrgencia"><option>Normal</option><option${r&&r[C.urg]==='Urgente'?' selected':''}>Urgente</option></select></div>
-        <div class="fld"><label>Liga a cotización (Drive)</label><input id="pCot" placeholder="https://… (recomendado)" value="${v('cot')}"></div>
-        <div class="fld"><label>Factura · folio (si ya la tienes)</label><input id="pFactura" placeholder="Puede llegar después" value="${v('factura')}"></div>
-        <div class="fld"><label>Factura · liga (Drive)</label><input id="pLiga" placeholder="https://…" value="${v('liga')}"></div>
+        <div class="cap-full">${campoArchivo('pCotFile','Cotización (PDF o foto) · recomendada',r?r[C.cot]:'')}</div>
+        <div>${campoArchivo('pFactFile','Factura (PDF, XML o foto) · puede llegar después',r?r[C.liga]:'')}</div>
+        <div class="fld"><label>Folio de factura (si ya la tienes)</label><input id="pFactura" placeholder="Opcional" value="${v('factura')}"></div>
         <div class="fld cap-full"><label>Notas para Dirección</label><textarea id="pNotas" rows="2" placeholder="Opcional">${v('notas')}</textarea></div>
       </div>
-      <button class="cap-btn" onclick="enviarPago()">${r?'Guardar cambios':'Enviar solicitud'}</button>
+      <p class="sub" style="margin-bottom:12px">Los archivos se guardan solos en Drive → “Requisiciones y Solicitud de Pagos”.</p>
+      <button class="cap-btn" id="btnEnviar" onclick="enviarPago()">${r?'Guardar cambios':'Enviar solicitud'}</button>
       ${r?'<button class="cap-btn sec" style="margin-left:8px" onclick="EDITANDO=null;renderNueva();switchView(\'mias\')">Cancelar</button>':''}
       <div id="nuevaMsg"></div>
     </div>`;
   onProveedor();
 }
-function provPorNombre(n){const k=norm(n);return PROVEEDORES_CACHE.find(p=>norm(p[1])===k&&p[9]!=='NO');}
-// ——— Buscador de proveedores (coincide en cualquier parte del nombre o RFC, sin acentos) ———
-function provActivos(){return PROVEEDORES_CACHE.filter(p=>p[9]!=='NO');}
+function provPorId(id){return id?PROVEEDORES_CACHE.find(p=>p[0]===id):null;}
+function provPorNombre(n){const k=norm(n);return k?PROVEEDORES_CACHE.find(p=>norm(p[1])===k||norm(p[3])===k):null;}
+function provSeleccionado(){return provPorId(PROV_SEL)||provPorNombre(val('pProveedor'));}
+function pagoTxt(p,completo){
+  if(p[7])return 'CLABE '+(completo?esc(p[7]):'••••'+esc(String(p[7]).slice(-4)))+(p[10]?' · '+esc(p[10]):'');
+  if(p[8])return 'Cuenta '+(completo?esc(p[8]):'registrada')+(p[10]?' · '+esc(p[10]):'');
+  return esc(p[11]||'Datos bancarios en Administración');
+}
+// ——— Buscador de proveedores (nombre comercial, razón social, RFC o ID; sin acentos) ———
 function mostrarSug(){
   const inp=document.getElementById('pProveedor'),box=document.getElementById('provSug');if(!inp||!box)return;
-  const t=norm(inp.value),lst=provActivos().filter(p=>!t||norm(p[1]+' '+p[6]).indexOf(t)!==-1).slice(0,8);
-  const exacto=provPorNombre(inp.value);
-  box.innerHTML=lst.map((p,i)=>`<div class="ac-item${i===0?' on':''}" onmousedown="elegirProv('${esc(p[0])}')"><b>${esc(p[1])}</b><span class="sub"> · ${p[6]?esc(p[6]):'sin RFC'} · ${p[7]?'Transferencia':'Efectivo'}</span></div>`).join('')
-    +(exacto?'':`<div class="ac-item ac-new" onmousedown="modalProveedor()">+ Registrar ${t?'“'+esc(inp.value.trim())+'”':'proveedor'} como nuevo</div>`)
-    +(!lst.length&&t?'<div class="ac-empty">Sin coincidencias en el catálogo.</div>':'');
+  const t=norm(inp.value);
+  // Orden: empieza igual > alguna palabra empieza igual > contiene
+  const pts=p=>{const n=norm(p[1]),r=norm(p[3]);if(n.startsWith(t)||r.startsWith(t)||norm(p[0])===t||norm(p[6]).startsWith(t))return 0;
+    if((' '+n+' '+r).indexOf(' '+t)!==-1)return 1;return norm(p[1]+' '+p[3]+' '+p[6]).indexOf(t)!==-1?2:9;};
+  const lst=(t?PROVEEDORES_CACHE.map(p=>[pts(p),p]).filter(x=>x[0]<9).sort((x,y)=>x[0]-y[0]).map(x=>x[1]):PROVEEDORES_CACHE).slice(0,8);
+  const exacto=provSeleccionado();
+  box.innerHTML=lst.map((p,i)=>`<div class="ac-item${i===0?' on':''}" onmousedown="elegirProv('${esc(p[0])}')"><b>${esc(p[1])}</b><span class="sub"> · ${p[3]?esc(p[3])+' · ':''}${p[6]?esc(p[6]):'sin RFC'} · ${esc(p[0])}</span></div>`).join('')
+    +(exacto?'':`<div class="ac-item ac-new" onmousedown="modalProveedor()">+ ¿Es nuevo? Registrar ${t?'“'+esc(inp.value.trim())+'”':'proveedor'}</div>`)
+    +(!lst.length&&t?'<div class="ac-empty">No está en la lista de proveedores.</div>':'');
   box.classList.toggle('hidden',!!exacto&&lst.length<=1);
 }
 function ocultarSug(){const b=document.getElementById('provSug');if(b)b.classList.add('hidden');}
-function elegirProv(id){const p=PROVEEDORES_CACHE.find(x=>x[0]===id);if(!p)return;document.getElementById('pProveedor').value=p[1];ocultarSug();onProveedor();}
+function elegirProv(id){const p=provPorId(id);if(!p)return;PROV_SEL=id;document.getElementById('pProveedor').value=p[1];ocultarSug();onProveedor(false,true);}
 function teclaSug(e){
   const box=document.getElementById('provSug');if(!box||box.classList.contains('hidden'))return;
   const it=[...box.querySelectorAll('.ac-item')];let i=it.findIndex(x=>x.classList.contains('on'));
@@ -541,38 +621,43 @@ function teclaSug(e){
   else if(e.key==='Enter'&&i>=0){e.preventDefault();it[i].dispatchEvent(new MouseEvent('mousedown'));}
   else if(e.key==='Escape')ocultarSug();
 }
-function onProveedor(desdeTeclado){
+function onProveedor(desdeTeclado,recienElegido){
   const inp=document.getElementById('pProveedor');if(!inp)return;
   if(desdeTeclado)mostrarSug();
   const box=document.getElementById('provInfo'),forma=document.getElementById('pForma');
-  const txt=inp.value.trim(),p=provPorNombre(txt);
-  forma.options[0].disabled=false;
+  const txt=inp.value.trim(),p=provSeleccionado();
   if(p){
-    const soloEf=!p[7];
-    if(soloEf){forma.value=forma.value==='Transferencia'?'Efectivo':forma.value;forma.options[0].disabled=true;}
-    box.innerHTML=`<div class="prov-card">✓ ${esc(p[1])} · ${p[6]?'RFC '+esc(p[6]):'Sin RFC'} · ${soloEf?'Solo efectivo':'CLABE ••••'+esc(String(p[7]).slice(-4))+(p[10]?' · '+esc(p[10]):'')}</div>`;
+    if(!PROV_SEL)PROV_SEL=p[0];
+    // Forma sugerida según la Matriz (se puede cambiar)
+    if(recienElegido){const f=String(p[11]).toUpperCase();forma.value=(p[7]||p[8]||/TRANSF/.test(f))?'Transferencia':(/EFEC/.test(f)?'Efectivo':forma.value);}
+    box.innerHTML=`<div class="prov-card">✓ <b>${esc(p[1])}</b> <span class="sub">${esc(p[0])}</span>${p[3]?`<div class="sub">${esc(p[3])}</div>`:''}<div class="sub">${p[6]?'RFC '+esc(p[6]):'Sin RFC'} · ${pagoTxt(p,false)}</div></div>`;
   }else if(txt){
-    box.innerHTML=`<div class="sub" style="margin-top:6px">Elige un proveedor de la lista. ¿No existe? <button class="linkbtn" onclick="modalProveedor()">+ Registrar nuevo</button></div>`;
+    box.innerHTML=`<div class="sub" style="margin-top:6px">Elige un proveedor de la lista. ¿Es nuevo? <button class="linkbtn" onclick="modalProveedor()">+ Registrar proveedor nuevo</button></div>`;
   }else box.innerHTML=`<div class="sub" style="margin-top:6px">¿No aparece? <button class="linkbtn" onclick="modalProveedor()">+ Registrar proveedor nuevo</button></div>`;
 }
 const val=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
 async function enviarPago(){
-  const msg=document.getElementById('nuevaMsg');
-  const p=provPorNombre(val('pProveedor'));
-  if(!p){msg.innerHTML='<div class="errbox">Elige un proveedor registrado (o regístralo con “+ Registrar proveedor”).</div>';return;}
+  const msg=document.getElementById('nuevaMsg'),btn=document.getElementById('btnEnviar');
+  const p=provSeleccionado();
+  if(!p){msg.innerHTML='<div class="errbox">Elige un proveedor de la lista (o regístralo si es nuevo).</div>';return;}
   const monto=num(val('pMonto'));
   if(!val('pConcepto')||monto<=0){msg.innerHTML='<div class="errbox">Concepto y monto son obligatorios.</div>';return;}
+  if(!SESSION.departamento&&!val('pDepto')){msg.innerHTML='<div class="errbox">Elige el departamento.</div>';return;}
   if(!EDITANDO && !ventanaAbiertaMX() && !esDireccion()){msg.innerHTML='<div class="errbox">Fuera de horario: se reciben de sábado 00:00 a miércoles 12:00 pm.</div>';return;}
-  const body={proveedorId:p[0],proveedor:p[1],concepto:val('pConcepto'),monto,formaPago:val('pForma'),categoria:val('pCategoria'),
-    fechaRequerida:val('pFecha'),urgencia:val('pUrgencia'),cotizacion:val('pCot'),factura:val('pFactura'),liga:val('pLiga'),notas:val('pNotas')};
-  msg.innerHTML='<div class="okmsg">Enviando…</div>';
+  btn.disabled=true;
   try{
+    const archivos=await leerArchivos([['pCotFile','cotizacion'],['pFactFile','factura']]);
+    const body={proveedorId:p[0],proveedor:p[1],concepto:val('pConcepto'),monto,moneda:val('pMoneda'),formaPago:val('pForma'),
+      categoria:val('pCategoria'),departamento:deptoActual(),fechaRequerida:val('pFecha'),urgencia:val('pUrgencia'),
+      factura:val('pFactura'),notas:val('pNotas'),archivos};
+    msg.innerHTML='<div class="okmsg">Enviando'+(archivos.length?' y subiendo '+archivos.length+' archivo(s)':'')+'…</div>';
     const j=EDITANDO?await api('pagos_editar',Object.assign({idPago:EDITANDO[C.id]},body)):await api('pagos_crear',body);
-    if(!j.ok){msg.innerHTML=`<div class="errbox">${esc(j.error)}</div>`;return;}
+    if(!j.ok){msg.innerHTML=`<div class="errbox">${esc(j.error)}</div>`;btn.disabled=false;return;}
     const fueEdit=!!EDITANDO;EDITANDO=null;renderNueva();
-    document.getElementById('nuevaMsg').innerHTML=`<div class="okmsg">${fueEdit?'Cambios guardados.':'Solicitud '+esc(j.id||'')+' enviada a Dirección.'} La ves en “Mis solicitudes”.</div>`;
+    document.getElementById('nuevaMsg').innerHTML=`<div class="okmsg">${fueEdit?'Cambios guardados.':'Solicitud '+esc(j.id||'')+' enviada a Dirección.'} La ves en “Mis solicitudes”.</div>`+
+      ((j.avisos&&j.avisos.length)?`<div class="banner warn">${esc(j.avisos.join(' · '))} — agrégalo después desde “Mis solicitudes”.</div>`:'');
     cargarPagos();
-  }catch(e){msg.innerHTML='<div class="errbox">No se pudo enviar. Revisa tu conexión.</div>';}
+  }catch(e){msg.innerHTML=`<div class="errbox">${esc(e.message||'No se pudo enviar. Revisa tu conexión.')}</div>`;btn.disabled=false;}
 }
 function applyPrefillFromURL(){
   const p=new URLSearchParams(location.search);
@@ -590,11 +675,11 @@ function renderMias(){
   const mias=PAGOS.filter(r=>String(r[C.solId])===String(SESSION.id));
   if(!mias.length){el.innerHTML='<div class="empty">Aún no has enviado solicitudes de pago.</div>';return;}
   const pend=mias.filter(r=>r[C.est]==='Pendiente'),aut=mias.filter(r=>r[C.est]==='Autorizado');
-  el.innerHTML=`<div class="kpis">${kpi('En revisión de Dirección','$'+money(suma(pend)),pend.length+' solicitud(es)')}${kpi('Autorizado, por pagar','$'+money(suma(aut)),aut.length+' solicitud(es)')}</div>
+  el.innerHTML=`<div class="kpis">${kpi('En revisión de Dirección',sumaTxt(pend),pend.length+' solicitud(es)')}${kpi('Autorizado, por pagar',sumaTxt(aut),aut.length+' solicitud(es)')}</div>
   <div style="overflow-x:auto"><table class="aud"><thead><tr><th>ID · fecha</th><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Estatus</th><th>Docs</th><th></th></tr></thead><tbody>
   ${mias.map(r=>{
     const e=r[C.est],vivo=e!=='Rechazado'&&e!=='Cancelado';
-    return `<tr><td>${esc(r[C.id])}<div class="sub">${esc(r[C.fSol])}</div></td><td>${esc(r[C.prov])}</td><td>${esc(r[C.concepto])}</td><td class="num">$${money(r[C.monto])}</td>
+    return `<tr><td>${esc(r[C.id])}<div class="sub">${esc(r[C.fSol])}</div></td><td>${esc(r[C.prov])}</td><td>${esc(r[C.concepto])}</td><td class="num">${fmtR(r)}</td>
     <td>${pill(e)}${e==='Rechazado'&&r[C.motivo]?`<div class="sub">${esc(r[C.motivo])}</div>`:''}${e==='Pagado'?`<div class="sub">${esc(r[C.fPago])}</div>`:''}</td>
     <td>${docs(r)}</td>
     <td><div class="row-actions">${e==='Pendiente'?`<button class="mini-btn info" onclick="editar('${esc(r[C.id])}')">Editar</button><button class="mini-btn ghost" onclick="cancelar('${esc(r[C.id])}')">Cancelar</button>`:''}${vivo&&!r[C.factura]&&!r[C.liga]?`<button class="mini-btn ghost" onclick="modalFactura('${esc(r[C.id])}')">+ Factura</button>`:''}</div></td></tr>`;}).join('')}
@@ -616,15 +701,16 @@ function filtrarHistorial(){
 }
 function renderHistorial(){
   const el=document.getElementById('historialBody'),filas=filtrarHistorial();
-  const porCat={};filas.filter(r=>r[C.est]!=='Rechazado'&&r[C.est]!=='Cancelado').forEach(r=>{porCat[r[C.cat]]=(porCat[r[C.cat]]||0)+num(r[C.monto]);});
+  const vivos=filas.filter(r=>r[C.est]!=='Rechazado'&&r[C.est]!=='Cancelado');
+  const porCat={};vivos.filter(r=>monDe(r)==='MXN').forEach(r=>{porCat[r[C.cat]]=(porCat[r[C.cat]]||0)+num(r[C.monto]);});
   let top='–',tv=0;Object.keys(porCat).forEach(c=>{if(porCat[c]>tv){tv=porCat[c];top=c;}});
   const pag=filas.filter(r=>r[C.est]==='Pagado');
-  document.getElementById('historialKpis').innerHTML=`<div class="kpis">${kpi('Pagado en el rango','$'+money(suma(pag)),pag.length+' pago(s)')}${kpi('Solicitado (sin rechazos)','$'+money(Object.values(porCat).reduce((a,b)=>a+b,0)))}${kpi('Categoría top','<span style="font-size:15px">'+esc(top)+'</span>','$'+money(tv))}</div>`;
+  document.getElementById('historialKpis').innerHTML=`<div class="kpis">${kpi('Pagado en el rango',sumaTxt(pag),pag.length+' pago(s)')}${kpi('Solicitado (sin rechazos)',sumaTxt(vivos))}${kpi('Categoría top (MXN)','<span style="font-size:15px">'+esc(top)+'</span>','$'+money(tv))}</div>`;
   if(!filas.length){el.innerHTML='<div class="empty">Sin resultados para ese filtro.</div>';return;}
   el.innerHTML=`<div style="overflow-x:auto"><table class="aud" id="histTable"><thead><tr>
     <th>ID</th><th>Fecha</th><th>Depto</th><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Forma</th><th>Estatus</th><th>Autorizó</th><th>Pago</th><th class="no-pdf">Docs</th>
   </tr></thead><tbody>${filas.map(r=>`<tr><td>${esc(r[C.id])}</td><td>${esc(r[C.fSol])}</td><td>${esc(r[C.depto])}</td><td>${esc(r[C.prov])}</td><td>${esc(r[C.concepto])}</td>
-    <td class="num">$${money(r[C.monto])}</td><td>${esc(r[C.forma])}</td><td>${pill(r[C.est])}${r[C.est]==='Rechazado'&&r[C.motivo]?`<div class="sub">${esc(r[C.motivo])}</div>`:''}</td>
+    <td class="num">${fmtR(r)}</td><td>${esc(r[C.forma])}</td><td>${pill(r[C.est])}${r[C.est]==='Rechazado'&&r[C.motivo]?`<div class="sub">${esc(r[C.motivo])}</div>`:''}</td>
     <td>${esc(r[C.autPor]||'–')}</td><td>${r[C.fPago]?esc(r[C.fPago])+(r[C.ref]?' · '+esc(r[C.ref]):''):'–'}</td><td class="no-pdf">${docs(r)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function pdfHistorial(){
@@ -642,14 +728,19 @@ function pdfHistorial(){
 }
 function csvHistorial(){
   const filas=filtrarHistorial();if(!filas.length){alert('No hay datos para ese filtro.');return;}
-  const head=['ID','FechaSolicitud','Departamento','Solicitó','Proveedor','RFC','Categoría','Concepto','Monto','Forma','CLABE','Banco','FechaRequerida','Urgencia','Estatus','Autorizó','FechaAutorización','Motivo','FechaPago','Referencia','Factura','LigaFactura','Cotización','Comprobante','PagadoPor'];
-  const k=['id','fSol','depto','solNom','prov','rfc','cat','concepto','monto','forma','clabe','banco','fReq','urg','est','autPor','fAut','motivo','fPago','ref','factura','liga','cot','comp','pagPor'];
+  const head=['ID','FechaSolicitud','Departamento','Solicitó','Proveedor','RFC','Categoría','Concepto','Monto','Moneda','Forma','CLABE','Banco','FechaRequerida','Urgencia','Estatus','Autorizó','FechaAutorización','Motivo','FechaPago','Referencia','Factura','LigaFactura','Cotización','Comprobante','PagadoPor'];
+  const k=['id','fSol','depto','solNom','prov','rfc','cat','concepto','monto','mon','forma','clabe','banco','fReq','urg','est','autPor','fAut','motivo','fPago','ref','factura','liga','cot','comp','pagPor'];
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const csv='﻿'+[head.map(q).join(',')].concat(filas.map(r=>k.map(x=>x==='clabe'&&r[C.clabe]?q('\t'+r[C.clabe]):q(r[C[x]])).join(','))).join('\r\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='pagos_'+val('hDesde')+'_'+val('hHasta')+'.csv';a.click();
 }
 
-// ————— Proveedores —————
+// ————— Proveedores (= "Property Vendor List" de la Matriz) —————
+let CATS=null;
+async function cargarCats(){
+  try{const j=await apiGet({accion:'pagos_categorias_list',id:SESSION.id,pin:SESSION.pin});if(j.ok)CATS=j;}catch(e){}
+  if(!CATS)CATS={porCodigo:{},general:['OTROS'],deptoCodigo:{},deptos:[]};
+}
 async function cargarProveedores(){
   try{
     const j=await apiGet({accion:'proveedores_list',id:SESSION.id,pin:SESSION.pin});
@@ -661,56 +752,80 @@ async function cargarProveedores(){
 }
 function renderProveedores(){
   document.getElementById('proveedoresBody').innerHTML=`
-    <div class="ctl"><button class="cap-btn" onclick="modalProveedor()">+ Nuevo proveedor</button><input id="provBuscar" placeholder="Buscar…" oninput="renderProvTabla()" style="width:200px"></div>
+    <div class="ctl"><input id="provBuscar" placeholder="Buscar nombre, razón social, RFC…" oninput="renderProvTabla()" style="width:260px"><button class="cap-btn" onclick="modalProveedor()">+ Proveedor nuevo</button></div>
+    <p class="sub" style="margin:-10px 0 14px">Esta lista es la “Property Vendor List” de la Matriz Proveedores. Registra solo proveedores que no aparezcan aquí.</p>
     <div id="provTabla"></div>`;
   renderProvTabla();
 }
 function renderProvTabla(){
   const t=norm(val('provBuscar')),ed=editaProveedores();
-  const lst=PROVEEDORES_CACHE.filter(p=>!t||norm(p[1]+' '+p[2]+' '+p[6]).indexOf(t)!==-1);
-  document.getElementById('provTabla').innerHTML=`<div class="section-eyebrow">Catálogo (${lst.length})</div><div style="overflow-x:auto"><table class="aud"><thead><tr><th>Nombre</th><th>Categoría</th><th>RFC</th><th>Pago</th><th>Contacto</th>${ed?'<th></th>':''}</tr></thead><tbody>
-    ${lst.map(p=>`<tr${p[9]==='NO'?' style="opacity:.5"':''}><td>${esc(p[1])}<div class="sub">${esc(p[0])}</div></td><td>${esc(p[2])}</td><td>${esc(p[6]||'Sin RFC')}</td>
-      <td>${p[7]?`CLABE ${ed?esc(p[7]):'••••'+esc(String(p[7]).slice(-4))}<div class="sub">${esc(p[10])}</div>`:'Solo efectivo'}</td><td>${esc(p[3])}<div class="sub">${esc(p[4])}</div></td>
-      ${ed?`<td><button class="mini-btn ghost" onclick="modalProveedor('${esc(p[0])}')">Editar</button></td>`:''}</tr>`).join('')||'<tr><td colspan="6" class="empty">Aún no hay proveedores registrados.</td></tr>'}
+  const todos=PROVEEDORES_CACHE.filter(p=>!t||norm(p[1]+' '+p[3]+' '+p[2]+' '+p[6]+' '+p[0]).indexOf(t)!==-1);
+  const lst=todos.slice(0,150);
+  document.getElementById('provTabla').innerHTML=`<div class="section-eyebrow">Proveedores (${todos.length}${todos.length>lst.length?' · mostrando 150, usa el buscador':''})</div><div style="overflow-x:auto"><table class="aud"><thead><tr><th>Proveedor</th><th>Giro</th><th>RFC</th><th>Pago</th><th>Teléfono</th>${ed?'<th></th>':''}</tr></thead><tbody>
+    ${lst.map(p=>`<tr><td><b>${esc(p[1])}</b><div class="sub">${esc(p[0])}${p[3]?' · '+esc(p[3]):''}</div></td><td>${esc(p[2])}</td><td>${esc(p[6]||'—')}</td>
+      <td>${pagoTxt(p,ed)}</td><td>${esc(p[4])}</td>
+      ${ed?`<td><button class="mini-btn ghost" onclick="modalProveedor('${esc(p[0])}')">Editar</button></td>`:''}</tr>`).join('')||'<tr><td colspan="6" class="empty">Sin resultados.</td></tr>'}
   </tbody></table></div>`;
 }
+// Alta de proveedor NUEVO (cualquier líder) o corrección de datos (Administración/Dirección).
 function modalProveedor(idEditar){
-  const p=idEditar?PROVEEDORES_CACHE.find(x=>x[0]===idEditar):null;
+  const p=idEditar?provPorId(idEditar):null;
   const nombre=p?p[1]:(val('pProveedor')||'');
-  const ef=p?!p[7]:false;
-  abrirModal(`<h2>${p?'Editar proveedor':'Nuevo proveedor'}</h2>
-    <div class="fld"><label>Nombre o razón social</label><input id="vNombre" value="${esc(nombre)}" ${p?'disabled':''}></div>
-    <div class="fld"><label>Categoría</label><select id="vCategoria">${CATEGORIAS.map(c=>`<option${p&&p[2]===c?' selected':''}>${c}</option>`).join('')}</select></div>
+  const forma=p?(p[7]?'Transferencia':(p[8]?'Internacional':'Efectivo')):'Transferencia';
+  const radio=(v,t)=>`<label><input type="radio" name="vForma" value="${v}" ${forma===v?'checked':''} onchange="toggleClabe()"><span>${t}</span></label>`;
+  abrirModal(`<h2>${p?'Editar '+esc(p[0]):'Proveedor nuevo'}</h2>
+    ${p?'':'<p class="sub" style="margin-bottom:12px">Antes de registrar, búscalo en la lista: si ya está, no hace falta capturar sus datos bancarios.</p>'}
+    <div class="fld"><label>Nombre comercial</label><input id="vNombre" value="${esc(nombre)}" ${p?'disabled':''} style="text-transform:uppercase"></div>
+    ${p?'':`<div class="fld"><label>Razón social (como aparece en la factura)</label><input id="vRazon" style="text-transform:uppercase" placeholder="Opcional"></div>
+    <div class="fld"><label>Giro / qué vende o qué servicio da</label><input id="vDesc" placeholder="Ej. Jardinería, Refrigeración" style="text-transform:uppercase"></div>`}
     <div class="fld"><label>RFC</label><input id="vRfc" value="${esc(p?p[6]:'')}" placeholder="Déjalo vacío si no tiene" style="text-transform:uppercase"></div>
-    <div class="fld"><label>¿Cómo se le paga?</label><div class="seg">
-      <label><input type="radio" name="vForma" value="Transferencia" ${ef?'':'checked'} onchange="toggleClabe()"><span>Transferencia</span></label>
-      <label><input type="radio" name="vForma" value="Efectivo" ${ef?'checked':''} onchange="toggleClabe()"><span>Solo efectivo</span></label></div></div>
+    <div class="fld"><label>¿Cómo se le paga?</label><div class="seg">${radio('Transferencia','Transferencia')}${radio('Efectivo','Solo efectivo')}${radio('Internacional','Extranjero')}</div></div>
     <div id="vClabeWrap">
-      <div class="fld"><label>CLABE (18 dígitos) o tarjeta de débito (16)</label><input id="vClabe" inputmode="numeric" maxlength="22" value="${esc(p?p[7]:'')}"></div>
-      <div class="fld"><label>Banco</label><input id="vBanco" value="${esc(p?p[10]:'')}"></div>
+      <div class="fld"><label>CLABE (18 dígitos) o tarjeta de débito (16)</label><input id="vClabe" inputmode="numeric" maxlength="24" value="${esc(p?p[7]:'')}"></div>
     </div>
-    <div class="fld"><label>Contacto</label><input id="vContacto" value="${esc(p?p[3]:'')}" placeholder="Nombre"></div>
+    <div id="vIntlWrap" class="hidden">
+      <div class="fld"><label>Cuenta / IBAN y SWIFT-BIC</label><textarea id="vCuenta" rows="2" placeholder="IBAN FR76… · BIC QNTOFRP1XXX">${esc(p?p[8]:'')}</textarea></div>
+    </div>
+    <div id="vBancoWrap" class="fld"><label>Banco</label><input id="vBanco" value="${esc(p?p[10]:'')}"></div>
     <div class="fld"><label>Teléfono</label><input id="vTelefono" value="${esc(p?p[4]:'')}" inputmode="tel"></div>
-    ${p?`<div class="fld"><label>Activo</label><select id="vActivo"><option>SI</option><option${p[9]==='NO'?' selected':''}>NO</option></select></div>`:''}
+    <div class="fld"><label>Correo</label><input id="vEmail" type="email" value="${esc(p?p[5]:'')}" placeholder="Opcional"></div>
     <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" onclick="guardarProveedor(${p?`'${esc(p[0])}'`:''})">Guardar</button></div>`);
   toggleClabe();
 }
-function toggleClabe(){const ef=document.querySelector('input[name=vForma]:checked').value==='Efectivo';document.getElementById('vClabeWrap').classList.toggle('hidden',ef);}
+function toggleClabe(){
+  const f=document.querySelector('input[name=vForma]:checked').value;
+  document.getElementById('vClabeWrap').classList.toggle('hidden',f!=='Transferencia');
+  document.getElementById('vIntlWrap').classList.toggle('hidden',f!=='Internacional');
+  document.getElementById('vBancoWrap').classList.toggle('hidden',f==='Efectivo');
+}
 async function guardarProveedor(idEditar){
   const forma=document.querySelector('input[name=vForma]:checked').value;
   const clabe=val('vClabe').replace(/\D/g,'');
   const rfc=val('vRfc').toUpperCase().replace(/[\s\-\.]/g,'');
   if(!val('vNombre')){modalErr('El nombre es obligatorio.');return;}
   if(forma==='Transferencia'&&clabe.length!==18&&clabe.length!==16){modalErr('Escribe una CLABE de 18 dígitos o una tarjeta de 16 (llevas '+clabe.length+'). Si se le paga en efectivo, marca “Solo efectivo”.');return;}
+  if(forma==='Internacional'&&val('vCuenta').length<8){modalErr('Escribe la cuenta o IBAN y el SWIFT/BIC.');return;}
   if(rfc&&!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)){modalErr('El RFC debe tener 12 o 13 caracteres (ej. MARF800711BA5). Si no tiene, déjalo vacío.');return;}
-  const body={nombre:val('vNombre'),categoria:val('vCategoria'),rfc,formaPagoProv:forma,clabe,banco:val('vBanco'),contacto:val('vContacto'),telefono:val('vTelefono')};
-  if(idEditar){body.proveedorId=idEditar;body.activo=val('vActivo');}
-  modalErr('');document.getElementById('mMsg').innerHTML='<div class="okmsg">Guardando…</div>';
+  const body={nombre:val('vNombre'),razonSocial:val('vRazon'),descripcion:val('vDesc'),rfc,formaPagoProv:forma,clabe,cuenta:val('vCuenta'),
+    banco:val('vBanco'),telefono:val('vTelefono'),email:val('vEmail')};
+  if(idEditar)body.proveedorId=idEditar;
+  modalErr('');document.getElementById('mMsg').innerHTML='<div class="okmsg">Guardando en la Matriz…</div>';
   const j=await api(idEditar?'proveedores_actualizar':'proveedores_crear',body).catch(()=>({ok:false,error:'No se pudo guardar.'}));
-  if(!j.ok){modalErr(j.error);return;}
+  if(!j.ok){
+    modalErr(j.error);
+    // Si ya existía, ofrecer usarlo directo
+    if(j.id&&!idEditar&&provPorId(j.id))document.getElementById('mMsg').insertAdjacentHTML('beforeend',`<button class="cap-btn sec" style="margin-top:8px" onclick="cerrarModal();switchView('nueva');elegirProv('${esc(j.id)}')">Usar ${esc(j.id)}</button>`);
+    return;
+  }
   cerrarModal();
   await cargarProveedores();
-  if(!idEditar&&document.getElementById('pProveedor')){document.getElementById('pProveedor').value=body.nombre;onProveedor();}
+  if(!idEditar&&document.getElementById('pProveedor')){
+    // Dejar claro que registrar el proveedor NO es enviar la solicitud
+    switchView('nueva');elegirProv(j.id);
+    document.getElementById('nuevaMsg').innerHTML='';
+    document.getElementById('provInfo').insertAdjacentHTML('beforeend','<div class="banner warn" style="margin:8px 0 0">Proveedor '+esc(j.id)+' registrado en la Matriz ✓ — <b>falta enviar la solicitud</b>: llena concepto y monto y presiona “Enviar solicitud”.</div>');
+    document.getElementById('pConcepto').focus();
+  }
 }
 
 // ————— Modal —————
