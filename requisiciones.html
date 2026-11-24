@@ -251,6 +251,7 @@ select,.ctl input{font-family:var(--mono);font-size:14px;padding:9px 12px;border
   <main>
     <section class="view active" id="v-nueva"><div id="nuevaBody"></div></section>
     <section class="view" id="v-pendientes"><div id="pendientesBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
+    <section class="view" id="v-porrecibir"><div id="porRecibirBody"><div class="loading"><div class="spinner"></div>Cargando…</div></div></section>
     <section class="view" id="v-historial">
       <div class="ctl">
         <label>Desde</label><input id="hDesde" type="date">
@@ -462,6 +463,7 @@ function entrarApp(){
   CATALOGO_PROMISE.then(renderNueva);
   if(esAprobador())cargarPendientes();
   actualizarBadgeComprasLinea();
+  if(esLiderNormal()) actualizarPorRecibir();
   // Fija/oculta el filtro de depto según el rol (líder normal solo ve el suyo)
   const wrap=document.getElementById('hDeptoWrap');
   if(esLiderNormal()){wrap.classList.add('hidden');}
@@ -491,6 +493,7 @@ const TABDEFS_COMPRAS=[
 ];
 const TABDEFS_LIDER=[
   {id:'nueva',label:'Nueva requisición'},
+  {id:'porrecibir',label:'Por recibir'},
   {id:'compraslinea',label:'Compras en línea'},
   {id:'historial',label:'Mis solicitudes'},
   {id:'gasto',label:'Gasto de mi depto'},
@@ -517,6 +520,7 @@ function switchView(id,btn){document.querySelectorAll('nav.tabs button').forEach
   if(id==='compraslinea') renderCompraLinea();
   if(id==='acumulados') cargarAcumulados();
   if(id==='porcomprar') cargarPorComprar();
+  if(id==='porrecibir') cargarPorRecibir();
 }
 
 // ————— Catálogo —————
@@ -528,6 +532,7 @@ async function cargarCatalogo(){
 let PEDIDO_TOKEN='', CL_TOKEN='';
 function nuevoToken(){ return SESSION.id+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
 function renderNueva(){
+  setTimeout(pintarAvisoPorRecibir,0);
   CARRITO=[];
   PEDIDO_TOKEN=nuevoToken();
   CATEGORIA_ACTIVA='';
@@ -538,6 +543,7 @@ function renderNueva(){
   const deptoDisabled = esLiderNormal() ? 'disabled' : '';
   document.getElementById('nuevaBody').innerHTML=`
     <div class="section-eyebrow">Nueva requisición</div>
+    <div id="avisoPorRecibir"></div>
     <div class="grid2">
       <div class="cap-form">
         <div class="cap-grid">
@@ -820,6 +826,7 @@ function renderCarrito(){
 }
 async function enviarPedido(){
   if(!CARRITO.length){ alert('Agrega al menos un artículo a la lista.'); return; }
+  if(esLiderNormal() && !esGerenciaDepto() && POR_RECIBIR_N>0){ irPorRecibir(); return; }
   const deptoSel=document.getElementById('rDepto');
   const departamento = esLiderNormal() ? SESSION.departamento : deptoSel.value;
   const msg=document.getElementById('nuevaMsg');
@@ -838,7 +845,7 @@ async function enviarPedido(){
   msg.innerHTML='<div class="okmsg">Enviando…</div>';
   try{
     const j=await apiPost(body);
-    if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;liberar();return;}
+    if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;liberar();if(j.porRecibir){POR_RECIBIR_N=j.porRecibir;pintarAvisoPorRecibir();}return;}
     const okTxt = esSuperfull()
       ? `Pedido ${j.id} enviado y aprobado (${j.items} artículo(s)). Compras ya lo ve en "Por comprar".`
       : `Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${esAprobador()?'"Pendientes"':'"Historial"'}.`;
@@ -1771,6 +1778,95 @@ async function rechazarCompraLinea(idCompra){
     const r=CL_FILAS.find(x=>String(x[0])===String(idCompra)); if(r){ r[12]='Rechazada'; r[14]=motivo; }
     renderListaCL(); actualizarBadgeComprasLinea();
   }catch(e){ alert('No se pudo procesar.'); }
+}
+
+
+// ————— Por recibir (líderes) — nov-2026 —————
+// Lo que Compras ya marcó como Comprado y el departamento aún no marca como Recibido.
+// Mientras haya algo aquí, el líder no puede enviar requisiciones nuevas (lo valida también el
+// servidor). Si algo no llegó, "No llegó" lo regresa a Compras ("Por comprar") y deja de bloquear.
+let POR_RECIBIR_N=0, POR_RECIBIR_FILAS=[];
+const SEL_RECIBIR=new Set();
+async function actualizarPorRecibir(){
+  try{
+    const j=await apiGet({accion:'requisiciones_list',id:SESSION.id,pin:SESSION.pin,estatus:'Comprada'});
+    if(!j.ok) return;
+    POR_RECIBIR_FILAS=j.filas||[]; POR_RECIBIR_N=POR_RECIBIR_FILAS.length;
+  }catch(e){ return; }
+  const b=document.querySelector('nav.tabs button[data-view="porrecibir"]');
+  if(b) b.innerHTML='Por recibir'+(POR_RECIBIR_N>0?' <span class="tab-badge" style="background:var(--bad);color:#fff">'+POR_RECIBIR_N+'</span>':'');
+  pintarAvisoPorRecibir();
+}
+function pintarAvisoPorRecibir(){
+  const el=document.getElementById('avisoPorRecibir'); if(!el) return;
+  const btn=document.getElementById('btnEnviarPedido');
+  const bloquea = esLiderNormal() && !esGerenciaDepto() && POR_RECIBIR_N>0;
+  el.innerHTML = bloquea ? `<div class="errbox" style="margin-bottom:14px">
+      Tienes <b>${POR_RECIBIR_N}</b> producto(s) comprados sin marcar como recibidos. Antes de enviar un pedido nuevo,
+      marca lo que te llegó (o "No llegó" en lo que falta).
+      <div style="margin-top:8px"><button class="mini-btn ok" onclick="irPorRecibir()">Ir a Por recibir</button></div></div>` : '';
+  if(btn && !btn.dataset.enviando){ btn.disabled=bloquea; btn.title=bloquea?'Primero marca tus productos recibidos':''; }
+}
+function irPorRecibir(){
+  const b=document.querySelector('nav.tabs button[data-view="porrecibir"]');
+  if(b) switchView('porrecibir',b);
+}
+async function cargarPorRecibir(){
+  const el=document.getElementById('porRecibirBody');
+  el.innerHTML='<div class="loading"><div class="spinner"></div>Cargando…</div>';
+  await actualizarPorRecibir();
+  SEL_RECIBIR.clear();
+  const filas=POR_RECIBIR_FILAS;
+  if(!filas.length){ el.innerHTML='<div class="section-eyebrow">Por recibir</div><div class="empty">No tienes productos pendientes de recibir. Ya puedes hacer pedidos.</div><div id="porRecibirMsg"></div>'; return; }
+  el.innerHTML=`<div class="section-eyebrow">Por recibir</div>
+    <div class="note" style="margin-top:0">Compras ya compró esto. Marca lo que te llegó. Si algo no llegó, márcalo "No llegó" y regresa a Compras para conseguirlo.</div>
+    <div class="row-actions" style="margin:10px 0 14px;flex-wrap:wrap">
+      <button class="cap-btn" style="padding:9px 16px" onclick="recibirTodo()">✓ Todo llegó (${filas.length})</button>
+      <button class="cap-btn sec" style="padding:9px 16px" id="btnRecSel" onclick="recibirSeleccion('marcarRecibida')" disabled>✓ Llegaron los seleccionados</button>
+      <button class="cap-btn sec" style="padding:9px 16px" id="btnNoLlegoSel" onclick="recibirSeleccion('noLlego')" disabled>✗ No llegaron los seleccionados</button>
+    </div>
+    <div style="overflow-x:auto"><table class="aud"><thead><tr>
+      <th><input type="checkbox" onchange="selTodosRecibir(this.checked)"></th><th>Artículo</th><th>Cant.</th><th>Comprado</th><th>Pedido</th><th>Acción</th>
+    </tr></thead><tbody>${filas.map(r=>`<tr>
+      <td><input type="checkbox" class="chkRec" value="${r[0]}" onchange="selRecibir('${r[0]}',this.checked)"></td>
+      <td>${escapeHtml(r[6])}${r[25]?`<div style="font-size:10.5px;color:var(--text-secondary)">${escapeHtml(r[25])}</div>`:''}</td>
+      <td class="num">${r[8]}${r[9]?' '+escapeHtml(r[9]):''}</td>
+      <td>${escapeHtml(r[20]||'')}</td><td>${escapeHtml(r[1]||'')}</td>
+      <td><div class="row-actions"><button class="mini-btn ok" onclick="recibirIds(['${r[0]}'],'marcarRecibida')">Llegó</button>
+        <button class="mini-btn bad" onclick="recibirIds(['${r[0]}'],'noLlego')">No llegó</button></div></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div id="porRecibirMsg"></div>`;
+}
+function selRecibir(id,on){ on?SEL_RECIBIR.add(id):SEL_RECIBIR.delete(id);
+  ['btnRecSel','btnNoLlegoSel'].forEach(b=>{const x=document.getElementById(b); if(x) x.disabled=!SEL_RECIBIR.size;}); }
+function selTodosRecibir(on){ document.querySelectorAll('.chkRec').forEach(c=>{c.checked=on; selRecibir(c.value,on);}); }
+function recibirTodo(){ return recibirIds(POR_RECIBIR_FILAS.map(r=>String(r[0])),'marcarRecibida'); }
+function recibirSeleccion(accion){ return recibirIds([...SEL_RECIBIR],accion); }
+async function recibirIds(ids,accion){
+  if(!ids.length) return;
+  let motivo='';
+  if(accion==='noLlego'){
+    const m=prompt(ids.length+' producto(s) regresan a Compras para conseguirlos. ¿Qué pasó? (opcional)','');
+    if(m===null) return; motivo=m.trim();
+  } else if(ids.length>1 && !confirm('¿Confirmas que llegaron '+ids.length+' producto(s)?')) return;
+  const msg=document.getElementById('porRecibirMsg');
+  if(msg) msg.innerHTML='<div class="okmsg">Guardando…</div>';
+  // Se manda en bloques de 150 para que no se corte con pedidos muy grandes (p. ej. 1,000+ productos).
+  const BLOQUE=150; let hechos=0, omitidos=0, error='';
+  document.querySelectorAll('#porRecibirBody button').forEach(b=>b.disabled=true);
+  for(let k=0;k<ids.length;k+=BLOQUE){
+    if(msg) msg.innerHTML=`<div class="okmsg">Guardando… ${Math.min(k+BLOQUE,ids.length)} de ${ids.length}</div>`;
+    try{
+      const j=await apiPost({accion:'requisiciones_marcar_lote',id:SESSION.id,pin:SESSION.pin,idItems:ids.slice(k,k+BLOQUE),accionEstatus:accion,motivo});
+      if(!j.ok){ error=j.error; break; }
+      hechos+=j.procesados||0; omitidos+=j.omitidos||0;
+    }catch(e){ error='Se cortó la conexión. Lo que ya se guardó se queda; vuelve a intentar con lo que falta.'; break; }
+  }
+  document.getElementById('historialBody').dataset.loaded='';
+  await cargarPorRecibir();
+  const m2=document.getElementById('porRecibirMsg');
+  const txt = accion==='noLlego' ? hechos+' producto(s) regresaron a Compras para conseguirlos.' : hechos+' producto(s) marcados como recibidos.';
+  if(m2) m2.innerHTML = (hechos?`<div class="okmsg">${txt}${omitidos?' ('+omitidos+' ya no estaban por recibir)':''}</div>`:'') + (error?`<div class="errbox">${error}</div>`:'');
 }
 
 // ————— Historial / Mis solicitudes —————
