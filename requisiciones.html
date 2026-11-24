@@ -294,13 +294,20 @@ const CONFIG={
 };
 // Orden fijo (paleta categórica validada) — nunca reordenar según los valores del mes.
 const DEPARTAMENTOS=[
+  {nombre:'Dirección',      color:'#88285C'},
+  {nombre:'Gerencia',       color:'#2C6E73'},
   {nombre:'Administración', color:'#2a78d6'},
   {nombre:'Restaurante',    color:'#eb6834'},
   {nombre:'Cocina',         color:'#1baf7a'},
   {nombre:'Mantenimiento',  color:'#eda100'},
   {nombre:'Ama de llaves',  color:'#e87ba4'},
   {nombre:'Recepción',      color:'#008300'},
+  {nombre:'Eventos',        color:'#7a5cc7'},
 ];
+// Dirección y Gerencia ven TODO el catálogo (no tienen artículos propios en la Matriz) y pueden
+// pedir cualquier día/hora (igual que superfull).
+const DEPTOS_VEN_TODO=['Dirección','Gerencia'];
+function itemsDeDepto(depto){ return DEPTOS_VEN_TODO.includes(depto) ? CATALOGO : CATALOGO.filter(c=>c[4]===depto); }
 const URGENCIAS=['Baja','Media','Alta','Urgente'];
 // Categorías fijas de insumos (columna Categoria en la pestaña Catalogo) — permiten navegar
 // "Nueva requisición" por pestañas en vez de un solo buscador, dado lo grande que es la lista.
@@ -314,9 +321,9 @@ const CATEGORIAS_ALIAS={'Carnes':'Carnes y Lácteos','Lácteos':'Carnes y Lácte
 // nov-2026: las categorías salen de la Matriz (col Q "INFORMACION"), por departamento — ya no
 // hay lista fija. Un depto tiene pestañas de categoría si alguno de sus artículos trae categoría.
 const SIN_CAT='Sin categoría';
-function tieneCategorias(depto){ return CATALOGO.some(c=>c[4]===depto && c[7]); }
+function tieneCategorias(depto){ return itemsDeDepto(depto).some(c=>c[7]); }
 function categoriasDe(depto){
-  const set=new Set(CATALOGO.filter(c=>c[4]===depto).map(c=>c[7]||SIN_CAT));
+  const set=new Set(itemsDeDepto(depto).map(c=>c[7]||SIN_CAT));
   return [...set].sort((a,b)=>(a===SIN_CAT)-(b===SIN_CAT) || a.localeCompare(b,'es'));
 }
 function ordenCat(a,b){ return (a===SIN_CAT)-(b===SIN_CAT) || String(a).localeCompare(String(b),'es'); }
@@ -346,7 +353,10 @@ function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').repla
 function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 const NIVELES_VALIDOS=['superfull','full','lider'];
 function esSuperfull(){ return SESSION && SESSION.nivel==='superfull'; }
-function esAprobador(){ return SESSION && (SESSION.nivel==='full' || SESSION.nivel==='superfull'); }
+function esFullReal(){ return SESSION && (SESSION.nivel==='full' || SESSION.nivel==='superfull'); }
+// nov-2026: el departamento Gerencia también aprueba requisiciones (Pendientes, Acumulados, etc.).
+function esGerenciaDepto(){ return SESSION && normaliza(SESSION.departamento)==='gerencia'; }
+function esAprobador(){ return esFullReal() || esGerenciaDepto(); }
 function esLiderCompras(){ return SESSION && SESSION.nivel==='lider' && SESSION.rolEspecial==='compras'; }
 function esLiderNormal(){ return SESSION && SESSION.nivel==='lider' && !esLiderCompras(); }
 function verTodosDeptos(){ return esAprobador() || esLiderCompras(); }
@@ -524,7 +534,7 @@ function renderNueva(){
   const hoy=new Date().toISOString().slice(0,10);
   const deptoOpts = esLiderNormal()
     ? `<option>${SESSION.departamento}</option>`
-    : DEPARTAMENTOS.map(d=>`<option>${d.nombre}</option>`).join('');
+    : DEPARTAMENTOS.map(d=>`<option ${esSuperfull()&&d.nombre==='Dirección'?'selected':''}>${d.nombre}</option>`).join('');
   const deptoDisabled = esLiderNormal() ? 'disabled' : '';
   document.getElementById('nuevaBody').innerHTML=`
     <div class="section-eyebrow">Nueva requisición</div>
@@ -626,7 +636,7 @@ function renderCatTabsBotones(){
   const cont=document.getElementById('catTabs');
   if(!cont) return;
   const cats=categoriasDe(departamentoActual());
-  cont.innerHTML=cats.map((cat,i)=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria(categoriasDe(departamentoActual())[${i}])">${escapeHtml(catLabel(cat))} (${CATALOGO.filter(c=>c[4]===departamentoActual() && (c[7]||SIN_CAT)===cat).length})</button>`).join('');
+  cont.innerHTML=cats.map((cat,i)=>`<button type="button" class="cat-tab-btn ${cat===CATEGORIA_ACTIVA?'active':''}" onclick="elegirCategoria(categoriasDe(departamentoActual())[${i}])">${escapeHtml(catLabel(cat))} (${itemsDeDepto(departamentoActual()).filter(c=>(c[7]||SIN_CAT)===cat).length})</button>`).join('');
 }
 function elegirCategoria(cat){
   CATEGORIA_ACTIVA = (CATEGORIA_ACTIVA===cat) ? '' : cat;
@@ -637,7 +647,7 @@ function renderListaCategoria(){
   const cont=document.getElementById('catListaBody');
   if(!cont) return;
   if(!CATEGORIA_ACTIVA){ cont.innerHTML=''; ITEMS_CATEGORIA_ACTUAL=[]; return; }
-  ITEMS_CATEGORIA_ACTUAL=CATALOGO.filter(c=>c[4]===departamentoActual() && (c[7]||SIN_CAT)===CATEGORIA_ACTIVA)
+  ITEMS_CATEGORIA_ACTUAL=itemsDeDepto(departamentoActual()).filter(c=>(c[7]||SIN_CAT)===CATEGORIA_ACTIVA)
     .sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'es'));
   if(!ITEMS_CATEGORIA_ACTUAL.length){
     cont.innerHTML='<div class="note">Todavía no hay artículos capturados en "'+escapeHtml(CATEGORIA_ACTIVA)+'".</div>';
@@ -801,7 +811,10 @@ function renderCarrito(){
   const esCocina = departamento===DEPTO_SIN_VENTANA;
   const aviso=document.getElementById('ventanaAviso');
   const btn=document.getElementById('btnEnviarPedido');
-  if(v.permitido){
+  if(esSuperfull() || DEPTOS_VEN_TODO.includes(departamento)){
+    aviso.innerHTML='<div class="window-note window-ok">'+(esSuperfull()?'Dirección: se envía ya aprobada, cualquier día y hora.':'Gerencia: puedes enviar cualquier día y hora.')+'</div>';
+    btn.disabled=false;
+  } else if(v.permitido){
     aviso.innerHTML='<div class="window-note window-ok">Dentro del horario de captura.</div>';
     btn.disabled=false;
   } else if(esCocina){
@@ -833,8 +846,11 @@ async function enviarPedido(){
   try{
     const j=await apiPost(body);
     if(!j.ok){msg.innerHTML=`<div class="errbox">${j.error}</div>`;liberar();return;}
-    msg.innerHTML=`<div class="okmsg">Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${esAprobador()?'"Pendientes"':'"Historial"'}.</div>`;
-    renderNueva();
+    const okTxt = esSuperfull()
+      ? `Pedido ${j.id} enviado y aprobado (${j.items} artículo(s)). Compras ya lo ve en "Por comprar".`
+      : `Pedido ${j.id} enviado con ${j.items} artículo(s). Aparecerá en ${esAprobador()?'"Pendientes"':'"Historial"'}.`;
+    renderNueva(); // redibuja el formulario vacío; el mensaje va DESPUÉS para que no se borre
+    document.getElementById('nuevaMsg').innerHTML=`<div class="okmsg">${okTxt}</div>`;
     if(esAprobador())cargarPendientes();
     document.getElementById('historialBody').dataset.loaded='';
   }catch(e){msg.innerHTML='<div class="errbox">No se pudo confirmar el envío. Revisa en "Historial" antes de volver a enviar — si lo reenvías desde aquí no se duplica.</div>';liberar();}
@@ -1671,7 +1687,7 @@ function accionesCL(est,depto){
   const a=[];
   if(est==='Pendiente'){
     if(esSuperfull()) a.push(['comprada','✓ Comprada',true]);
-    else if(PREAUTORIZACION && esAprobador()) a.push(['preautorizar','✓ Pre-autorizar',true]);
+    else if(PREAUTORIZACION && esFullReal()) a.push(['preautorizar','✓ Pre-autorizar',true]);
   } else if(est==='Pre-autorizada'){
     if(esSuperfull()) a.push(['comprada','✓ Comprada',true]);
   } else if(est==='Comprada'){
@@ -1682,7 +1698,7 @@ function accionesCL(est,depto){
   }
   return a;
 }
-function puedeRechazarCL(est){ return esAprobador() && (est==='Pendiente'||est==='Pre-autorizada'); }
+function puedeRechazarCL(est){ return esFullReal() && (est==='Pendiente'||est==='Pre-autorizada'); }
 // "Por atender": Manu → lo que falta comprar; líder → lo que ya se compró y falta marcar "Ya llegó".
 // (Full/Superfull pueden marcar "Ya llegó" como respaldo, pero no se les cuenta como pendiente.)
 function tieneAccionCL(estatus,depto){
