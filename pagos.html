@@ -232,6 +232,8 @@ const C={id:0,fSol:1,solId:2,solNom:3,prov:4,cat:5,concepto:6,monto:7,mon:8,form
 const money=n=>(isNaN(n)||n===''||n==null)?'–':Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>{const x=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;};
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Texto seguro dentro de onclick="…" (IDs como MZ:D'AMICO)
+const jsq=s=>esc(JSON.stringify(String(s==null?'':s)));
 const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 // Fecha/hora en Puerto Escondido (no UTC — antes después de las 6 pm salía la fecha de mañana)
 function hoyMX(){return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City'}).format(new Date());}
@@ -346,7 +348,12 @@ const LOADING='<div class="loading"><div class="spinner"></div>Cargando…</div>
 async function cargarTodo(){
   ['concentradoBody','porpagarBody','miasBody','historialBody','proveedoresBody','nuevaBody'].forEach(i=>{document.getElementById(i).innerHTML=LOADING;});
   // La captura espera a tener proveedores (Matriz) y categorías; los pagos cargan en paralelo.
-  await Promise.all([cargarPagos(),Promise.all([cargarProveedores(),cargarCats()]).then(()=>{renderNueva();applyPrefillFromURL();revisarVersion();})]);
+  await Promise.all([cargarPagos(),Promise.all([cargarProveedores(),cargarCats()]).then(()=>{
+    // Si algo falla al dibujar, mostrar el error en vez de dejar la pantalla congelada.
+    try{renderNueva();applyPrefillFromURL();}
+    catch(e){document.getElementById('nuevaBody').innerHTML=`<div class="errbox">No se pudo mostrar el formulario: ${esc(e.message)}. Recarga la página (Ctrl+Shift+R).</div>`;}
+    revisarVersion();
+  })]);
 }
 async function cargarPagos(){
   try{
@@ -575,8 +582,7 @@ let PROV_SEL='';
 function deptoActual(){return SESSION.departamento||val('pDepto')||'';}
 function catsPara(depto){
   if(!CATS)return ['OTROS'];
-  const cod=CATS.deptoCodigo[norm(depto)];
-  return (cod&&CATS.porCodigo[cod])||CATS.general;
+  return (CATS.porDepto&&CATS.porDepto[norm(depto)])||CATS.general||['OTROS'];
 }
 function opcionesCat(depto,sel){
   const l=catsPara(depto).slice();if(sel&&l.indexOf(sel)===-1)l.unshift(sel);
@@ -634,7 +640,7 @@ function provSeleccionado(){return provPorId(PROV_SEL)||provPorNombre(val('pProv
 function pagoTxt(p,completo){
   if(p[7])return 'CLABE '+(completo?esc(p[7]):'••••'+esc(String(p[7]).slice(-4)))+(p[10]?' · '+esc(p[10]):'');
   if(p[8])return 'Cuenta '+(completo?esc(p[8]):'registrada')+(p[10]?' · '+esc(p[10]):'');
-  return esc(p[11]||'Datos bancarios en Administración');
+  return esc(p[11]||'')+(p[11]?' · ':'')+'<span class="sub">datos bancarios en Administración</span>';
 }
 // ——— Buscador de proveedores (nombre comercial, razón social, RFC o ID; sin acentos) ———
 function mostrarSug(){
@@ -645,7 +651,7 @@ function mostrarSug(){
     if((' '+n+' '+r).indexOf(' '+t)!==-1)return 1;return norm(p[1]+' '+p[3]+' '+p[6]).indexOf(t)!==-1?2:9;};
   const lst=(t?PROVEEDORES_CACHE.map(p=>[pts(p),p]).filter(x=>x[0]<9).sort((x,y)=>x[0]-y[0]).map(x=>x[1]):PROVEEDORES_CACHE).slice(0,8);
   const exacto=provSeleccionado();
-  box.innerHTML=lst.map((p,i)=>`<div class="ac-item${i===0?' on':''}" onmousedown="elegirProv('${esc(p[0])}')"><b>${esc(p[1])}</b><span class="sub"> · ${p[3]?esc(p[3])+' · ':''}${p[6]?esc(p[6]):'sin RFC'} · ${esc(p[0])}</span></div>`).join('')
+  box.innerHTML=lst.map((p,i)=>`<div class="ac-item${i===0?' on':''}" onmousedown="elegirProv(${jsq(p[0])})"><b>${esc(p[1])}</b><span class="sub"> · ${p[3]?esc(p[3])+' · ':''}${p[6]?esc(p[6]):'sin RFC'} · ${esc(p[0])}</span></div>`).join('')
     +(exacto?'':`<div class="ac-item ac-new" onmousedown="modalProveedor()">+ ¿Es nuevo? Registrar ${t?'“'+esc(inp.value.trim())+'”':'proveedor'}</div>`)
     +(!lst.length&&t?'<div class="ac-empty">No está en la lista de proveedores.</div>':'');
   box.classList.toggle('hidden',!!exacto&&lst.length<=1);
@@ -780,16 +786,16 @@ let ERR_MATRIZ='';
 async function cargarCats(){
   try{const j=await apiGet({accion:'pagos_categorias_list',id:SESSION.id,pin:SESSION.pin});if(j.ok){CATS=j;if(j.aviso)ERR_MATRIZ=j.aviso;}else ERR_MATRIZ=j.error||'';}
   catch(e){ERR_MATRIZ='Sin conexión con el servidor.';}
-  if(!CATS)CATS={porCodigo:{},general:['OTROS'],deptoCodigo:{},deptos:[]};
+  if(!CATS)CATS={porDepto:{},general:['OTROS'],deptos:[]};
 }
 // Avisa si el servidor (Apps Script) publicado no es la versión que esta página espera.
-const VERSION_ESPERADA='pagos-v3.1';
+const VERSION_ESPERADA='pagos-v3.2';
 async function revisarVersion(){
   let v='';try{const j=await apiGet({accion:'version'});v=j&&j.version||'';}catch(e){}
   if(v===VERSION_ESPERADA&&!ERR_MATRIZ)return;
   const txt=v!==VERSION_ESPERADA
     ? 'El servidor (Apps Script) tiene una versión anterior'+(v?' ('+esc(v)+')':'')+'. Implementar → Administrar implementaciones → ✏️ → Nueva versión.'
-    : 'No se pudo leer la Matriz Proveedores: '+esc(ERR_MATRIZ)+' — en Apps Script corre “diagnosticoPagos” y acepta permisos.';
+    : 'Problema al leer proveedores/categorías: '+esc(ERR_MATRIZ)+' — en Apps Script corre “diagnosticoPagos” y acepta permisos.';
   document.querySelector('main').insertAdjacentHTML('afterbegin',`<div class="errbox">⚠ ${veTodo()?txt:'Hay un problema con el sistema de pagos. Avisa a Administración.'}</div>`);
 }
 async function cargarProveedores(){
@@ -805,7 +811,7 @@ async function cargarProveedores(){
 function renderProveedores(){
   document.getElementById('proveedoresBody').innerHTML=`
     <div class="ctl"><input id="provBuscar" placeholder="Buscar nombre, razón social, RFC…" oninput="renderProvTabla()" style="width:260px"><button class="cap-btn" onclick="modalProveedor()">+ Proveedor nuevo</button></div>
-    <p class="sub" style="margin:-10px 0 14px">Esta lista es la “Property Vendor List” de la Matriz Proveedores. Registra solo proveedores que no aparezcan aquí.</p>
+    <p class="sub" style="margin:-10px 0 14px">Proveedores de la pestaña Matriz + los registrados desde Pagos. Registra solo proveedores que no aparezcan aquí.</p>
     <div id="provTabla"></div>`;
   renderProvTabla();
 }
@@ -814,9 +820,9 @@ function renderProvTabla(){
   const todos=PROVEEDORES_CACHE.filter(p=>!t||norm(p[1]+' '+p[3]+' '+p[2]+' '+p[6]+' '+p[0]).indexOf(t)!==-1);
   const lst=todos.slice(0,150);
   document.getElementById('provTabla').innerHTML=`<div class="section-eyebrow">Proveedores (${todos.length}${todos.length>lst.length?' · mostrando 150, usa el buscador':''})</div><div style="overflow-x:auto"><table class="aud"><thead><tr><th>Proveedor</th><th>Giro</th><th>RFC</th><th>Pago</th><th>Teléfono</th>${ed?'<th></th>':''}</tr></thead><tbody>
-    ${lst.map(p=>`<tr><td><b>${esc(p[1])}</b><div class="sub">${esc(p[0])}${p[3]?' · '+esc(p[3]):''}</div></td><td>${esc(p[2])}</td><td>${esc(p[6]||'—')}</td>
+    ${lst.map(p=>`<tr><td><b>${esc(p[1])}</b><div class="sub">${p[3]?esc(p[3])+' · ':''}${esc(p[12]||'')}</div></td><td>${esc(p[2])}</td><td>${esc(p[6]||'—')}</td>
       <td>${pagoTxt(p,ed)}</td><td>${esc(p[4])}</td>
-      ${ed?`<td><button class="mini-btn ghost" onclick="modalProveedor('${esc(p[0])}')">Editar</button></td>`:''}</tr>`).join('')||'<tr><td colspan="6" class="empty">Sin resultados.</td></tr>'}
+      ${ed?`<td><button class="mini-btn ghost" onclick="modalProveedor(${jsq(p[0])})">Editar</button></td>`:''}</tr>`).join('')||'<tr><td colspan="6" class="empty">Sin resultados.</td></tr>'}
   </tbody></table></div>`;
 }
 // Alta de proveedor NUEVO (cualquier líder) o corrección de datos (Administración/Dirección).
@@ -841,7 +847,7 @@ function modalProveedor(idEditar){
     <div id="vBancoWrap" class="fld"><label>Banco</label><input id="vBanco" value="${esc(p?p[10]:'')}"></div>
     <div class="fld"><label>Teléfono</label><input id="vTelefono" value="${esc(p?p[4]:'')}" inputmode="tel"></div>
     <div class="fld"><label>Correo</label><input id="vEmail" type="email" value="${esc(p?p[5]:'')}" placeholder="Opcional"></div>
-    <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" onclick="guardarProveedor(${p?`'${esc(p[0])}'`:''})">Guardar</button></div>`);
+    <div id="mMsg"></div><div class="acts"><button class="mini-btn ghost" onclick="cerrarModal()">Cancelar</button><button class="cap-btn" onclick="guardarProveedor(${p?`${jsq(p[0])}`:''})">Guardar</button></div>`);
   toggleClabe();
 }
 function toggleClabe(){
@@ -866,7 +872,7 @@ async function guardarProveedor(idEditar){
   if(!j.ok){
     modalErr(j.error);
     // Si ya existía, ofrecer usarlo directo
-    if(j.id&&!idEditar&&provPorId(j.id))document.getElementById('mMsg').insertAdjacentHTML('beforeend',`<button class="cap-btn sec" style="margin-top:8px" onclick="cerrarModal();switchView('nueva');elegirProv('${esc(j.id)}')">Usar ${esc(j.id)}</button>`);
+    if(j.id&&!idEditar&&provPorId(j.id))document.getElementById('mMsg').insertAdjacentHTML('beforeend',`<button class="cap-btn sec" style="margin-top:8px" onclick="cerrarModal();switchView('nueva');elegirProv(${jsq(j.id)})">Usar ${esc(j.id)}</button>`);
     return;
   }
   cerrarModal();
