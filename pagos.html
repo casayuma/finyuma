@@ -590,7 +590,7 @@ function opcionesCat(depto,sel){
 }
 function renderNueva(){
   const r=EDITANDO;
-  const ab=ventanaAbiertaMX()||esDireccion();
+  const ab=ventanaAbiertaMX()||esDireccion()||(CATS&&CATS.sinVentana);
   const v=(k,d)=>r?esc(r[C[k]]):(d||'');
   PROV_SEL=r?String(r[C.provId]||''):'';
   const deptoFijo=SESSION.departamento;
@@ -687,7 +687,7 @@ async function enviarPago(){
   const monto=num(val('pMonto'));
   if(!val('pConcepto')||monto<=0){msg.innerHTML='<div class="errbox">Concepto y monto son obligatorios.</div>';return;}
   if(!SESSION.departamento&&!val('pDepto')){msg.innerHTML='<div class="errbox">Elige el departamento.</div>';return;}
-  if(!EDITANDO && !ventanaAbiertaMX() && !esDireccion()){msg.innerHTML='<div class="errbox">Fuera de horario: se reciben de sábado 00:00 a miércoles 12:00 pm.</div>';return;}
+  if(!EDITANDO && !ventanaAbiertaMX() && !esDireccion() && !(CATS&&CATS.sinVentana)){msg.innerHTML='<div class="errbox">Fuera de horario: se reciben de sábado 00:00 a miércoles 12:00 pm.</div>';return;}
   if(monedaSel()!=='MXN'&&!confirm('Esta solicitud es en '+MON_NOMBRE[monedaSel()]+' ('+monedaSel()+'): '+MON_SIMB[monedaSel()]+money(monto)+'. ¿Es correcto?'))return;
   btn.disabled=true;
   try{
